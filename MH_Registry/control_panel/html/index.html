@@ -1,0 +1,1767 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>MH Control Panel</title>
+    <link rel="stylesheet" href="css/style.css">
+    <style>
+        .tab-icon { display: inline-flex; align-items: center; justify-content: center; padding: 0; background: none; box-shadow: none; }
+        .tab-icon svg { width: 22px; height: 22px; }
+        #tab-content { position: relative; }
+        .tab-panel { position: absolute; inset: 0; display: none; }
+        .tab-panel.active { display: block; }
+        .tab-panel iframe { width: 100%; height: 100%; border: 0; }
+        .cp-launch { display:block; }
+        .cp-header { display: flex; align-items: center; gap: 12px; padding: 14px 16px 12px; border-bottom: 0.5px solid #d1d1d6; }
+        .cp-header .cp-badge { width: 44px; height: 44px; border-radius: 11px; display:flex; align-items:center; justify-content:center; background: linear-gradient(135deg,#ffffff,#eef0f5); box-shadow: 0 1px 4px rgba(0,0,0,.16), inset 0 1px 0 rgba(255,255,255,.7); flex-shrink:0; }
+        .cp-header .cp-badge svg { width: 27px; height: 27px; }
+        .cp-header .cp-title { font-size: 16px; font-weight: 600; color: #1d1d1f; }
+        .cp-header .cp-desc { font-size: 11.5px; color: #6e6e73; margin-top: 2px; line-height: 1.35; }
+        .cp-actions { display: flex; flex-direction: column; gap: 7px; padding: 14px 16px; overflow:auto; }
+        .cp-empty { color: #8e8e93; font-size: 12px; padding: 18px 16px; }
+        .cp-dev-toggle { margin-top: 8px; font-size: 11.5px; color: #4A4473; cursor: pointer; user-select: none; }
+        .cp-dev-toggle:hover { text-decoration: underline; }
+        .cp-launchbar { padding: 10px 16px 0; display:flex; gap:7px; flex-wrap:wrap; }
+        .cp-launchbar button { border:0; border-radius:7px; background:#4A4473; color:#fff; font-size:12px; padding:7px 12px; cursor:pointer; }
+        .cp-launchbar button:hover { background:#3E3860; }
+        .action-button-full { text-align: left; }
+        .cp-frame-status { padding: 16px; color: #6e6e73; font-size: 12px; }
+        .cp-frame-status button { margin-top: 10px; border:0; border-radius:7px; background:#4A4473; color:#fff; font-size:12px; padding:7px 12px; cursor:pointer; }
+        .cp-form { padding: 16px; max-width: 760px; }
+        .cp-form h2 { margin: 0 0 12px; font-size: 16px; font-weight: 600; color:#1d1d1f; }
+        .cp-form-grid { display:grid; grid-template-columns: 1fr 160px; gap: 12px; align-items:end; }
+        .cp-field { display:flex; flex-direction:column; gap:5px; margin-bottom: 12px; }
+        .cp-field label { font-size: 11px; color:#6e6e73; }
+        .cp-field input, .cp-field select, .cp-field textarea { border:1px solid #d1d1d6; border-radius:6px; padding:0 8px; font-size:12px; background:#fff; color:#1d1d1f; }
+        .cp-field input, .cp-field select { height: 28px; }
+        .cp-field textarea { padding:8px; font-family:Consolas,monospace; resize:vertical; min-height:88px; }
+        .cp-field input:focus, .cp-field select:focus, .cp-field textarea:focus { outline:none; border-color:#4A4473; box-shadow:0 0 0 2px rgba(74,68,115,.10); }
+        .cp-card-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(250px,1fr)); gap:12px; }
+        .cp-setting-card { border:1px solid #d8dbe2; background:#fff; border-radius:8px; padding:12px; }
+        .cp-setting-card h3 { margin:0 0 10px; font-size:13px; font-weight:600; color:#1d1d1f; }
+        .cp-setting-card .cp-field:last-child { margin-bottom:0; }
+        .cp-wide-form { max-width:none !important; width:100%; box-sizing:border-box; }
+        .cp-wide-form .cp-card-grid { grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); }
+        .cp-setting-wide { grid-column:1 / -1; }
+        .fr-settings-form { max-width:none !important; width:100%; box-sizing:border-box; }
+        .fr-settings-form .cp-card-grid { grid-template-columns:repeat(auto-fit,minmax(360px,1fr)); }
+        .fr-setting-wide { grid-column:1 / -1; }
+        .cp-note { color:#6e6e73; font-size:11.5px; line-height:1.4; margin:0 0 10px; }
+        .cp-check-row { display:flex; align-items:center; gap:10px; min-height:28px; }
+        .cp-check-row label { display:flex; align-items:center; gap:5px; color:#1d1d1f; font-size:12px; }
+        .cp-check-row input { width:16px; height:16px; }
+        .fr-keyword-list { display:flex; flex-direction:column; gap:7px; min-height:34px; }
+        .fr-keyword-card { display:flex; align-items:center; gap:8px; min-height:34px; border:1px solid #d1d1d6; border-radius:8px; background:#fff; padding:5px 7px; }
+        .fr-keyword-card.dragging { opacity:.45; border-style:dashed; }
+        .fr-keyword-card.drag-over { border-color:#4A4473; box-shadow:0 0 0 2px rgba(74,68,115,.10); }
+        .fr-keyword-grip { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid #d1d1d6; border-radius:8px; color:#6e6e73; cursor:grab; user-select:none; letter-spacing:-3px; font-size:14px; flex:0 0 auto; }
+        .fr-keyword-grip:active { cursor:grabbing; }
+        .fr-keyword-value { min-width:0; flex:1; height:26px; border:0 !important; background:transparent !important; padding:0 2px !important; color:#1d1d1f; font:700 12px/1.2 Consolas,monospace; }
+        .fr-keyword-value:focus { outline:none; box-shadow:none !important; }
+        .fr-keyword-delete { width:26px; height:26px; border:0; border-radius:6px; background:#fff; color:#c33; font-size:18px; line-height:1; cursor:pointer; flex:0 0 auto; }
+        .fr-keyword-delete:hover { background:#fff1f1; }
+        .fr-keyword-add-row { display:flex; gap:6px; align-items:center; margin-top:7px; }
+        .fr-keyword-add-row input { flex:1; min-width:0; }
+        .fr-pair-list { display:flex; flex-direction:column; gap:8px; min-height:34px; }
+        .fr-pair-card { display:grid; grid-template-columns:34px minmax(180px,1fr) minmax(180px,1fr) 96px 28px; gap:8px; align-items:center; border:1px solid #d1d1d6; border-radius:8px; background:#fff; padding:6px; }
+        .fr-pair-card.dragging { opacity:.45; border-style:dashed; }
+        .fr-pair-card.drag-over { border-color:#4A4473; box-shadow:0 0 0 2px rgba(74,68,115,.10); }
+        .fr-pair-card input, .fr-pair-card select { min-width:0; height:28px; border:1px solid #d1d1d6; border-radius:6px; padding:0 7px; font-size:12px; }
+        .fr-pair-delete { width:26px; height:26px; border:0; border-radius:6px; background:#fff; color:#c33; font-size:18px; line-height:1; cursor:pointer; }
+        .fr-pair-delete:hover { background:#fff1f1; }
+        .cp-button-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-top: 4px; }
+        .cp-button-row button, .cp-inline-btn { border:0; border-radius:7px; background:#4A4473; color:#fff; font-size:12px; padding:7px 12px; cursor:pointer; }
+        .cp-button-row button.secondary, .cp-inline-btn.secondary { background:#ffffff; color:#1d1d1f; border:1px solid #d1d1d6; }
+        .cp-status { margin-top: 10px; font-size:12px; color:#2f8f5b; min-height:18px; }
+        .cp-status.err { color:#dc3545; }
+        /* --- Chip field (Assemble) --- */
+        .chipfield { border:1px solid #d1d1d6; border-radius:8px; padding:6px; background:#fff; }
+        .chipfield.dragover { border-color:#4A4473; box-shadow:0 0 0 2px rgba(74,68,115,.12); }
+        .chip-chips { display:flex; flex-direction:column; gap:8px; min-height:34px; }
+        .chip { display:grid; grid-template-columns:34px minmax(0,1fr) 28px; gap:8px; align-items:center; min-height:38px; background:#fff; border:1px solid #d1d1d6; color:#1d1d1f; border-radius:8px; padding:5px 6px; font-size:12px; max-width:100%; }
+        .chip.dragging { opacity:.45; border-style:dashed; }
+        .chip.drag-over { border-color:#9fb4ff; box-shadow:0 0 0 2px rgba(100,132,255,.18); }
+        .chip .chip-grip { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border:1px solid #d1d1d6; border-radius:8px; color:#6e6e73; background:#f2f2f7; cursor:grab; user-select:none; letter-spacing:-3px; font-size:14px; }
+        .chip .chip-grip:active { cursor:grabbing; }
+        .chip .chip-value { min-width:0; height:26px; border:0 !important; background:transparent !important; padding:0 2px !important; color:#1d1d1f; font:400 12px/1.35 -apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif; }
+        .chip .chip-value:focus { outline:none; box-shadow:none !important; }
+        .chip .chip-del { width:26px; height:26px; border:0; border-radius:6px; background:#fff; color:#c33; font-size:20px; line-height:1; cursor:pointer; }
+        .chip .chip-del:hover { background:#fff1f1; }
+        .chip-empty { color:#b0b0b5; font-size:12px; padding:3px 4px; }
+        .chip-row { display:flex; gap:6px; align-items:center; margin-top:6px; }
+        .chip-input { flex:1; height:28px; border:1px solid #d1d1d6; border-radius:6px; padding:0 8px; font-size:12px; }
+        .chip-input:focus { outline:none; border-color:#4A4473; }
+        .chip-btn { border:0; border-radius:6px; background:#eef0f5; color:#1d1d1f; border:1px solid #d8dbe2; font-size:12px; padding:5px 9px; cursor:pointer; white-space:nowrap; }
+        .chip-btn:hover { background:#e3e6ee; }
+        .chip-raw { width:100%; box-sizing:border-box; min-height:80px; margin-top:6px; font-family:Consolas,monospace; font-size:12px; border:1px solid #d1d1d6; border-radius:6px; padding:6px; display:none; }
+        .chipfield.raw .chip-chips, .chipfield.raw .chip-row .chip-input, .chipfield.raw .chip-pick { display:none; }
+        .chipfield.raw .chip-raw { display:block; }
+        /* picker popup */
+        .mp-pop { position:fixed; z-index:9999; width:300px; max-height:320px; background:#fff; border:1px solid #c5ccd8; border-radius:10px; box-shadow:0 8px 28px rgba(0,0,0,.22); display:none; flex-direction:column; }
+        .mp-pop.open { display:flex; }
+        .mp-pop .mp-search { margin:8px; height:28px; border:1px solid #d1d1d6; border-radius:6px; padding:0 8px; font-size:12px; }
+        .mp-pop .mp-list { overflow:auto; padding:0 8px 8px; }
+        .mp-pop .mp-item { display:flex; align-items:center; gap:7px; padding:4px 4px; font-size:12px; border-radius:5px; cursor:pointer; }
+        .mp-pop .mp-item:hover { background:#f2f3f7; }
+        .mp-pop .mp-foot { display:flex; justify-content:space-between; align-items:center; padding:7px 8px; border-top:1px solid #eceef2; font-size:11px; color:#8e8e93; }
+        .mp-pop .mp-foot button { border:0; border-radius:6px; background:#4A4473; color:#fff; font-size:12px; padding:5px 10px; cursor:pointer; }
+        .mp-empty { color:#b0b0b5; font-size:12px; padding:8px 4px; }
+        .scope-badge { display:inline-flex; align-items:center; justify-content:center; height:18px; padding:0 6px; border-radius:5px; font-size:10px; font-weight:700; margin-left:6px; vertical-align:middle; }
+        .scope-global { background:#eef7ff; color:#146b96; border:1px solid #c8e6f5; }
+        .scope-project { background:#fff4e6; color:#9a5a00; border:1px solid #ffd79a; }
+        .cp-mini-table { width:100%; border-collapse:collapse; margin-bottom:8px; font-size:12px; }
+        .cp-mini-table th, .cp-mini-table td { border:1px solid #d1d1d6; padding:5px; text-align:left; }
+        .cp-mini-table th { color:#6e6e73; font-weight:600; background:#f5f6f8; }
+        .cp-mini-table input[type="text"] { width:100%; height:26px; border:0; padding:0 5px; font-size:12px; background:#fff; color:#1d1d1f; }
+        .cp-mini-table input[type="checkbox"] { width:16px; height:16px; }
+        .cp-icon-btn { border:1px solid #d1d1d6; background:#fff; color:#1d1d1f; border-radius:6px; padding:4px 7px; cursor:pointer; }
+        .ss-search-cell { display:flex; align-items:center; gap:6px; }
+        .ss-search-shortcut-cell { display:flex; align-items:center; gap:5px; }
+        .ss-search-shortcut-cell input { min-width:0; flex:1; }
+        .ss-search-grip { color:#8e8e93; cursor:grab; user-select:none; letter-spacing:-3px; font-size:14px; flex:0 0 auto; }
+        .ss-search-grip:active { cursor:grabbing; }
+        .ss-search-row.dragging { opacity:.42; }
+        .ss-search-row.drag-over td { border-top:2px solid #4A4473; }
+        .ss-search-table input.ss-shortcut { text-align:center; font-family:Consolas,monospace; }
+        .cp-ratio-row { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:8px; }
+        .cp-ratio-row button { border:1px solid #d1d1d6; background:#fff; color:#1d1d1f; border-radius:6px; padding:5px 9px; cursor:pointer; font-size:12px; }
+        .cp-ratio-row button.active { background:#4A4473; color:#fff; border-color:#4A4473; }
+        #cp-footer { position:absolute; right:12px; bottom:12px; z-index:70; display:flex; align-items:center; gap:8px; background:rgba(255,255,255,.96); border:1px solid #d1d1d6; box-shadow:0 4px 18px rgba(0,0,0,.16); border-radius:8px; padding:8px; }
+        #cp-footer .dirty-dot { width:8px; height:8px; border-radius:50%; background:#c7c7cc; }
+        #cp-footer.dirty .dirty-dot { background:#ff9f0a; }
+        #cp-footer button { border:0; border-radius:7px; background:#4A4473; color:#fff; font-size:12px; padding:7px 10px; cursor:pointer; }
+        #cp-footer button.secondary { background:#fff; color:#1d1d1f; border:1px solid #d1d1d6; }
+        #cp-footer-status { color:#6e6e73; font-size:11px; max-width:240px; overflow:hidden; white-space:nowrap; text-overflow:ellipsis; }
+        #cp-footer-status.err { color:#dc3545; }
+    </style>
+</head>
+<body>
+
+<div id="settings-container">
+    <div id="loading-overlay" class="loading-overlay">
+        <div class="spinner"></div>
+        <div class="loading-text">Đang tải hệ thống MH...</div>
+    </div>
+
+    <div id="tabs">
+        <div class="search-box">
+            <input type="text" id="search-input" placeholder="Tìm app hoặc lệnh..." oninput="handleSearch(this.value)" spellcheck="false" autocomplete="off">
+        </div>
+        <div class="tabs-list" id="tabs-list"></div>
+        <div class="tabs-footer" onclick="toggleSidebar()">
+            <span class="tabs-footer-label">Thu gọn danh mục</span>
+            <span class="tabs-footer-icon">‹</span>
+        </div>
+    </div>
+
+    <div id="tab-content"></div>
+    <div id="cp-footer">
+        <span class="dirty-dot"></span>
+        <span id="cp-footer-status">Không có thay đổi chưa lưu.</span>
+        <button type="button" onclick="saveAllDirty()">Lưu tất cả</button>
+        <button class="secondary" type="button" onclick="exportConfigBackup()">Sao lưu XLSX</button>
+        <button class="secondary" type="button" onclick="restoreConfigBackup()">Phục hồi XLSX</button>
+    </div>
+</div>
+
+<script>
+    // ---- Bộ icon màu (duotone) -----------------------------------------
+    var P = '#4A4473', B = '#3CAFD6', K = '#D2759F', G = '#34c759', O = '#ff9f0a', GR='#8e8e93';
+    var ICONS = {
+        general:  svg('<rect x="3" y="3" width="18" height="18" rx="4" fill="'+P+'" opacity=".15"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="'+P+'" stroke-width="1.8"/><path d="M12 4.5v2M12 17.5v2M4.5 12h2M17.5 12h2M6.6 6.6l1.4 1.4M16 16l1.4 1.4M17.4 6.6 16 8M8 16l-1.4 1.4" stroke="'+P+'" stroke-width="1.7" stroke-linecap="round"/>'),
+        van:      svg('<rect x="3" y="5" width="18" height="6" rx="1.6" fill="'+B+'" opacity=".25"/><rect x="3" y="5" width="18" height="6" rx="1.6" fill="none" stroke="'+B+'" stroke-width="1.7"/><rect x="3" y="13" width="18" height="6" rx="1.6" fill="'+P+'" opacity=".18"/><rect x="3" y="13" width="18" height="6" rx="1.6" fill="none" stroke="'+P+'" stroke-width="1.7"/>'),
+        canh:     svg('<rect x="5" y="3" width="14" height="18" rx="2" fill="'+K+'" opacity=".18"/><rect x="5" y="3" width="14" height="18" rx="2" fill="none" stroke="'+K+'" stroke-width="1.7"/><circle cx="9.5" cy="12" r="1.2" fill="'+K+'"/>'),
+        thongke:  svg('<rect x="5" y="3" width="14" height="18" rx="2.2" fill="'+P+'" opacity=".14"/><rect x="5" y="3" width="14" height="18" rx="2.2" fill="none" stroke="'+P+'" stroke-width="1.7"/><path d="M9 8h6M9 12h6M9 16h4" stroke="'+B+'" stroke-width="1.8" stroke-linecap="round"/>'),
+        superimp: svg('<path d="M4 15v4a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-4" fill="none" stroke="'+P+'" stroke-width="1.7" stroke-linecap="round"/><path d="M12 3v9" stroke="'+B+'" stroke-width="1.8" stroke-linecap="round"/><path d="M8 8l4 4 4-4" fill="none" stroke="'+B+'" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>'),
+        rename:   svg('<path d="M3 7h9M3 12h6M3 17h6" stroke="'+P+'" stroke-width="1.8" stroke-linecap="round"/><path d="M15 15.5 19 11.5l2.2 2.2-4 4H15z" fill="'+O+'" opacity=".25"/><path d="M15 15.5 19 11.5l2.2 2.2-4 4H15z" fill="none" stroke="'+O+'" stroke-width="1.6" stroke-linejoin="round"/>'),
+        fast_rename: svg('<path d="M3 7h8M3 12h5M3 17h5" stroke="'+P+'" stroke-width="1.8" stroke-linecap="round"/><path d="M16 3 11 13h4l-2 8 7-11h-4l1-7z" fill="'+O+'" opacity=".3"/><path d="M16 3 11 13h4l-2 8 7-11h-4l1-7z" fill="none" stroke="'+O+'" stroke-width="1.5" stroke-linejoin="round"/>'),
+        select_similar: svg('<rect x="3" y="3" width="11" height="11" rx="2" fill="'+B+'" opacity=".2"/><rect x="3" y="3" width="11" height="11" rx="2" fill="none" stroke="'+B+'" stroke-width="1.7"/><rect x="10" y="10" width="11" height="11" rx="2" fill="'+P+'" opacity=".18"/><rect x="10" y="10" width="11" height="11" rx="2" fill="none" stroke="'+P+'" stroke-width="1.7"/>'),
+        name:     svg('<path d="M4 5h16v11H9l-4 4V5z" fill="'+B+'" opacity=".18"/><path d="M4 5h16v11H9l-4 4V5z" fill="none" stroke="'+B+'" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 10h8" stroke="'+B+'" stroke-width="1.8" stroke-linecap="round"/>'),
+        material: svg('<path d="M11 3l8.5 8.5-7 7a2.6 2.6 0 0 1-3.7 0l-4.3-4.3a2.6 2.6 0 0 1 0-3.7z" fill="'+K+'" opacity=".2"/><path d="M11 3l8.5 8.5-7 7a2.6 2.6 0 0 1-3.7 0l-4.3-4.3a2.6 2.6 0 0 1 0-3.7z" fill="none" stroke="'+K+'" stroke-width="1.7" stroke-linejoin="round"/><path d="M19 14c1.4 1.9 2 3 2 3.8a2 2 0 0 1-4 0c0-.8.6-1.9 2-3.8z" fill="'+O+'"/>'),
+        assemble: svg('<path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="'+P+'" opacity=".14"/><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z" fill="none" stroke="'+P+'" stroke-width="1.7" stroke-linejoin="round"/><path d="M4 7.5l8 4.5 8-4.5M12 12v9" stroke="'+B+'" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>'),
+        pk_addon: svg('<circle cx="9" cy="9" r="4.2" fill="'+B+'" opacity=".18"/><circle cx="9" cy="9" r="4.2" fill="none" stroke="'+B+'" stroke-width="1.7"/><path d="M9 5.2v7.6M5.2 9h7.6" stroke="'+B+'" stroke-width="1.5" stroke-linecap="round"/><path d="M13.5 13.5 20 20" stroke="'+P+'" stroke-width="1.9" stroke-linecap="round"/>'),
+        registry: svg('<circle cx="12" cy="12" r="8.5" fill="'+P+'" opacity=".12"/><circle cx="12" cy="12" r="3" fill="none" stroke="'+P+'" stroke-width="1.8"/><path d="M12 3.5v3M12 17.5v3M3.5 12h3M17.5 12h3M6 6l2 2M16 16l2 2M18 6l-2 2M8 16l-2 2" stroke="'+P+'" stroke-width="1.6" stroke-linecap="round"/>'),
+        "default": svg('<rect x="4" y="4" width="16" height="16" rx="3.5" fill="'+GR+'" opacity=".15"/><rect x="4" y="4" width="16" height="16" rx="3.5" fill="none" stroke="'+GR+'" stroke-width="1.7"/><circle cx="12" cy="12" r="3" fill="none" stroke="'+GR+'" stroke-width="1.7"/>')
+    };
+    function svg(inner){ return '<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">'+inner+'</svg>'; }
+
+    var DESCRIPTIONS = {
+        "Thongke": "Thống kê BOM, HUD vật liệu/thông tin, import phụ kiện.",
+        "Superimp": "Import nhanh cấu kiện DC, tự scale từ danh sách.",
+        "Rename": "Đổi tên hàng loạt theo template & phím tắt.",
+        "Fast Rename": "Đổi tên theo vùng/contact-plane, chia theo mã SP.",
+        "Select Similar": "Chọn đối tượng tương tự, isolate/unisolate.",
+        "Name": "Hiển thị nhãn tên đối tượng trong viewport.",
+        "Material": "Gán vật liệu, import từ Excel/CSV/JSON.",
+        "Assemble": "Dựng cây tủ/module, tạo bản vẽ.",
+        "PK Addon": "Tạo & gắn marker phụ kiện (PK) vào đối tượng.",
+        "Registry": "Trung tâm cấu hình & dữ liệu chung hệ MH."
+    };
+    var APP_ICON = {
+        "Thongke":"thongke","Superimp":"superimp","Rename":"rename","Fast Rename":"fast_rename",
+        "Select Similar":"select_similar","Name":"name","Material":"material","Assemble":"assemble",
+        "PK Addon":"pk_addon","Registry":"registry","Panel":"general","MH Panel":"general",
+        "Material Assign":"material","MH Material":"material","FastRename":"fast_rename",
+        "SelectSimilar":"select_similar","Viewport Names":"name","PK":"pk_addon",
+        "PK_Addon":"pk_addon","MH PK Addon":"pk_addon","MH Assemble":"assemble"
+    };
+    function appIconFor(name) {
+        var raw = String(name || '').trim();
+        if (APP_ICON[raw]) return APP_ICON[raw];
+        var n = raw.toLowerCase().replace(/^mh[\s_:-]*/,'').replace(/[_-]+/g,' ');
+        if (n.indexOf('thongke') >= 0 || n.indexOf('thống kê') >= 0) return 'thongke';
+        if (n.indexOf('superimp') >= 0 || n.indexOf('import') >= 0) return 'superimp';
+        if (n.indexOf('fast') >= 0 && n.indexOf('rename') >= 0) return 'fast_rename';
+        if (n.indexOf('rename') >= 0) return 'rename';
+        if (n.indexOf('select') >= 0 || n.indexOf('similar') >= 0) return 'select_similar';
+        if (n.indexOf('material') >= 0 || n.indexOf('vật liệu') >= 0 || n.indexOf('vat lieu') >= 0) return 'material';
+        if (n.indexOf('assemble') >= 0) return 'assemble';
+        if (n.indexOf('pk') >= 0 || n.indexOf('phụ kiện') >= 0 || n.indexOf('phu kien') >= 0) return 'pk_addon';
+        if (n.indexOf('name') >= 0 || n.indexOf('nhãn') >= 0 || n.indexOf('nhan') >= 0) return 'name';
+        if (n.indexOf('registry') >= 0 || n.indexOf('control') >= 0) return 'registry';
+        if (n.indexOf('panel') >= 0) return 'general';
+        return 'default';
+    }
+    function appDescriptionFor(name) {
+        return DESCRIPTIONS[name] || DESCRIPTIONS[String(name || '').replace(/^MH[\s_:-]*/,'')] || '';
+    }
+
+    // Panel cài đặt nhúng (MH_panel). section = khoá lưu trong MH::Panel::Settings.
+    var SETTINGS_PANELS = [
+        { id:'cai_dat',  label:'Thiết lập chung', icon:'general', src:'chung.html',   section:'cai_dat' },
+        { id:'tao_van',  label:'Tạo ván',         icon:'van',     src:'taovan.html',  section:'tao_van',  launch:{app:'Panel', key:'tao_van',  text:'Dựng tấm ván'} },
+        { id:'tao_canh', label:'Tạo cánh',        icon:'canh',    src:'taocanh.html', section:'tao_canh', launch:{app:'Panel', key:'tao_canh', text:'Dựng cánh tủ'} }
+    ];
+
+    // Tab cấu hình của MH Registry — 1 iframe registry.html dùng chung.
+    var REGISTRY_PANEL = {
+        id: 'registry',
+        src: '../../ui/registry.html?v=material-code-contract-20260626-48'
+    };
+    var REGISTRY_TABS = [
+        { tab:'main',            label:'Tổng hợp',       icon:'registry' },
+        { tab:'superimp',        label:'Superimp',       icon:'superimp' },
+        { tab:'naming',          label:'Đặt tên',        icon:'name' },
+        { tab:'ma_vat_lieu',     label:'Vật liệu',       icon:'material' }
+    ];
+
+    var NATIVE_PANELS = [
+        { id:'thongke_panel', label:'Thongke', icon:'thongke', type:'thongke_panel' },
+        { id:'viewport_names_settings', label:'Viewport Names', icon:'name', type:'viewport_names_settings' },
+        { id:'fast_rename_settings', label:'Fast Rename', icon:'fast_rename', type:'fast_rename_settings' },
+        { id:'select_similar_settings', label:'Select Similar', icon:'select_similar', type:'select_similar_settings' },
+        { id:'assemble_settings', label:'Assemble', icon:'assemble', type:'assemble_settings' },
+        { id:'pk_settings', label:'PK Addon', icon:'pk_addon', type:'pk_settings' }
+    ];
+
+    var apps = [];                 // launcher apps (trừ Panel)
+    var allSettings = {};
+    var settingsLoaded = false;
+    var iframesReady = {};
+    var pendingLoad = {};
+    var registryReady = false;
+    var registryPendingTab = null;
+    var currentId = null;
+    var searchQuery = '';
+    var showDev = {};
+    var DirtyStore = {
+        sections: {},
+        mark: function(id, scope) {
+            if (!id) return;
+            this.sections[id] = { scope: scope || 'global', at: Date.now() };
+            updateFooterDirty();
+        },
+        clear: function(id) {
+            delete this.sections[id];
+            updateFooterDirty();
+        },
+        dirtyIds: function() {
+            return Object.keys(this.sections);
+        }
+    };
+
+    function iconFor(slug){ return ICONS[slug] || ICONS["default"]; }
+
+    // ---- Dựng nội dung + sidebar ----------------------------------------
+    function buildContent() {
+        var content = document.getElementById('tab-content');
+        content.innerHTML = '';
+        // iframe panels (persistent)
+        SETTINGS_PANELS.forEach(function(p){
+            var div = document.createElement('div');
+            div.className = 'tab-panel';
+            div.id = 'panel_' + p.id;
+            var bar = '';
+            if (p.launch) {
+                bar = '<div class="cp-launchbar"><button onclick="invokeAction(\''+p.launch.app+'\',\''+p.launch.key+'\')">▶ '+escHtml(p.launch.text)+'</button></div>';
+            }
+            div.innerHTML = bar + '<iframe id="iframe_'+p.id+'" data-id="'+p.id+'" src="'+p.src+'" frameborder="0" style="height:'+(p.launch?'calc(100% - 44px)':'100%')+'"></iframe>';
+            content.appendChild(div);
+            iframesReady[p.id] = false;
+        });
+        // Registry panel lazy: tạo iframe khi user mở mục Registry lần đầu.
+        var rp = document.createElement('div');
+        rp.className = 'tab-panel';
+        rp.id = 'panel_' + REGISTRY_PANEL.id;
+        rp.innerHTML = '<div class="cp-frame-status">Chọn một mục Registry để tải bảng cấu hình.</div>';
+        content.appendChild(rp);
+        NATIVE_PANELS.forEach(function(p){
+            var div = document.createElement('div');
+            div.className = 'tab-panel';
+            div.id = 'panel_' + p.id;
+            if (p.type === 'pk_settings') div.innerHTML = buildPkSettingsHtml();
+            else if (p.type === 'assemble_settings') div.innerHTML = buildAssembleSettingsHtml();
+            else if (p.type === 'select_similar_settings') div.innerHTML = buildSelectSimilarSettingsHtml();
+            else if (p.type === 'fast_rename_settings') div.innerHTML = buildFastRenameSettingsHtml();
+            else if (p.type === 'viewport_names_settings') div.innerHTML = buildViewportNamesSettingsHtml();
+            else div.innerHTML = buildThongkePanelHtml();
+            content.appendChild(div);
+        });
+        // launcher panel (reusable)
+        var lp = document.createElement('div');
+        lp.className = 'tab-panel'; lp.id = 'panel_launcher';
+        lp.innerHTML = '<div id="cp-launch-body" class="cp-launch" style="height:100%; overflow:auto;"></div>';
+        content.appendChild(lp);
+    }
+
+    function sidebarEntries() {
+        var entries = [];
+        SETTINGS_PANELS.forEach(function(p){ entries.push({ kind:'settings', id:p.id, label:p.label, icon:p.icon }); });
+        REGISTRY_TABS.forEach(function(t){ entries.push({ kind:'registry', id:'reg_'+t.tab, label:t.label, icon:t.icon, tab:t.tab }); });
+        NATIVE_PANELS.forEach(function(p){ entries.push({ kind:'native', id:p.id, label:p.label, icon:p.icon, panel:p }); });
+        apps.forEach(function(a){
+            if (a.name === 'Select Similar') return;
+            if (a.name === 'Fast Rename') return;
+            var label = a.name === 'PK Addon' ? 'PK Addon Tools' : a.name;
+            if (a.name === 'Thongke') label = 'Thongke Tools';
+            if (a.name === 'Assemble') label = 'Assemble Tools';
+            if (a.name === 'Rename') label = 'Rename Tools';
+            if (a.name === 'Name') label = 'Name Tools';
+            entries.push({ kind:'app', id:'app_'+a.name, label:label, icon:appIconFor(a.name), app:a });
+        });
+        return entries;
+    }
+
+    function openRegistryTab(tab){
+        switchTo('reg_' + tab);
+    }
+
+    function ensureRegistryIframe() {
+        var panel = document.getElementById('panel_' + REGISTRY_PANEL.id);
+        if (!panel) return null;
+        var iframe = document.getElementById('iframe_' + REGISTRY_PANEL.id);
+        if (iframe) return iframe;
+
+        panel.innerHTML = '<iframe id="iframe_' + REGISTRY_PANEL.id + '" data-panel-id="' + REGISTRY_PANEL.id + '" data-id="' + REGISTRY_PANEL.id + '" src="' + REGISTRY_PANEL.src + '" frameborder="0"></iframe>'
+            + '<div id="registryFallback" class="cp-frame-status" style="display:none">Không tải được nội dung Registry. Hãy đóng và mở lại MH Control Panel.</div>';
+        iframe = document.getElementById('iframe_' + REGISTRY_PANEL.id);
+        iframe.addEventListener('error', function () {
+            var fb = document.getElementById('registryFallback');
+            if (!fb) return;
+            fb.style.display = '';
+        });
+        return iframe;
+    }
+
+    function showRegistryTab(tab) {
+        var iframe = ensureRegistryIframe();
+        registryPendingTab = tab || 'main';
+        if (!iframe) {
+            var panel = document.getElementById('panel_' + REGISTRY_PANEL.id);
+            if (panel) panel.innerHTML = '<div class="cp-frame-status">Không tải được nội dung Registry. Hãy đóng và mở lại MH Control Panel.</div>';
+            return;
+        }
+        if (registryReady) callRegistryOnShow(registryPendingTab);
+    }
+
+    function callRegistryOnShow(tab) {
+        var ok = false;
+        try {
+            ok = window.MHControlPanel.callFrame('registry', 'MHRegSwitchTab', tab || 'main');
+            if (!ok) ok = window.MHControlPanel.callEmbedded('registry', 'onShow', { tab: tab || 'main' });
+        } catch (e) {
+            ok = false;
+        }
+        if (!ok) registryPendingTab = tab || 'main';
+    }
+
+    function buildPkSettingsHtml() {
+        return '' +
+            '<div class="cp-form">' +
+              '<h2>PK Addon</h2>' +
+              '<div class="cp-field">' +
+                '<label>Thư viện phụ kiện (.xlsx/.xls/.csv)</label>' +
+                '<div class="cp-form-grid">' +
+                  '<input id="pk_path" type="text" placeholder="Đường dẫn thư viện phụ kiện">' +
+                  '<button class="cp-inline-btn secondary" type="button" onclick="choosePkLibrary()">Chọn file...</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Hình dạng PK</label><select id="pk_shape"><option value="square">square</option><option value="circle">circle</option><option value="triangle">triangle</option></select></div>' +
+                '<div class="cp-field"><label>Kích thước PK (mm)</label><input id="pk_size_mm" type="number" min="1" max="50" step="0.5"></div>' +
+              '</div>' +
+              '<div class="cp-field"><label>Mặt đặt PK</label><select id="pk_face_mode"></select></div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="savePkSettings()">Lưu cài đặt</button>' +
+                '<button class="secondary" type="button" onclick="loadPkSettingsRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="pk_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    function buildThongkePanelHtml() {
+        return '' +
+            '<div class="cp-form">' +
+              '<h2>Thongke</h2>' +
+              '<div class="cp-field">' +
+                '<label>Excel import hiện tại</label>' +
+                '<input id="tk_excel_path" type="text" readonly>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Số dòng import</label><input id="tk_excel_rows" type="text" readonly></div>' +
+                '<div class="cp-field"><label>Số dòng vật liệu</label><input id="tk_material_rows" type="text" readonly></div>' +
+              '</div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="thongkeAction(\'main\')">Mở bảng chính</button>' +
+                '<button type="button" onclick="thongkeAction(\'mini\')">Mini Import</button>' +
+                '<button type="button" onclick="thongkeAction(\'material_hud\')">Material HUD</button>' +
+                '<button type="button" onclick="thongkeAction(\'info_hud\')">Info HUD</button>' +
+                '<button class="secondary" type="button" onclick="thongkeAction(\'mini_reset\')">Reset Mini</button>' +
+                '<button class="secondary" type="button" onclick="thongkeAction(\'reload_excel\')">Reload Excel</button>' +
+              '</div>' +
+              '<div class="cp-field" style="margin-top:14px">' +
+                '<label>Ẩn phụ kiện/vật liệu khỏi thống kê Mini/HUD (mỗi dòng 1 tên)</label>' +
+                '<textarea id="tk_hidden_list" rows="8" style="min-height:150px;border:1px solid #d1d1d6;border-radius:6px;padding:8px;font-size:12px;font-family:Consolas,monospace;resize:vertical"></textarea>' +
+              '</div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="saveThongkeHidden()">Lưu danh sách ẩn</button>' +
+                '<button class="secondary" type="button" onclick="loadThongkePanelRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="tk_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    var AS_FIELDS = [
+        { key:'no_door_product', label:'Không cánh - bản tổng',  src:'parts', ph:'thêm tên part ẩn ở trang tổng' },
+        { key:'no_door_module',  label:'Không cánh - bản module', src:'parts', ph:'thêm tên part ẩn ở trang module' },
+        { key:'hide_common',     label:'Chi tiết cần ẩn',         src:'parts', ph:'ẩn ở mọi bản' },
+        { key:'hidden_tags',     label:'Tag/Layer cần ẩn',        src:'tags',  ph:'thêm tên tag/layer' },
+        { key:'no_number',       label:'Chi tiết không đánh số',  src:'parts', ph:'hiện nhưng không đánh số' }
+    ];
+    var assembleLists = {};   // key -> [name,...]  (nguồn sự thật)
+    var assembleChipDragging = null;
+    var ASSEMBLE_MODEL_NAMES = { parts: [], tags: [] };
+
+    function chipFieldHtml(f, labelText) {
+        var srcLabel = f.src === 'tags' ? 'tag/layer' : 'part';
+        return '<div class="cp-field"><label>' + escHtml(labelText || f.label) +
+            ' <span class="scope-badge scope-project">DỰ ÁN</span></label>' +
+            '<div class="chipfield" id="cf_' + f.key + '" data-field="' + f.key + '" data-src="' + f.src + '">' +
+              '<div class="chip-chips" id="chips_' + f.key + '"></div>' +
+              '<div class="chip-row">' +
+                '<input class="chip-input" id="cfin_' + f.key + '" list="aslist_' + f.src + '" placeholder="' + escHtml(f.ph) + '" ' +
+                  'onkeydown="assembleChipKey(event,\'' + f.key + '\')">' +
+                '<button class="chip-btn chip-pick" type="button" onclick="openModelPicker(\'' + f.key + '\',\'' + f.src + '\',this)">+ Chọn từ model</button>' +
+                '<button class="chip-btn" type="button" title="Chế độ văn bản (mỗi dòng 1 ' + srcLabel + ')" onclick="assembleToggleRaw(\'' + f.key + '\')">⌨</button>' +
+              '</div>' +
+              '<textarea class="chip-raw" id="cfraw_' + f.key + '" placeholder="mỗi dòng 1 ' + srcLabel + '" oninput="assembleRawInput(\'' + f.key + '\')"></textarea>' +
+            '</div></div>';
+    }
+
+    function assembleChipCardHtml(f) {
+        return '<div class="cp-setting-card as-chip-card">' +
+          '<h3>' + escHtml(f.label) + '</h3>' +
+          chipFieldHtml(f, 'Danh sách') +
+        '</div>';
+    }
+
+    function buildAssembleSettingsHtml() {
+        return '' +
+            '<div class="cp-form cp-wide-form as-settings-form" style="height:calc(100% - 32px);overflow:auto">' +
+              '<h2>Assemble</h2>' +
+              '<datalist id="aslist_parts"></datalist><datalist id="aslist_tags"></datalist>' +
+              '<div class="cp-card-grid">' +
+                AS_FIELDS.map(assembleChipCardHtml).join('') +
+                '<div class="cp-setting-card">' +
+                  '<h3>Tỉ lệ bản vẽ <span class="scope-badge scope-global">CHUNG</span></h3>' +
+                  '<div class="cp-field"><label>Preset nhanh</label><div id="as_ratio_buttons" class="cp-ratio-row"></div></div>' +
+                  '<div class="cp-form-grid">' +
+                    '<div class="cp-field"><label>Preset tỉ lệ, cách nhau bởi dấu phẩy</label><input id="as_ratio_presets" type="text" placeholder="5, 10, 15, 20, 25, 50, 100"></div>' +
+                    '<div class="cp-field"><label>Tỉ lệ custom 1:</label><input id="as_custom_ratio" type="number" min="1" max="1000" step="1"></div>' +
+                  '</div>' +
+                '</div>' +
+                '<div class="cp-setting-card cp-setting-wide">' +
+                  '<h3>Module con <span class="scope-badge scope-project">DỰ ÁN</span></h3>' +
+                  '<div class="cp-field"><label>Quy tắc gom module con</label><table class="cp-mini-table"><thead><tr><th style="width:56px">Bật</th><th>Từ khóa gom</th><th>Tên hiển thị</th><th style="width:40px"></th></tr></thead><tbody id="as_sub_modules"></tbody></table><button class="cp-inline-btn secondary" type="button" onclick="addAssembleSubModuleRow()">+ Thêm dòng</button></div>' +
+                '</div>' +
+              '</div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="saveAssembleSettings()">Lưu & áp dụng</button>' +
+                '<button class="secondary" type="button" onclick="loadAssemblePanelRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="as_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    function buildFastRenameKeywordListHtml(key, label, placeholder) {
+        return '' +
+          '<div class="cp-field fr-keyword-field" data-fr-keyword-field="' + key + '">' +
+            '<label>' + escHtml(label) + '</label>' +
+            '<div class="fr-keyword-list" id="fr_' + key + '_list" data-fr-keyword-list="' + key + '"></div>' +
+            '<div class="fr-keyword-add-row">' +
+              '<input id="fr_' + key + '_input" type="text" placeholder="' + escHtml(placeholder || '+ keyword') + '" onkeydown="fastRenameKeywordInputKey(event,\'' + key + '\')">' +
+              '<button class="chip-btn" type="button" onclick="addFastRenameKeywordFromInput(\'' + key + '\')">+ Thêm</button>' +
+            '</div>' +
+          '</div>';
+    }
+
+    function buildFastRenameSettingsHtml() {
+        return '' +
+            '<div class="cp-form fr-settings-form" style="height:calc(100% - 32px);overflow:auto">' +
+              '<h2>Fast Rename</h2>' +
+              '<div class="cp-card-grid">' +
+                '<div class="cp-setting-card">' +
+                  '<h3>Gộp & đánh số</h3>' +
+                  '<div class="cp-field"><label>Khoảng cách gộp mặc định (mm)</label><input id="fr_gap_threshold_mm" type="number" min="1" max="100000" step="1"></div>' +
+                  '<div class="cp-field"><label>Số SP bắt đầu mặc định</label><input id="fr_default_sp_start_num" type="number" min="1" max="9999" step="1"></div>' +
+                '</div>' +
+                '<div class="cp-setting-card">' +
+                  '<h3>Cắt modul</h3>' +
+                  '<div class="cp-field"><label>Trục cắt mặc định</label><select id="fr_default_split_axis"><option value="x">Dọc (X)</option><option value="z">Ngang (Z)</option><option value="y">Vuông góc (Y)</option></select></div>' +
+                  '<div class="cp-field"><label>Cho phép mặt cắt cắt qua</label><select id="fr_split_all_default"><option value="false">1 khối đang hover</option><option value="true">Tất cả khối cùng đường cắt</option></select></div>' +
+                  '<div class="cp-field"><label>Tự tách theo mặt tiếp xúc</label><select id="fr_auto_contact_split"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '</div>' +
+                '<div class="cp-setting-card">' +
+                  '<h3>Contact-plane</h3>' +
+                  '<div class="cp-form-grid"><div class="cp-field"><label>Dung sai tiếp xúc (mm)</label><input id="fr_cp_tolerance_mm" type="number" min="0.001" max="10" step="0.001"></div><div class="cp-field"><label>Dung sai xuyên/lấn (mm)</label><input id="fr_cp_penetration_tolerance_mm" type="number" min="0" max="10" step="0.001"></div></div>' +
+                  '<div class="cp-form-grid"><div class="cp-field"><label>Số vòng tách tối đa</label><input id="fr_cp_max_pass" type="number" min="1" max="200" step="1"></div><div class="cp-field"><label>Trục dò mặt cắt</label><input id="fr_cp_separator_axes" type="text" placeholder="x,z"></div></div>' +
+                '</div>' +
+                '<div class="cp-setting-card">' +
+                  '<h3>Keyword miễn cắt</h3>' +
+                  buildFastRenameKeywordListHtml('exempt_keywords', 'Không bị contact-plane cắt qua', 'phào nóc, len chân...') +
+                  buildFastRenameKeywordListHtml('sp_base_only_keywords', 'Chỉ bám mã SP gốc', 'xương nẹp, chặn cánh...') +
+                '</div>' +
+                '<div class="cp-setting-card">' +
+                  '<h3>Keyword phụ kiện</h3>' +
+                  buildFastRenameKeywordListHtml('modul_contact_keywords', 'Bám modul theo tiếp xúc', 'mỗi dòng 1 từ khóa') +
+                  buildFastRenameKeywordListHtml('base_accessory_keywords', 'Phụ kiện bệ / len chân', 'len chân, bệ chân...') +
+                '</div>' +
+                '<div class="cp-setting-card fr-setting-wide">' +
+                  '<h3>Cặp mặt cắt theo tên</h3>' +
+                  '<p class="cp-note">Nhóm A và B nhập nhiều keyword bằng dấu phẩy. Tool sẽ sinh mặt cắt khi hai nhóm tên chạm nhau.</p>' +
+                  '<div class="cp-field"><label>Danh sách cặp</label><div class="fr-pair-list" id="fr_named_contact_split_pairs_list"></div></div>' +
+                  '<button class="chip-btn" type="button" onclick="addFastRenamePair(null, true)">+ Thêm cặp</button>' +
+                '</div>' +
+              '</div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="saveFastRenameSettings()">Lưu cài đặt</button>' +
+                '<button class="secondary" type="button" onclick="loadFastRenameSettingsRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="fr_available" class="cp-status"></div>' +
+              '<div id="fr_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    function buildSelectSimilarSettingsHtml() {
+        return '' +
+            '<div class="cp-form" style="max-width:820px;height:calc(100% - 32px);overflow:auto">' +
+              '<h2>Select Similar</h2>' +
+              '<div class="cp-field"><label>Name Search</label>' +
+                '<table class="cp-mini-table ss-search-table"><thead><tr><th>Giá trị</th><th style="width:130px">Shortcut</th></tr></thead><tbody id="ss_name_search_rows"></tbody></table>' +
+                '<button class="cp-inline-btn secondary" type="button" onclick="addSelectSimilarSearchRow()">+ Thêm dòng</button>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Name Search Progressive</label><select id="ss_partial_name"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Name Group</label><select id="ss_name_group"><option value="false">Tắt</option><option value="true">Bật</option></select></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Bounding Size</label><select id="ss_bounding_size"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Size tolerance (%)</label><input id="ss_size_tolerance" type="number" min="0" max="100" step="0.001"></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Bounding Volume</label><select id="ss_bounding_volume"><option value="false">Tắt</option><option value="true">Bật</option></select></div>' +
+                '<div class="cp-field"><label>Volume tolerance (%)</label><input id="ss_volume_tolerance" type="number" min="0" max="100" step="0.001"></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Min Thickness</label><select id="ss_min_thickness"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Thickness tolerance (mm)</label><input id="ss_thickness_tolerance" type="number" min="0" max="100" step="0.001"></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Same Material</label><select id="ss_same_material"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Same Tag</label><select id="ss_same_tag"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Type Filter</label><select id="ss_type_filter"><option value="both">Both</option><option value="group">Group</option><option value="component">Component</option></select></div>' +
+                '<div class="cp-field"><label>Nesting</label><select id="ss_nesting_filter"><option value="nested">Include Nested</option><option value="toplevel">Top-level Only</option></select></div>' +
+              '</div>' +
+              '<div class="cp-field"><label>Scope</label><select id="ss_scope_filter"><option value="all">All Objects</option><option value="visible">Visible Only</option><option value="viewport">In Viewport</option><option value="viewport_visible">Viewport + Visible</option></select></div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Min Size (mm, 0 = tắt)</label><input id="ss_min_size_threshold" type="number" min="0" step="1"></div>' +
+                '<div class="cp-field"><label>Min All Size (mm, 0 = tắt)</label><input id="ss_min_all_size_threshold" type="number" min="0" step="1"></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Phím Isolate</label><input id="ss_key_isolate" type="text" maxlength="3"></div>' +
+                '<div class="cp-field"><label>Phím Settings</label><input id="ss_key_settings" type="text" maxlength="3"></div>' +
+              '</div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="saveSelectSimilarSettings()">Lưu cài đặt</button>' +
+                '<button class="secondary" type="button" onclick="loadSelectSimilarPanelRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="ss_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    function buildViewportNamesSettingsHtml() {
+        return '' +
+            '<div class="cp-form" style="max-width:760px;height:calc(100% - 32px);overflow:auto">' +
+              '<h2>Viewport Names</h2>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Label style</label><select id="vn_label_style"><option value="leader">Đường dóng 2 bên</option><option value="scatter">Tự do</option><option value="direct">Ghi đè lên đối tượng</option></select></div>' +
+                '<div class="cp-field"><label>Text mode</label><select id="vn_text_display_mode"><option value="all">Hiện tất cả</option><option value="selected">Chỉ đối tượng chọn</option></select></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Khoảng cách dòng</label><input id="vn_line_spacing" type="number" min="0" max="120" step="1"></div>' +
+                '<div class="cp-field"><label>Khoảng cách text -> object</label><input id="vn_text_gap" type="number" min="0" max="800" step="1"></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Hiện nét đứt bị che</label><select id="vn_show_hidden_lines"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Nền văn bản</label><select id="vn_show_label_bg"><option value="false">Tắt</option><option value="true">Bật</option></select></div>' +
+              '</div>' +
+              '<div class="cp-form-grid">' +
+                '<div class="cp-field"><label>Hiện ID</label><select id="vn_show_part_id"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+                '<div class="cp-field"><label>Hiện Prefix</label><select id="vn_show_part_prefix"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+              '</div>' +
+              '<div class="cp-field" style="max-width:160px"><label>Hiện Suffix</label><select id="vn_show_part_suffix"><option value="true">Bật</option><option value="false">Tắt</option></select></div>' +
+              '<div class="cp-field"><label>Layer/Tag ẩn khỏi Viewport Names (mỗi dòng 1 tên)</label><textarea id="vn_hidden_layers" rows="5"></textarea></div>' +
+              '<div class="cp-button-row">' +
+                '<button type="button" onclick="saveViewportNamesSettings()">Lưu cài đặt</button>' +
+                '<button class="secondary" type="button" onclick="loadViewportNamesPanelRequest()">Tải lại</button>' +
+              '</div>' +
+              '<div id="vn_status" class="cp-status"></div>' +
+            '</div>';
+    }
+
+    function loadThongkePanelRequest() {
+        skp('load_thongke_panel');
+    }
+
+    function thongkeAction(action) {
+        skp('thongke_action', action);
+    }
+
+    function saveThongkeHidden() {
+        var payload = {
+            hidden_list: (document.getElementById('tk_hidden_list') || {}).value || ''
+        };
+        skp('save_thongke_hidden', JSON.stringify(payload));
+    }
+
+    window.loadThongkePanel = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            showThongkeStatus(data.error || 'Không tải được Thongke.', true);
+            return;
+        }
+        var excel = data.excel || {};
+        var path = document.getElementById('tk_excel_path');
+        var rows = document.getElementById('tk_excel_rows');
+        var matRows = document.getElementById('tk_material_rows');
+        var hidden = document.getElementById('tk_hidden_list');
+        if (path) path.value = excel.path || '';
+        if (rows) rows.value = String(excel.rows || 0);
+        if (matRows) matRows.value = String(excel.material_rows || 0);
+        if (hidden) hidden.value = (data.hidden_list || []).join('\n');
+        var states = [];
+        if (data.main_visible) states.push('bảng chính đang mở');
+        if (data.mini_visible) states.push('Mini đang mở');
+        if (data.hud_visible) states.push('Material HUD đang mở');
+        if (data.info_hud_visible) states.push('Info HUD đang mở');
+        showThongkeStatus(data.message || (states.length ? states.join(', ') : 'Sẵn sàng.'), !!data.message_error);
+        if (data.message && !data.message_error) DirtyStore.clear('thongke_panel');
+    };
+
+    function showThongkeStatus(message, isError) {
+        var el = document.getElementById('tk_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    }
+
+    function loadAssemblePanelRequest() {
+        skp('load_assemble_panel');
+    }
+
+    function saveAssembleSettings() {
+        syncAllAssembleChipLists();
+        var active = document.querySelector('#as_ratio_buttons button.active');
+        var custom = parseInt((document.getElementById('as_custom_ratio') || {}).value || '0', 10);
+        var payload = {
+            no_door_product: (assembleLists['no_door_product'] || []).slice(),
+            no_door_module: (assembleLists['no_door_module'] || []).slice(),
+            hide_common: (assembleLists['hide_common'] || []).slice(),
+            hidden_tags: (assembleLists['hidden_tags'] || []).slice(),
+            no_number: (assembleLists['no_number'] || []).slice(),
+            draw_ratio: active ? active.getAttribute('data-ratio') : (custom > 0 ? String(custom) : 'auto'),
+            draw_ratios: parseNumberList((document.getElementById('as_ratio_presets') || {}).value || ''),
+            sub_modules: readAssembleSubModules()
+        };
+        skp('save_assemble_settings', JSON.stringify(payload));
+    }
+
+    window.loadAssemblePanel = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            showAssembleStatus(data.error || 'Không tải được Assemble.', true);
+            return;
+        }
+        AS_FIELDS.forEach(function(f){
+            assembleLists[f.key] = Array.isArray(data[f.key]) ? data[f.key].map(String) : [];
+            renderAssembleChips(f.key);
+            var raw = document.getElementById('cfraw_' + f.key);
+            if (raw) raw.value = assembleLists[f.key].join('\n');
+        });
+        renderAssembleRatios(data.draw_ratio || 'auto', data.draw_ratios || [5, 10, 15, 20, 25, 50, 100]);
+        renderAssembleSubModules(data.sub_modules || []);
+        showAssembleStatus(data.message || 'Sẵn sàng.', !!data.message_error);
+        if (data.message && !data.message_error) DirtyStore.clear('assemble_settings');
+        requestAssembleModelNames();
+    };
+
+    // ---- Chip field logic ----------------------------------------------
+    function renderAssembleChips(key) {
+        var box = document.getElementById('chips_' + key);
+        if (!box) return;
+        var list = assembleLists[key] || [];
+        if (!list.length) { box.innerHTML = '<span class="chip-empty">— chưa có —</span>'; return; }
+        box.innerHTML = list.map(function(name, i){
+            return '<div class="chip" draggable="true" data-as-key="' + escAttr(key) + '" data-as-index="' + i + '">' +
+                   '<span class="chip-grip" title="Kéo để đổi vị trí">⋮⋮</span>' +
+                   '<input class="chip-value" type="text" value="' + escAttr(name) + '" oninput="assembleEdit(\'' + key + '\',' + i + ',this.value)">' +
+                   '<button class="chip-del" type="button" title="Xoá" onclick="assembleRemove(\'' + key + '\',' + i + ')">×</button>' +
+                   '</div>';
+        }).join('');
+        wireAssembleChipCards(key);
+    }
+    function assembleMarkDirty() { DirtyStore.mark('assemble_settings', 'project'); }
+    function syncAssembleListFromCards(key) {
+        var box = document.getElementById('chips_' + key);
+        if (!box || box.querySelector('.chip-empty')) return;
+        var out = [];
+        var seen = {};
+        Array.prototype.forEach.call(box.querySelectorAll('.chip-value'), function(input){
+            var value = String(input.value || '').trim();
+            var lookup = value.toLowerCase();
+            if (!value || seen[lookup]) return;
+            seen[lookup] = true;
+            out.push(value);
+        });
+        assembleLists[key] = out;
+        var raw = document.getElementById('cfraw_' + key);
+        if (raw) raw.value = out.join('\n');
+    }
+    function syncAllAssembleChipLists() {
+        AS_FIELDS.forEach(function(f){ syncAssembleListFromCards(f.key); });
+    }
+    function assembleEdit(key, idx, value) {
+        assembleLists[key] = assembleLists[key] || [];
+        assembleLists[key][idx] = String(value || '');
+        assembleMarkDirty();
+    }
+    function assembleAdd(key, name) {
+        name = String(name || '').trim();
+        if (!name) return;
+        assembleLists[key] = assembleLists[key] || [];
+        if (assembleLists[key].indexOf(name) === -1) {
+            assembleLists[key].push(name);
+            renderAssembleChips(key);
+            assembleMarkDirty();
+        }
+    }
+    function assembleRemove(key, idx) {
+        if (!assembleLists[key]) return;
+        assembleLists[key].splice(idx, 1);
+        renderAssembleChips(key);
+        assembleMarkDirty();
+    }
+    function wireAssembleChipCards(key) {
+        var box = document.getElementById('chips_' + key);
+        if (!box) return;
+        Array.prototype.forEach.call(box.querySelectorAll('.chip'), function(card){
+            card.addEventListener('dragstart', function(event){
+                assembleChipDragging = card;
+                card.classList.add('dragging');
+                if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+            });
+            card.addEventListener('dragend', function(){
+                card.classList.remove('dragging');
+                document.querySelectorAll('.chip.drag-over').forEach(function(node){ node.classList.remove('drag-over'); });
+                assembleChipDragging = null;
+            });
+            card.addEventListener('dragover', function(event){
+                if (!assembleChipDragging || assembleChipDragging === card || assembleChipDragging.parentNode !== card.parentNode) return;
+                event.preventDefault();
+                card.classList.add('drag-over');
+            });
+            card.addEventListener('dragleave', function(){ card.classList.remove('drag-over'); });
+            card.addEventListener('drop', function(event){
+                if (!assembleChipDragging || assembleChipDragging === card || assembleChipDragging.parentNode !== card.parentNode) return;
+                event.preventDefault();
+                var boxRect = card.getBoundingClientRect();
+                card.parentNode.insertBefore(assembleChipDragging, event.clientY < boxRect.top + boxRect.height / 2 ? card : card.nextSibling);
+                card.classList.remove('drag-over');
+                syncAssembleListFromCards(key);
+                renderAssembleChips(key);
+                assembleMarkDirty();
+            });
+        });
+    }
+    function assembleChipKey(ev, key) {
+        if (ev.key === 'Enter' || ev.key === ',') {
+            ev.preventDefault();
+            var inp = ev.target;
+            inp.value.split(',').forEach(function(v){ assembleAdd(key, v); });
+            inp.value = '';
+        } else if (ev.key === 'Backspace' && !ev.target.value && (assembleLists[key] || []).length) {
+            assembleRemove(key, assembleLists[key].length - 1);
+        }
+    }
+    function assembleToggleRaw(key) {
+        var cf = document.getElementById('cf_' + key);
+        if (!cf) return;
+        var toRaw = !cf.classList.contains('raw');
+        if (toRaw) {
+            var raw = document.getElementById('cfraw_' + key);
+            if (raw) raw.value = (assembleLists[key] || []).join('\n');
+            cf.classList.add('raw');
+        } else {
+            cf.classList.remove('raw');
+            renderAssembleChips(key);
+        }
+    }
+    function assembleRawInput(key) {
+        var raw = document.getElementById('cfraw_' + key);
+        if (!raw) return;
+        assembleLists[key] = splitLines(raw.value);
+        assembleMarkDirty();
+    }
+
+    // ---- Chọn từ model (picker) ----------------------------------------
+    function requestAssembleModelNames() { skp('load_assemble_model_names'); }
+    window.loadAssembleModelNames = function(data) {
+        data = data || {};
+        ASSEMBLE_MODEL_NAMES.parts = Array.isArray(data.parts) ? data.parts.map(String) : [];
+        ASSEMBLE_MODEL_NAMES.tags = Array.isArray(data.tags) ? data.tags.map(String) : [];
+        ['parts','tags'].forEach(function(src){
+            var dl = document.getElementById('aslist_' + src);
+            if (dl) dl.innerHTML = ASSEMBLE_MODEL_NAMES[src].map(function(n){ return '<option value="' + escHtml(n) + '">'; }).join('');
+        });
+    };
+
+    var _mpPop = null, _mpKey = null, _mpSrc = null;
+    function ensureModelPicker() {
+        if (_mpPop) return _mpPop;
+        _mpPop = document.createElement('div');
+        _mpPop.className = 'mp-pop';
+        _mpPop.innerHTML = '<input class="mp-search" placeholder="Lọc tên..." oninput="renderModelPickerList(this.value)">' +
+            '<div class="mp-list" id="mpList"></div>' +
+            '<div class="mp-foot"><span id="mpCount"></span><button type="button" onclick="closeModelPicker()">Xong</button></div>';
+        document.body.appendChild(_mpPop);
+        document.addEventListener('click', function(e){
+            if (_mpPop && _mpPop.classList.contains('open') && !_mpPop.contains(e.target) && !(e.target.classList && e.target.classList.contains('chip-pick'))) closeModelPicker();
+        });
+        return _mpPop;
+    }
+    function openModelPicker(key, src, btn) {
+        _mpKey = key; _mpSrc = src;
+        var pop = ensureModelPicker();
+        var r = btn.getBoundingClientRect();
+        var top = Math.min(r.bottom + 4, window.innerHeight - 330);
+        var left = Math.min(r.left, window.innerWidth - 312);
+        pop.style.top = Math.max(8, top) + 'px';
+        pop.style.left = Math.max(8, left) + 'px';
+        pop.querySelector('.mp-search').value = '';
+        pop.classList.add('open');
+        renderModelPickerList('');
+    }
+    function closeModelPicker() { if (_mpPop) _mpPop.classList.remove('open'); }
+    function renderModelPickerList(filter) {
+        var names = ASSEMBLE_MODEL_NAMES[_mpSrc] || [];
+        var sel = assembleLists[_mpKey] || [];
+        var q = (filter || '').toLowerCase();
+        var shown = names.filter(function(n){ return !q || n.toLowerCase().indexOf(q) !== -1; });
+        var list = document.getElementById('mpList');
+        if (!shown.length) { list.innerHTML = '<div class="mp-empty">Không có tên nào trong model (hoặc model trống).</div>'; }
+        else {
+            list.innerHTML = shown.map(function(n){
+                var checked = sel.indexOf(n) !== -1 ? ' checked' : '';
+                return '<label class="mp-item"><input type="checkbox"' + checked + ' onchange="modelPickerToggle(this,' + JSON.stringify(n) + ')"><span>' + escHtml(n) + '</span></label>';
+            }).join('');
+        }
+        var c = document.getElementById('mpCount');
+        if (c) c.textContent = sel.length + ' đã chọn';
+    }
+    function modelPickerToggle(cb, name) {
+        if (cb.checked) assembleAdd(_mpKey, name);
+        else {
+            var i = (assembleLists[_mpKey] || []).indexOf(name);
+            if (i !== -1) assembleRemove(_mpKey, i);
+        }
+        var c = document.getElementById('mpCount');
+        if (c) c.textContent = (assembleLists[_mpKey] || []).length + ' đã chọn';
+    }
+
+    function renderAssembleRatios(current, presets) {
+        var box = document.getElementById('as_ratio_buttons');
+        var input = document.getElementById('as_ratio_presets');
+        if (!box) return;
+        presets = (presets || [5,10,15,20,25,50,100]).map(function(n){ return parseInt(n, 10); }).filter(function(n){ return n > 0 && n <= 1000; });
+        if (!presets.length) presets = [5,10,15,20,25,50,100];
+        if (input) input.value = presets.join(', ');
+        var ratios = ['auto'].concat(presets.map(String));
+        box.innerHTML = '';
+        ratios.forEach(function(r){
+            var b = document.createElement('button');
+            b.type = 'button';
+            b.textContent = r === 'auto' ? 'AUTO' : '1:' + r;
+            b.setAttribute('data-ratio', r);
+            if (String(current || 'auto') === r) b.className = 'active';
+            b.onclick = function(){
+                document.querySelectorAll('#as_ratio_buttons button').forEach(function(x){ x.classList.remove('active'); });
+                b.classList.add('active');
+                DirtyStore.mark('assemble_settings', 'project');
+            };
+            box.appendChild(b);
+        });
+        if (ratios.indexOf(String(current || 'auto')) < 0) setValue('as_custom_ratio', parseInt(current, 10) || '');
+        else setValue('as_custom_ratio', '');
+    }
+
+    function renderAssembleSubModules(rows) {
+        var body = document.getElementById('as_sub_modules');
+        if (!body) return;
+        body.innerHTML = '';
+        (rows || []).forEach(function(row){ addAssembleSubModuleRow(row); });
+        if (!body.children.length) addAssembleSubModuleRow();
+    }
+
+    function addAssembleSubModuleRow(row) {
+        var body = document.getElementById('as_sub_modules');
+        if (!body) return;
+        row = row || { enabled:true, key:'', label:'' };
+        var tr = document.createElement('tr');
+        tr.innerHTML = '<td style="text-align:center"><input class="as_sub_enabled" type="checkbox"></td><td><input class="as_sub_key" type="text"></td><td><input class="as_sub_label" type="text"></td><td><button type="button" class="cp-icon-btn">x</button></td>';
+        tr.querySelector('.as_sub_enabled').checked = row.enabled !== false;
+        tr.querySelector('.as_sub_key').value = row.key || '';
+        tr.querySelector('.as_sub_label').value = row.label || '';
+        tr.querySelector('button').onclick = function(){ tr.remove(); };
+        tr.addEventListener('input', function(){ DirtyStore.mark('assemble_settings', 'project'); });
+        tr.addEventListener('change', function(){ DirtyStore.mark('assemble_settings', 'project'); });
+        body.appendChild(tr);
+    }
+
+    function readAssembleSubModules() {
+        return Array.from(document.querySelectorAll('#as_sub_modules tr')).map(function(tr){
+            return {
+                enabled: tr.querySelector('.as_sub_enabled').checked,
+                key: tr.querySelector('.as_sub_key').value.trim(),
+                label: tr.querySelector('.as_sub_label').value.trim()
+            };
+        }).filter(function(row){ return row.key && row.label; });
+    }
+
+    function parseNumberList(text) {
+        var seen = {};
+        return String(text || '').split(/[,\s;]+/).map(function(s){ return parseInt(s, 10); }).filter(function(n){
+            if (!(n > 0 && n <= 1000) || seen[n]) return false;
+            seen[n] = true;
+            return true;
+        });
+    }
+
+    function showAssembleStatus(message, isError) {
+        var el = document.getElementById('as_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    }
+
+    function loadFastRenameSettingsRequest() {
+        skp('load_fast_rename_settings');
+    }
+
+    function splitTokens(text) {
+        return String(text || '').split(/\r?\n|,/).map(function(s){ return s.trim(); }).filter(Boolean);
+    }
+
+    var frKeywordDragging = null;
+    var frPairDragging = null;
+
+    function addFastRenameKeyword(key, value, markDirty) {
+        value = String(value || '').trim();
+        if (!value) return;
+        var list = document.getElementById('fr_' + key + '_list');
+        if (!list) return;
+        var exists = Array.prototype.some.call(list.querySelectorAll('.fr-keyword-value'), function(input){
+            return String(input.value || '').trim().toLowerCase() === value.toLowerCase();
+        });
+        if (exists) return;
+        var card = document.createElement('div');
+        card.className = 'fr-keyword-card';
+        card.draggable = true;
+        card.setAttribute('data-fr-keyword-card', key);
+        card.innerHTML =
+          '<span class="fr-keyword-grip" title="Kéo để đổi vị trí">⋮⋮</span>' +
+          '<input class="fr-keyword-value" type="text" value="' + escAttr(value) + '">' +
+          '<button class="fr-keyword-delete" type="button" title="Xoá">×</button>';
+        wireFastRenameKeywordCard(card);
+        list.appendChild(card);
+        if (markDirty) DirtyStore.mark('fast_rename_settings', 'global');
+    }
+
+    function addFastRenameKeywordFromInput(key) {
+        var input = document.getElementById('fr_' + key + '_input');
+        if (!input) return;
+        splitTokens(input.value).forEach(function(value){ addFastRenameKeyword(key, value, true); });
+        input.value = '';
+    }
+
+    function fastRenameKeywordInputKey(event, key) {
+        if (event.key === 'Enter') {
+            event.preventDefault();
+            addFastRenameKeywordFromInput(key);
+        }
+    }
+
+    function renderFastRenameKeywords(key, values) {
+        var list = document.getElementById('fr_' + key + '_list');
+        if (!list) return;
+        list.innerHTML = '';
+        (values || []).forEach(function(value){ addFastRenameKeyword(key, value, false); });
+    }
+
+    function collectFastRenameKeywords(key) {
+        var list = document.getElementById('fr_' + key + '_list');
+        if (!list) return [];
+        var out = [];
+        var seen = {};
+        Array.prototype.forEach.call(list.querySelectorAll('.fr-keyword-value'), function(input){
+            var value = String(input.value || '').trim();
+            var lookup = value.toLowerCase();
+            if (!value || seen[lookup]) return;
+            seen[lookup] = true;
+            out.push(value);
+        });
+        return out;
+    }
+
+    function wireFastRenameKeywordCard(card) {
+        var remove = card.querySelector('.fr-keyword-delete');
+        if (remove) remove.addEventListener('click', function(){
+            card.remove();
+            DirtyStore.mark('fast_rename_settings', 'global');
+        });
+        card.addEventListener('dragstart', function(event){
+            frKeywordDragging = card;
+            card.classList.add('dragging');
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        });
+        card.addEventListener('dragend', function(){
+            card.classList.remove('dragging');
+            document.querySelectorAll('.fr-keyword-card.drag-over').forEach(function(node){ node.classList.remove('drag-over'); });
+            frKeywordDragging = null;
+        });
+        card.addEventListener('dragover', function(event){
+            if (!frKeywordDragging || frKeywordDragging === card || frKeywordDragging.parentNode !== card.parentNode) return;
+            event.preventDefault();
+            card.classList.add('drag-over');
+        });
+        card.addEventListener('dragleave', function(){ card.classList.remove('drag-over'); });
+        card.addEventListener('drop', function(event){
+            if (!frKeywordDragging || frKeywordDragging === card || frKeywordDragging.parentNode !== card.parentNode) return;
+            event.preventDefault();
+            var box = card.getBoundingClientRect();
+            card.parentNode.insertBefore(frKeywordDragging, event.clientY < box.top + box.height / 2 ? card : card.nextSibling);
+            card.classList.remove('drag-over');
+            DirtyStore.mark('fast_rename_settings', 'global');
+        });
+    }
+
+    function addFastRenamePair(row, markDirty) {
+        row = row || {};
+        var list = document.getElementById('fr_named_contact_split_pairs_list');
+        if (!list) return;
+        var a = Array.isArray(row.a) ? row.a : (Array.isArray(row['a']) ? row['a'] : []);
+        var b = Array.isArray(row.b) ? row.b : (Array.isArray(row['b']) ? row['b'] : []);
+        var axis = String(row.axis || row['axis'] || 'x').toLowerCase();
+        if (['x','y','z'].indexOf(axis) < 0) axis = 'x';
+        var card = document.createElement('div');
+        card.className = 'fr-pair-card';
+        card.draggable = true;
+        card.innerHTML =
+          '<span class="fr-keyword-grip" title="Kéo để đổi vị trí">⋮⋮</span>' +
+          '<input class="fr-pair-a" type="text" placeholder="Nhóm A" value="' + escAttr(a.join(', ')) + '">' +
+          '<input class="fr-pair-b" type="text" placeholder="Nhóm B" value="' + escAttr(b.join(', ')) + '">' +
+          '<select class="fr-pair-axis"><option value="x">X</option><option value="z">Z</option><option value="y">Y</option></select>' +
+          '<button class="fr-pair-delete" type="button" title="Xoá">×</button>';
+        var sel = card.querySelector('.fr-pair-axis');
+        if (sel) sel.value = axis;
+        wireFastRenamePairCard(card);
+        list.appendChild(card);
+        if (markDirty) DirtyStore.mark('fast_rename_settings', 'global');
+    }
+
+    function renderFastRenamePairs(rows) {
+        var list = document.getElementById('fr_named_contact_split_pairs_list');
+        if (!list) return;
+        list.innerHTML = '';
+        (rows || []).forEach(function(row){ addFastRenamePair(row, false); });
+    }
+
+    function collectFastRenamePairs() {
+        var list = document.getElementById('fr_named_contact_split_pairs_list');
+        if (!list) return [];
+        var out = [];
+        Array.prototype.forEach.call(list.querySelectorAll('.fr-pair-card'), function(card){
+            var a = splitTokens((card.querySelector('.fr-pair-a') || {}).value || '');
+            var b = splitTokens((card.querySelector('.fr-pair-b') || {}).value || '');
+            var axis = String((card.querySelector('.fr-pair-axis') || {}).value || 'x').toLowerCase();
+            if (!a.length || !b.length) return;
+            if (['x','y','z'].indexOf(axis) < 0) axis = 'x';
+            out.push({ a:a, b:b, axis:axis });
+        });
+        return out;
+    }
+
+    function wireFastRenamePairCard(card) {
+        var remove = card.querySelector('.fr-pair-delete');
+        if (remove) remove.addEventListener('click', function(){
+            card.remove();
+            DirtyStore.mark('fast_rename_settings', 'global');
+        });
+        card.addEventListener('dragstart', function(event){
+            frPairDragging = card;
+            card.classList.add('dragging');
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        });
+        card.addEventListener('dragend', function(){
+            card.classList.remove('dragging');
+            document.querySelectorAll('.fr-pair-card.drag-over').forEach(function(node){ node.classList.remove('drag-over'); });
+            frPairDragging = null;
+        });
+        card.addEventListener('dragover', function(event){
+            if (!frPairDragging || frPairDragging === card) return;
+            event.preventDefault();
+            card.classList.add('drag-over');
+        });
+        card.addEventListener('dragleave', function(){ card.classList.remove('drag-over'); });
+        card.addEventListener('drop', function(event){
+            if (!frPairDragging || frPairDragging === card) return;
+            event.preventDefault();
+            var box = card.getBoundingClientRect();
+            card.parentNode.insertBefore(frPairDragging, event.clientY < box.top + box.height / 2 ? card : card.nextSibling);
+            card.classList.remove('drag-over');
+            DirtyStore.mark('fast_rename_settings', 'global');
+        });
+    }
+
+    function saveFastRenameSettings() {
+        var payload = {
+            gap_threshold_mm: parseFloat((document.getElementById('fr_gap_threshold_mm') || {}).value || '1000'),
+            default_sp_start_num: parseInt((document.getElementById('fr_default_sp_start_num') || {}).value || '1', 10),
+            default_split_axis: (document.getElementById('fr_default_split_axis') || {}).value || 'x',
+            split_all_default: getBool('fr_split_all_default'),
+            auto_contact_split: getBool('fr_auto_contact_split'),
+            cp_tolerance_mm: parseFloat((document.getElementById('fr_cp_tolerance_mm') || {}).value || '0.05'),
+            cp_penetration_tolerance_mm: parseFloat((document.getElementById('fr_cp_penetration_tolerance_mm') || {}).value || '0.05'),
+            cp_max_pass: parseInt((document.getElementById('fr_cp_max_pass') || {}).value || '20', 10),
+            cp_separator_axes: splitTokens((document.getElementById('fr_cp_separator_axes') || {}).value || 'x,z'),
+            exempt_keywords: collectFastRenameKeywords('exempt_keywords'),
+            sp_base_only_keywords: collectFastRenameKeywords('sp_base_only_keywords'),
+            modul_contact_keywords: collectFastRenameKeywords('modul_contact_keywords'),
+            base_accessory_keywords: collectFastRenameKeywords('base_accessory_keywords'),
+            named_contact_split_pairs: collectFastRenamePairs()
+        };
+        skp('save_fast_rename_settings', JSON.stringify(payload));
+    }
+
+    window.loadFastRenameSettings = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            showFastRenameStatus(data.error || 'Không tải được cài đặt Fast Rename.', true);
+            return;
+        }
+        var s = data.settings || {};
+        setValue('fr_gap_threshold_mm', s.gap_threshold_mm == null ? 1000 : s.gap_threshold_mm);
+        setValue('fr_default_sp_start_num', s.default_sp_start_num == null ? 1 : s.default_sp_start_num);
+        setValue('fr_default_split_axis', s.default_split_axis || 'x');
+        setValue('fr_split_all_default', boolString(s.split_all_default, false));
+        setValue('fr_auto_contact_split', boolString(s.auto_contact_split, true));
+        setValue('fr_cp_tolerance_mm', s.cp_tolerance_mm == null ? 0.05 : s.cp_tolerance_mm);
+        setValue('fr_cp_penetration_tolerance_mm', s.cp_penetration_tolerance_mm == null ? 0.05 : s.cp_penetration_tolerance_mm);
+        setValue('fr_cp_max_pass', s.cp_max_pass == null ? 20 : s.cp_max_pass);
+        setValue('fr_cp_separator_axes', (s.cp_separator_axes || ['x','z']).join(','));
+        renderFastRenameKeywords('exempt_keywords', s.exempt_keywords || []);
+        renderFastRenameKeywords('sp_base_only_keywords', s.sp_base_only_keywords || []);
+        renderFastRenameKeywords('modul_contact_keywords', s.modul_contact_keywords || []);
+        renderFastRenameKeywords('base_accessory_keywords', s.base_accessory_keywords || []);
+        renderFastRenamePairs(s.named_contact_split_pairs || []);
+        var av = document.getElementById('fr_available');
+        if (av) av.textContent = 'Setting hiện có: ' + (data.available_settings || []).join(', ') + '.';
+        showFastRenameStatus(data.message || 'Sẵn sàng.', !!data.message_error);
+        if (data.message && !data.message_error) DirtyStore.clear('fast_rename_settings');
+    };
+
+    function showFastRenameStatus(message, isError) {
+        var el = document.getElementById('fr_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    }
+
+    function loadSelectSimilarPanelRequest() {
+        skp('load_select_similar_panel');
+    }
+
+    function saveSelectSimilarSettings() {
+        var payload = {
+            partial_name: getBool('ss_partial_name'),
+            name_group: getBool('ss_name_group'),
+            quick_search_items: collectSelectSimilarSearchRows(),
+            bounding_size: getBool('ss_bounding_size'),
+            bounding_volume: getBool('ss_bounding_volume'),
+            min_thickness: getBool('ss_min_thickness'),
+            same_material: getBool('ss_same_material'),
+            same_tag: getBool('ss_same_tag'),
+            size_tolerance: parseFloat((document.getElementById('ss_size_tolerance') || {}).value || '0'),
+            volume_tolerance: parseFloat((document.getElementById('ss_volume_tolerance') || {}).value || '0'),
+            thickness_tolerance: parseFloat((document.getElementById('ss_thickness_tolerance') || {}).value || '0'),
+            type_filter: (document.getElementById('ss_type_filter') || {}).value || 'both',
+            scope_filter: (document.getElementById('ss_scope_filter') || {}).value || 'all',
+            nesting_filter: (document.getElementById('ss_nesting_filter') || {}).value || 'nested',
+            min_size_threshold: parseInt((document.getElementById('ss_min_size_threshold') || {}).value || '0', 10),
+            min_all_size_threshold: parseInt((document.getElementById('ss_min_all_size_threshold') || {}).value || '0', 10),
+            key_isolate: (document.getElementById('ss_key_isolate') || {}).value || 'I',
+            key_settings: (document.getElementById('ss_key_settings') || {}).value || 'TAB'
+        };
+        skp('save_select_similar_settings', JSON.stringify(payload));
+    }
+
+    function normalizeSelectSimilarShortcut(value) {
+        var text = String(value == null ? '' : value).trim();
+        if (!/^\d{1,3}$/.test(text)) return text;
+        return String(parseInt(text, 10)).padStart(3, '0');
+    }
+
+    function addSelectSimilarSearchRow(item) {
+        item = item || {};
+        var tbody = document.getElementById('ss_name_search_rows');
+        if (!tbody) return;
+        var row = document.createElement('tr');
+        row.className = 'ss-search-row';
+        row.draggable = true;
+        row.innerHTML =
+          '<td><div class="ss-search-cell"><span class="ss-search-grip" title="Kéo để đổi vị trí">⋮⋮</span><input class="ss-search-value" type="text" value="' + escAttr(item.text || item.value || '') + '"></div></td>' +
+          '<td><div class="ss-search-shortcut-cell"><input class="ss-shortcut" type="text" maxlength="3" value="' + escAttr(normalizeSelectSimilarShortcut(item.shortcut || '')) + '"><button class="cp-icon-btn" type="button" title="Xoá">✕</button></div></td>';
+        row.querySelector('.cp-icon-btn').addEventListener('click', function(){
+            row.remove();
+            DirtyStore.mark('select_similar_settings', 'global');
+        });
+        wireSelectSimilarSearchRow(row);
+        tbody.appendChild(row);
+        if (!item.text && !item.value && !item.shortcut) DirtyStore.mark('select_similar_settings', 'global');
+    }
+
+    function renderSelectSimilarSearchRows(items) {
+        var tbody = document.getElementById('ss_name_search_rows');
+        if (!tbody) return;
+        tbody.innerHTML = '';
+        (items || []).forEach(function(item, index){
+            if (typeof item === 'string') item = { text:item, shortcut:String(index).padStart(3, '0') };
+            addSelectSimilarSearchRow(item);
+        });
+    }
+
+    function collectSelectSimilarSearchRows() {
+        var out = [];
+        document.querySelectorAll('#ss_name_search_rows .ss-search-row').forEach(function(row, index){
+            var text = (row.querySelector('.ss-search-value') || {}).value || '';
+            var shortcut = (row.querySelector('.ss-shortcut') || {}).value || '';
+            text = text.trim();
+            shortcut = normalizeSelectSimilarShortcut(shortcut);
+            if (!text) return;
+            if (!shortcut) shortcut = String(index).padStart(3, '0');
+            out.push({ text:text, shortcut:shortcut });
+        });
+        return out;
+    }
+
+    var ssDraggingRow = null;
+    function wireSelectSimilarSearchRow(row) {
+        row.addEventListener('dragstart', function(event){
+            ssDraggingRow = row;
+            row.classList.add('dragging');
+            if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move';
+        });
+        row.addEventListener('dragend', function(){
+            row.classList.remove('dragging');
+            document.querySelectorAll('.ss-search-row.drag-over').forEach(function(node){ node.classList.remove('drag-over'); });
+            ssDraggingRow = null;
+        });
+        row.addEventListener('dragover', function(event){
+            if (!ssDraggingRow || ssDraggingRow === row) return;
+            event.preventDefault();
+            row.classList.add('drag-over');
+        });
+        row.addEventListener('dragleave', function(){ row.classList.remove('drag-over'); });
+        row.addEventListener('drop', function(event){
+            if (!ssDraggingRow || ssDraggingRow === row) return;
+            event.preventDefault();
+            var box = row.getBoundingClientRect();
+            row.parentNode.insertBefore(ssDraggingRow, event.clientY < box.top + box.height / 2 ? row : row.nextSibling);
+            row.classList.remove('drag-over');
+            DirtyStore.mark('select_similar_settings', 'global');
+        });
+    }
+
+    window.loadSelectSimilarPanel = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            showSelectSimilarStatus(data.error || 'Không tải được Select Similar.', true);
+            return;
+        }
+        var s = data.settings || {};
+        setValue('ss_partial_name', boolString(s.partial_name, true));
+        setValue('ss_name_group', boolString(s.name_group, false));
+        renderSelectSimilarSearchRows(data.quick_search_items || data.search_suggestions || []);
+        setValue('ss_bounding_size', boolString(s.bounding_size, true));
+        setValue('ss_bounding_volume', boolString(s.bounding_volume, false));
+        setValue('ss_min_thickness', boolString(s.min_thickness, true));
+        setValue('ss_same_material', boolString(s.same_material, true));
+        setValue('ss_same_tag', boolString(s.same_tag, true));
+        setValue('ss_size_tolerance', s.size_tolerance == null ? 5 : s.size_tolerance);
+        setValue('ss_volume_tolerance', s.volume_tolerance == null ? 5 : s.volume_tolerance);
+        setValue('ss_thickness_tolerance', s.thickness_tolerance == null ? 2 : s.thickness_tolerance);
+        setValue('ss_type_filter', s.type_filter || 'both');
+        setValue('ss_scope_filter', s.scope_filter || 'all');
+        setValue('ss_nesting_filter', s.nesting_filter || 'nested');
+        setValue('ss_min_size_threshold', s.min_size_threshold || 0);
+        setValue('ss_min_all_size_threshold', s.min_all_size_threshold || 0);
+        setValue('ss_key_isolate', s.key_isolate || 'I');
+        setValue('ss_key_settings', s.key_settings || 'TAB');
+        showSelectSimilarStatus(data.message || 'Sẵn sàng.', !!data.message_error);
+        if (data.message && !data.message_error) DirtyStore.clear('select_similar_settings');
+    };
+
+    function showSelectSimilarStatus(message, isError) {
+        var el = document.getElementById('ss_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    }
+
+    function loadViewportNamesPanelRequest() {
+        skp('load_viewport_names_panel');
+    }
+
+    function saveViewportNamesSettings() {
+        var payload = {
+            line_spacing: parseInt((document.getElementById('vn_line_spacing') || {}).value || '28', 10),
+            text_gap: parseInt((document.getElementById('vn_text_gap') || {}).value || '150', 10),
+            text_display_mode: (document.getElementById('vn_text_display_mode') || {}).value || 'all',
+            show_hidden_lines: getBool('vn_show_hidden_lines'),
+            label_style: (document.getElementById('vn_label_style') || {}).value || 'leader',
+            show_part_id: getBool('vn_show_part_id'),
+            show_part_prefix: getBool('vn_show_part_prefix'),
+            show_part_suffix: getBool('vn_show_part_suffix'),
+            show_label_bg: getBool('vn_show_label_bg'),
+            hidden_layers: splitLines((document.getElementById('vn_hidden_layers') || {}).value || '')
+        };
+        skp('save_viewport_names_settings', JSON.stringify(payload));
+    }
+
+    window.loadViewportNamesPanel = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            showViewportNamesStatus(data.error || 'Không tải được Viewport Names.', true);
+            return;
+        }
+        setValue('vn_line_spacing', data.line_spacing == null ? 28 : data.line_spacing);
+        setValue('vn_text_gap', data.text_gap == null ? 150 : data.text_gap);
+        setValue('vn_text_display_mode', data.text_display_mode || 'all');
+        setValue('vn_show_hidden_lines', boolString(data.show_hidden_lines, true));
+        setValue('vn_label_style', data.label_style || 'leader');
+        setValue('vn_show_part_id', boolString(data.show_part_id, true));
+        setValue('vn_show_part_prefix', boolString(data.show_part_prefix, true));
+        setValue('vn_show_part_suffix', boolString(data.show_part_suffix, true));
+        setValue('vn_show_label_bg', boolString(data.show_label_bg, false));
+        setValue('vn_hidden_layers', (data.hidden_layers || []).join('\n'));
+        showViewportNamesStatus(data.message || (data.tool_active ? 'Tool đang chạy, lưu sẽ refresh viewport.' : 'Sẵn sàng.'), !!data.message_error);
+        if (data.message && !data.message_error) DirtyStore.clear('viewport_names_settings');
+    };
+
+    function showViewportNamesStatus(message, isError) {
+        var el = document.getElementById('vn_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    }
+
+    function getBool(id) {
+        return (document.getElementById(id) || {}).value === 'true';
+    }
+
+    function boolString(value, fallback) {
+        if (value == null) value = fallback;
+        return value ? 'true' : 'false';
+    }
+
+    function splitLines(text) {
+        return String(text || '').split(/\r?\n/).map(function(s){ return s.trim(); }).filter(Boolean);
+    }
+
+    function setValue(id, value) {
+        var el = document.getElementById(id);
+        if (el) el.value = value == null ? '' : value;
+    }
+
+    function loadPkSettingsRequest() {
+        skp('load_pk_settings');
+    }
+
+    function choosePkLibrary() {
+        skp('choose_pk_library');
+    }
+
+    function savePkSettings() {
+        var payload = {
+            path: (document.getElementById('pk_path') || {}).value || '',
+            shape: (document.getElementById('pk_shape') || {}).value || 'square',
+            size_mm: parseFloat((document.getElementById('pk_size_mm') || {}).value || '0'),
+            face_mode: (document.getElementById('pk_face_mode') || {}).value || 'largest'
+        };
+        skp('save_pk_settings', JSON.stringify(payload));
+    }
+
+    window.showPkSettingsStatus = function(message, isError) {
+        var el = document.getElementById('pk_status');
+        if (!el) return;
+        el.textContent = message || '';
+        el.className = 'cp-status' + (isError ? ' err' : '');
+    };
+
+    window.loadPkSettings = function(data) {
+        data = data || {};
+        if (!data.ok) {
+            window.showPkSettingsStatus(data.error || 'Không tải được cài đặt PK Addon.', true);
+            return;
+        }
+        var path = document.getElementById('pk_path');
+        var shape = document.getElementById('pk_shape');
+        var size = document.getElementById('pk_size_mm');
+        var face = document.getElementById('pk_face_mode');
+        if (path) path.value = data.path || '';
+        if (shape) shape.value = data.shape || 'square';
+        if (size) size.value = data.size_mm || 8;
+        if (face) {
+            face.innerHTML = '';
+            var modes = data.face_modes || { largest:'Mặt lớn nhất', smallest:'Mặt nhỏ nhất' };
+            Object.keys(modes).forEach(function(key){
+                var opt = document.createElement('option');
+                opt.value = key;
+                opt.textContent = modes[key];
+                if (key === data.face_mode) opt.selected = true;
+                face.appendChild(opt);
+            });
+        }
+        var msg = data.message || ('Thư viện hiện có ' + (data.library_count || 0) + ' phụ kiện' + (data.library_exists ? '.' : ' (chưa tìm thấy file).'));
+        window.showPkSettingsStatus(msg, !data.library_exists && !!data.path);
+        if (data.message && !data.message_error) DirtyStore.clear('pk_settings');
+    };
+
+    function updateFooterDirty() {
+        var footer = document.getElementById('cp-footer');
+        var status = document.getElementById('cp-footer-status');
+        var ids = DirtyStore.dirtyIds();
+        if (footer) footer.className = ids.length ? 'dirty' : '';
+        if (status && !status.className.includes('err')) {
+            status.textContent = ids.length ? ('Có ' + ids.length + ' mục chưa lưu.') : 'Không có thay đổi chưa lưu.';
+        }
+    }
+
+    function saveAllDirty() {
+        var ids = DirtyStore.dirtyIds();
+        if (!ids.length) {
+            showFooterStatus('Không có thay đổi chưa lưu.', false);
+            return;
+        }
+        ids.forEach(function(id){
+            if (id === 'thongke_panel') saveThongkeHidden();
+            if (id === 'assemble_settings') saveAssembleSettings();
+            if (id === 'select_similar_settings') saveSelectSimilarSettings();
+            if (id === 'fast_rename_settings') saveFastRenameSettings();
+            if (id === 'viewport_names_settings') saveViewportNamesSettings();
+            if (id === 'pk_settings') savePkSettings();
+        });
+        showFooterStatus('Đang lưu ' + ids.length + ' mục...', false);
+    }
+
+    function exportConfigBackup() {
+        skp('export_config_backup');
+    }
+
+    function restoreConfigBackup() {
+        skp('restore_config_backup');
+    }
+
+    window.showFooterStatus = function(message, isError) {
+        var status = document.getElementById('cp-footer-status');
+        if (!status) return;
+        status.textContent = message || '';
+        status.className = isError ? 'err' : '';
+        if (!isError) setTimeout(updateFooterDirty, 2600);
+    };
+
+    function nativePanelIdFromElement(el) {
+        var panel = el && el.closest ? el.closest('.tab-panel') : null;
+        if (!panel || !panel.id) return null;
+        var id = panel.id.replace(/^panel_/, '');
+        return NATIVE_PANELS.some(function(p){ return p.id === id; }) ? id : null;
+    }
+
+    function dirtyScopeForPanel(id) {
+        if (id === 'assemble_settings' || id === 'thongke_panel') return 'project';
+        return 'global';
+    }
+
+    document.addEventListener('input', function(e) {
+        var id = nativePanelIdFromElement(e.target);
+        if (id) DirtyStore.mark(id, dirtyScopeForPanel(id));
+    });
+    document.addEventListener('change', function(e) {
+        var id = nativePanelIdFromElement(e.target);
+        if (id) DirtyStore.mark(id, dirtyScopeForPanel(id));
+    });
+
+    function entryMatches(e){
+        if (!searchQuery) return true;
+        if (e.label.toLowerCase().includes(searchQuery)) return true;
+        if (e.kind === 'app') return (e.app.actions||[]).some(function(x){ return (x.label||'').toLowerCase().includes(searchQuery); });
+        return false;
+    }
+
+    function renderSidebar() {
+        var list = document.getElementById('tabs-list');
+        list.innerHTML = '';
+        sidebarEntries().forEach(function(e){
+            var div = document.createElement('div');
+            div.className = 'tab' + (e.id === currentId ? ' active' : '') + (entryMatches(e) ? '' : ' search-hidden');
+            div.innerHTML = '<span class="tab-icon">'+iconFor(e.icon)+'</span>'+escHtml(e.label);
+            div.addEventListener('click', function(){ switchTo(e.id); });
+            list.appendChild(div);
+        });
+    }
+
+    function switchTo(id) {
+        currentId = id;
+        renderSidebar();
+        // hide all
+        document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+        var reg = REGISTRY_TABS.find(function(t){ return 'reg_' + t.tab === id; });
+        if (reg) {
+            var rp = document.getElementById('panel_' + REGISTRY_PANEL.id);
+            if (rp) rp.classList.add('active');
+            showRegistryTab(reg.tab);
+            return;
+        }
+        var nativePanel = NATIVE_PANELS.find(function(p){ return p.id === id; });
+        if (nativePanel) {
+            var np = document.getElementById('panel_' + id);
+            if (np) np.classList.add('active');
+            if (nativePanel.type === 'pk_settings') loadPkSettingsRequest();
+            if (nativePanel.type === 'thongke_panel') loadThongkePanelRequest();
+            if (nativePanel.type === 'assemble_settings') loadAssemblePanelRequest();
+            if (nativePanel.type === 'select_similar_settings' && !DirtyStore.sections.select_similar_settings) loadSelectSimilarPanelRequest();
+            if (nativePanel.type === 'fast_rename_settings' && !DirtyStore.sections.fast_rename_settings) loadFastRenameSettingsRequest();
+            if (nativePanel.type === 'viewport_names_settings') loadViewportNamesPanelRequest();
+            return;
+        }
+        var sp = SETTINGS_PANELS.find(function(p){ return p.id === id; });
+        if (sp) {
+            var el = document.getElementById('panel_'+id);
+            if (el) el.classList.add('active');
+            if (settingsLoaded && iframesReady[id]) sendSettingsToIframe(id);
+            else if (settingsLoaded) pendingLoad[id] = true;
+        } else {
+            var lp = document.getElementById('panel_launcher');
+            lp.classList.add('active');
+            renderLauncher(id);
+        }
+    }
+
+    function renderLauncher(id) {
+        var app = apps.find(function(a){ return 'app_'+a.name === id; });
+        var body = document.getElementById('cp-launch-body');
+        if (!app) { body.innerHTML = '<div class="cp-empty">—</div>'; return; }
+        var slug = appIconFor(app.name);
+        var html = '<div class="cp-header"><div class="cp-badge">'+iconFor(slug)+'</div><div><div class="cp-title">'+escHtml(app.name)+'</div>'
+                 + (appDescriptionFor(app.name) ? '<div class="cp-desc">'+appDescriptionFor(app.name)+'</div>' : '') + '</div></div>';
+        var actions = (app.actions||[]).slice();
+        if (searchQuery) actions = actions.filter(function(a){ return a.label.toLowerCase().includes(searchQuery); });
+        var normal = actions.filter(function(a){ return !/^dev:/i.test(a.label); });
+        var dev = actions.filter(function(a){ return /^dev:/i.test(a.label); });
+        html += '<div class="cp-actions">';
+        if (!normal.length && !dev.length) html += '<div class="cp-empty">Không có lệnh phù hợp.</div>';
+        normal.forEach(function(a){ html += '<button class="action-button-full" style="padding:8px 12px;" onclick="invokeAction(\''+esc(app.name)+'\',\''+esc(a.key)+'\')">'+escHtml(a.label)+'</button>'; });
+        if (dev.length) {
+            html += '<div class="cp-dev-toggle" onclick="toggleDev(\''+esc(app.name)+'\')">'+(showDev[app.name]?'▾':'▸')+' Lệnh phát triển ('+dev.length+')</div>';
+            if (showDev[app.name]) dev.forEach(function(a){ html += '<button class="action-button-full" style="padding:7px 12px;opacity:.85;" onclick="invokeAction(\''+esc(app.name)+'\',\''+esc(a.key)+'\')">'+escHtml(a.label)+'</button>'; });
+        }
+        html += '</div>';
+        body.innerHTML = html;
+    }
+    function toggleDev(name){ showDev[name] = !showDev[name]; renderLauncher('app_'+name); }
+
+    function esc(s){ return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+    function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function escAttr(s){ return escHtml(s).replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+    function invokeAction(app, key){
+        if (app === 'Panel' && window.sketchup && window.sketchup.activate_panel_tool) {
+            window.sketchup.activate_panel_tool(key);
+            return;
+        }
+        var params = app + '@' + key;
+        if (window.sketchup && window.sketchup.invoke) window.sketchup.invoke(params);
+        else window.location.href = 'skp:invoke@' + params;
+    }
+
+    function handleSearch(v){ searchQuery=(v||'').trim().toLowerCase(); renderSidebar(); if(currentId && currentId.indexOf('app_')===0) renderLauncher(currentId); }
+
+    // ---- Định tuyến settings tới iframe ---------------------------------
+    function sectionOf(id){ var p = SETTINGS_PANELS.find(function(x){return x.id===id;}); return p ? p.section : id; }
+
+    function sendSettingsToIframe(id){
+        var iframe = document.getElementById('iframe_'+id);
+        if (!iframe || !iframe.contentWindow) return;
+        var section = sectionOf(id);
+        iframe.contentWindow.postMessage({ action:'loadSettings', settings: allSettings[section] || {}, hideUnavailable:true }, '*');
+    }
+
+    window.loadAllSettings = function(data){
+        allSettings = data || {};
+        settingsLoaded = true;
+        SETTINGS_PANELS.forEach(function(p){ if (iframesReady[p.id]) sendSettingsToIframe(p.id); });
+        hideLoading();
+    };
+    window.loadApps = function(data){
+        apps = (data||[]).filter(function(a){ return a.name !== 'Panel'; });
+        renderSidebar();
+        if (!currentId) switchTo(SETTINGS_PANELS[0].id);
+    };
+    window.sendPresetsToIframe = function(section, presets, collapsed){
+        var p = SETTINGS_PANELS.find(function(x){return x.section===section;});
+        if (!p) return;
+        var iframe = document.getElementById('iframe_'+p.id);
+        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ action:'presets_loaded', presets:presets, collapsedGroups:collapsed }, '*');
+    };
+    window.sendSettingsToIframeData = function(section, settings){
+        var p = SETTINGS_PANELS.find(function(x){return x.section===section;});
+        if (!p) return;
+        var iframe = document.getElementById('iframe_'+p.id);
+        if (iframe && iframe.contentWindow) iframe.contentWindow.postMessage({ action:'preset_settings_loaded', settings:settings }, '*');
+    };
+
+    window.MHControlPanel = {
+        frameReady: function(panelId) {
+            if (panelId === 'registry') {
+                registryReady = true;
+                if (registryPendingTab) setTimeout(function(){ callRegistryOnShow(registryPendingTab); }, 40);
+            }
+        },
+        callFrame: function(panelId, fnName, payload) {
+            var frame = document.querySelector('iframe[data-panel-id="' + panelId + '"]');
+            if (!frame || !frame.contentWindow) return false;
+            var fn = frame.contentWindow[fnName];
+            if (typeof fn !== 'function') return false;
+            return fn(payload) !== false;
+        },
+        callEmbedded: function(panelId, methodName, payload) {
+            var frame = document.querySelector('iframe[data-panel-id="' + panelId + '"]');
+            if (!frame || !frame.contentWindow || !frame.contentWindow.MHEmbedded) return false;
+            var fn = frame.contentWindow.MHEmbedded[methodName];
+            if (typeof fn !== 'function') return false;
+            return fn(payload) !== false;
+        }
+    };
+
+    // sketchup-bridge trả Promise qua dlg.execute_script ở top frame.
+    // Registry bridge chạy trong iframe, nên top frame cần relay response về iframe.
+    window.Bridge = window.Bridge || {};
+    window.Bridge.requestHandler = window.Bridge.requestHandler || {};
+    window.Bridge.requestHandler.receive = function(id, payload) {
+        var frame = document.querySelector('iframe[data-panel-id="registry"]');
+        if (!frame || !frame.contentWindow || !frame.contentWindow.Bridge || !frame.contentWindow.Bridge.requestHandler) return;
+        frame.contentWindow.Bridge.requestHandler.receive(id, payload);
+    };
+
+    // ---- Lắng nghe message từ iframe (giống openzsu caidat) -------------
+    window.addEventListener('message', function(event){
+        var d = event.data; if (!d || !d.action) return;
+        switch (d.action) {
+            case 'iframe_ready': {
+                var id = d.tabId;
+                iframesReady[id] = true;
+                if (settingsLoaded && (id === currentId || pendingLoad[id])) { setTimeout(function(){ sendSettingsToIframe(id); pendingLoad[id]=false; }, 80); }
+                break;
+            }
+            case 'mh_embedded_ready': {
+                if (d.panelId && window.MHControlPanel) window.MHControlPanel.frameReady(d.panelId);
+                break;
+            }
+            case 'save_setting': {
+                var section = sectionOf(d.tabId || currentId);
+                if (!allSettings[section]) allSettings[section] = {};
+                allSettings[section][d.key] = d.value;
+                var val = (typeof d.value === 'object') ? JSON.stringify(d.value) : d.value;
+                skp('save_setting', section + '@' + d.key + '@' + val);
+                break;
+            }
+            case 'load_presets':   skpPresets('load_presets', sectionOf(d.tabId)); break;
+            case 'save_preset':    skp('save_preset', sectionOf(d.tabId) + '@' + d.presetName + '@' + JSON.stringify(d.settings)); break;
+            case 'load_preset':    skp('load_preset', sectionOf(d.tabId) + '@' + d.presetName); break;
+            case 'delete_preset':  skp('delete_preset', sectionOf(d.tabId) + '@' + d.presetName); break;
+            case 'save_presets_order': skp('save_presets_order', sectionOf(d.tabId) + '@' + JSON.stringify(d.presets)); break;
+            case 'save_collapsed_groups': skp('save_collapsed_groups', sectionOf(d.tabId) + '@' + JSON.stringify(d.collapsedGroups)); break;
+            case 'export_settings': skp('export_settings'); break;
+            case 'import_settings': skp('import_settings'); break;
+            case 'reset_settings':  skp('reset_settings'); break;
+            case 'reset_section':   skp('reset_section', sectionOf(d.tabId)); break;
+        }
+    });
+
+    function skp(name, params){ if (window.sketchup && window.sketchup[name]) { params===undefined?window.sketchup[name]():window.sketchup[name](params); } else { window.location.href='skp:'+name+(params!==undefined?'@'+params:''); } }
+    function skpPresets(name, section){ if (window.sketchup && window.sketchup.load_presets) window.sketchup.load_presets(section); else window.location.href='skp:load_presets@'+section; }
+
+    function hideLoading(){ var o=document.getElementById('loading-overlay'); if(o){ o.classList.add('fade-out'); setTimeout(function(){o.style.display='none';},300);} }
+
+    function boot(){
+        buildContent();
+        renderSidebar();
+        switchTo(SETTINGS_PANELS[0].id);
+        skp('load_apps');
+        skp('load_settings');
+    }
+    window.addEventListener('DOMContentLoaded', function(){ setTimeout(boot, 100); });
+    if (document.readyState !== 'loading') setTimeout(boot, 100);
+
+    // ---- Thu gọn sidebar -------------------------------------------------
+    function setTabTextVisible(v){ var t=document.getElementById('tabs'); var l=document.querySelector('.tabs-footer-label'); if(v)t.classList.remove('hide-text'); else t.classList.add('hide-text'); if(l)l.style.opacity=v?'1':'0'; }
+    function toggleSidebar(){ var t=document.getElementById('tabs'); var ic=document.querySelector('.tabs-footer-icon'); var col=!t.classList.contains('collapsed'); if(col){setTabTextVisible(false);t.classList.add('collapsed');}else{t.classList.remove('collapsed');setTabTextVisible(false);setTimeout(function(){setTabTextVisible(true);},200);} ic.textContent=col?'›':'‹'; }
+</script>
+
+</body>
+</html>
+

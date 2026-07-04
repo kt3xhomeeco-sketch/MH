@@ -1,0 +1,67 @@
+# Track only the plugin families managed in this repository. The SketchUp
+# Plugins folder also contains installed third-party extensions.
+/*
+!/.gitignore
+!/MH*.rb
+!/MH*.ini
+!/mh*.rb
+!/MH_*/
+!/MH_*/**
+!/mh_*/
+!/mh_*/**
+!/smart_scale_lab/
+!/smart_scale_lab/**
+
+# Runtime/cache output
+**/__pycache__/
+**/.pytest_cache/
+**/.cache/
+**/logs/
+**/log/
+**/build/
+**/dist/
+**/tmp/
+**/temp/
+*.log
+*.tmp
+*.temp
+
+# Backups and archives
+backup/
+temp/
+_MH_QUARANTINE_*/
+_MH_Thongke_Desktop_OLD_*/
+*_BACKUP_*/
+*_BACKUP_*
+*backup*
+*.bak
+*.bak_*
+*.backup
+*.backup_*
+*.before_*.xlsx
+*.old
+*.orig
+*.zip
+*.rar
+*.7z
+
+# Generated/local project data
+MH_Thongke/data/
+MH_Thongke/logs/
+MH_Thongke/engine/build/
+MH_Thongke/engine/dist/
+MH_Thongke/tools/fill_sp/__pycache__/
+MH_shared/data/_unsaved*_MH_project_registry.json
+MH_PK_Addon/__xlsx_build/
+MH_Registry/[0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F][0-9A-F]
+MH_SelectSimilar/config.before_*.xlsx
+
+# Editor/system noise
+.idea/
+.vscode/
+__MACOSX/
+Thumbs.db
+Desktop.ini
+
+# Local Git backups from repository cleanup
+.git_invalid_backup_*/

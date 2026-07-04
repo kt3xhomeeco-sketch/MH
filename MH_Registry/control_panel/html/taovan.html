@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Cài Đặt Tạo Ván</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/vue.min.js"></script>
+    <script src="js/setting.js"></script>
+</head>
+<body>
+
+<div id="app" class="container">
+    <div class="col2">
+        <h3>Độ dày</h3>
+
+        <div class="switch" title="Dùng độ dày của ván gốc làm độ dày của các ván được tạo ra.">
+            <span>Độ dày tự động</span>
+            <input type="checkbox" v-model="settings.do_day_tu_dong" @change="saveSetting('do_day_tu_dong')" id="do_day_tu_dong">
+            <label class="switch-label" for="do_day_tu_dong"></label>
+        </div>
+
+        <div class="switch" title="Độ dày của ván được tạo ra (khi không bật độ dày tự động).">
+            <span>Độ dày ván</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementValue('do_day')">−</button>
+                <input type="number" v-model.number="settings.do_day" @change="saveSetting('do_day')" @blur="validateNumber('do_day')" step="0.1">
+                <button class="spinner-btn" @click="incrementValue('do_day')">+</button>
+            </div>
+        </div>
+
+        <h3>Chế độ chọn</h3>
+
+        <div class="switch" title="Tính kích thước ván theo khoảng không gian giữa các cấu kiện.">
+            <span>Tính theo không gian</span>
+            <input type="checkbox" v-model="settings.tinh_theo_khong_gian" @change="saveSetting('tinh_theo_khong_gian')" id="tinh_theo_khong_gian">
+            <label class="switch-label" for="tinh_theo_khong_gian"></label>
+        </div>
+
+        <div class="switch" title="Tự động mở rộng vùng chọn ra các mặt lân cận đồng phẳng.">
+            <span>Chọn mặt mở rộng</span>
+            <input type="checkbox" v-model="settings.chon_mat_mo_rong" @change="saveSetting('chon_mat_mo_rong')" id="chon_mat_mo_rong">
+            <label class="switch-label" for="chon_mat_mo_rong"></label>
+        </div>
+
+        <h3>Tạo ván</h3>
+
+        <div class="switch" title="Kích hoạt Tạo ván ngay sau khi chạy lệnh nếu vùng chọn có chứa mặt.">
+            <span>Tạo ván nhanh</span>
+            <input type="checkbox" v-model="settings.tao_van_nhanh" @change="saveSetting('tao_van_nhanh')" id="tao_van_nhanh">
+            <label class="switch-label" for="tao_van_nhanh"></label>
+        </div>
+
+        <div class="switch" title="Tạo ván ngay sau khi nhấn Enter, không cần xem trước.">
+            <span>Bỏ qua xem trước</span>
+            <input type="checkbox" v-model="settings.bo_qua_xem_truoc" @change="saveSetting('bo_qua_xem_truoc')" id="bo_qua_xem_truoc">
+            <label class="switch-label" for="bo_qua_xem_truoc"></label>
+        </div>
+
+        <div class="switch" title="Gộp các mặt đồng phẳng lại thành một trước khi Tạo ván.">
+            <span>Gộp mặt đồng phẳng</span>
+            <input type="checkbox" v-model="settings.gop_dong_phang" @change="saveSetting('gop_dong_phang')" id="gop_dong_phang">
+            <label class="switch-label" for="gop_dong_phang"></label>
+        </div>
+
+        <div class="switch" title="Tự động xoay vân gỗ theo chiều dài ván.">
+            <span>Tự động xoay vân</span>
+            <input type="checkbox" v-model="settings.tu_dong_xoay_van" @change="saveSetting('tu_dong_xoay_van')" id="tu_dong_xoay_van">
+            <label class="switch-label" for="tu_dong_xoay_van"></label>
+        </div>
+
+        <div class="switch" title="Các ván mới được tạo sẽ trở thành component với nhau.">
+            <span>Tạo component</span>
+            <input type="checkbox" v-model="settings.tao_component" @change="saveSetting('tao_component')" id="tao_component">
+            <label class="switch-label" for="tao_component"></label>
+        </div>
+
+        <div class="switch" title="Mở rộng hoặc thu hẹp biên ngoài của ván. Có thể nhập số âm để tạo khe.">
+            <span>Mở rộng biên</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementValue('mo_rong_bien')">−</button>
+                <input type="number" v-model.number="settings.mo_rong_bien" @change="saveSetting('mo_rong_bien')" @blur="validateNumber('mo_rong_bien')" step="0.1">
+                <button class="spinner-btn" @click="incrementValue('mo_rong_bien')">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Trừ chiều sâu ván và tịnh tiến cạnh phía trước vào trong theo hướng nhìn.">
+            <span>Tụt hồi</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementValue('tut_hoi')">−</button>
+                <input type="number" v-model.number="settings.tut_hoi" @change="saveSetting('tut_hoi')" @blur="validateNumber('tut_hoi')" step="0.1">
+                <button class="spinner-btn" @click="incrementValue('tut_hoi')">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Tên instance của các ván được tạo ra.">
+            <span>Instance</span>
+            <div class="text-input-group">
+                <input type="text" v-model="settings.instance" @input="saveSetting('instance')" placeholder="Nhập tên instance">
+            </div>
+        </div>
+
+        <div class="switch" title="Layer (tag) của các ván được tạo ra.">
+            <span>Layer</span>
+            <div class="text-input-group">
+                <input type="text" v-model="settings.layer" @input="saveSetting('layer')" placeholder="Nhập tên layer">
+            </div>
+        </div>
+    </div>
+
+    <div id="preset-panel"></div>
+</div>
+
+<script>
+    Vue.config.productionTip = false;
+    Vue.config.devtools = false;
+    document.body.spellcheck = false;
+
+    new Vue({
+        el: '#app',
+        mixins: [SettingsMixin('tao_van')],
+        data: {
+            settings: {
+                tinh_theo_khong_gian: true,
+                chon_mat_mo_rong: true,
+                do_day_tu_dong: true,
+                do_day: 17.5,
+                tao_van_nhanh: false,
+                bo_qua_xem_truoc: false,
+                gop_dong_phang: false,
+                tu_dong_xoay_van: false,
+                tao_component: false,
+                mo_rong_bien: 0.0,
+                tut_hoi: 0.0,
+                instance: '',
+                layer: ''
+            }
+        },
+        methods: {}
+    });
+</script>
+
+</body>
+</html>

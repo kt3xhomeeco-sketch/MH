@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>MH Registry</title>
+  <link rel="stylesheet" href="css/registry.css?v=material-code-contract-20260626-47" />
+  <script>
+    if (window.parent !== window && window.parent.sketchup) {
+      window.sketchup = window.parent.sketchup;
+    }
+  </script>
+  <script type="text/javascript" src="js/bridge.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">MH&nbsp;Registry</div>
+    <div class="ctx">
+      <span class="ctx-item">Model: <b id="modelName">…</b></span>
+      <span class="ctx-item">Project file: <code id="projectPath">…</code></span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="btnReload">Tải lại</button>
+    </div>
+  </header>
+
+  <div class="tabs-row">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="main">Tổng hợp</button>
+      <button class="tab" data-tab="superimp">Superimp</button>
+      <button class="tab" data-tab="naming">Đặt Tên</button>
+      <button class="tab" data-tab="ma_vat_lieu">Vật liệu</button>
+    </nav>
+    <div class="tab-actions" data-tab-actions="superimp">
+      <button class="btn" id="btnReloadMaterialProfiles">Sinh từ Config</button>
+      <button class="btn primary" id="btnSaveSuperimp">Lưu</button>
+    </div>
+  </div>
+
+  <main class="content">
+    <!-- ============ TỔNG HỢP (main) ============ -->
+    <section class="panel active" data-panel="main">
+      <div class="panel-head">
+        <div>
+          <h2>Tổng hợp</h2>
+        </div>
+      </div>
+
+      <!-- 1. Chọn file input -->
+      <div class="card" style="margin-bottom:12px">
+        <h3>File thống kê</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="btnChooseInput">Chọn file...</button>
+          <span id="mvlInputPath" style="color:#aaa;font-size:12px">(chưa chọn)</span>
+        </div>
+      </div>
+
+      <!-- 2. Đánh dấu sản phẩm -->
+      <div class="card" style="margin-bottom:12px">
+        <h3>Đánh dấu sản phẩm</h3>
+        <p class="hint">Gõ khoảng số Đầu–Cuối → tự sinh mã SP và tạo nhãn trong SketchUp (không cần Excel).</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label>Prefix: <input id="markPrefix" type="text" value="" placeholder="vd: A-" style="width:80px" /></label>
+          <label>Đầu: <input id="markStart" type="number" min="1" step="1" value="1" style="width:70px" /></label>
+          <label>Cuối: <input id="markEnd" type="number" min="1" step="1" value="1" style="width:70px" /></label>
+          <label>Khoảng cách: <input id="markSpacing" type="number" value="5000" min="100" step="100" style="width:90px" /> mm</label>
+          <button class="btn primary" id="btnMarkProducts">Đánh dấu sản phẩm</button>
+          <button class="btn" id="btnMarkProductsAuto">Đánh dấu sản phẩm tự động</button>
+          <span id="markLog" style="font-size:12px;color:#aaa"></span>
+        </div>
+      </div>
+
+      <!-- 3. Tạo mã vật liệu -->
+      <div class="card" style="margin-bottom:12px">
+        <h3>Tạo mã vật liệu</h3>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
+          <label><input type="checkbox" id="mvlIncludeSon" checked /> Xuất mã sơn</label>
+          <button class="btn primary" id="btnRunMVL">Tạo mã</button>
+          <button class="btn" id="btnReloadMVLExcel">Reload Excel</button>
+          <button class="btn" id="btnOpenOutput" style="display:none">Mở file output</button>
+        </div>
+        <div id="mvlLog" style="margin-top:8px;font-size:12px;color:#aaa;white-space:pre-wrap;max-height:120px;overflow:auto"></div>
+      </div>
+
+      <!-- 4. Gán vật liệu -->
+      <div class="card" id="maSection" style="display:none">
+        <h3>Gán vật liệu</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="maDataCount" style="font-size:12px;color:#8f8"></span>
+          <button class="btn" id="btnAssignSelection">Gán VL Selection</button>
+          <button class="btn" id="btnAssignAll">Gán VL Toàn bộ</button>
+        </div>
+        <div id="maLog" style="margin-top:6px;font-size:12px;color:#aaa"></div>
+      </div>
+    </section>
+
+    <!-- ============ SUPERIMP / DC LIBRARY ============ -->
+    <section class="panel" data-panel="superimp">
+      <div class="panel-head">
+        <div>
+          <h2>Superimp <span class="badge glob">LIBRARY</span> <span class="badge proj">PROJECT</span></h2>
+        </div>
+      </div>
+
+      <div class="superimp-card-list" id="superimpCardList">
+      <div class="card superimp-card" data-card-id="superimp_import_list" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <h3>Superimp — Danh sách import</h3>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="superimp_import_list">+ dòng</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tbl_superimp_import_list"></div>
+      </div>
+
+      <div class="card superimp-card" data-card-id="dc_thickness_bindings" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <h3>DC — Binding tham số độ dày</h3>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="dc_thickness_bindings">+ dòng</button>
+          </div>
+        </div>
+
+        <div class="dc-learn-box" style="margin:8px 0 10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg0)">
+          <h3 style="margin:0 0 6px;font-size:13px">Học tham số (DC đang chọn)</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+            <button class="btn" id="btnLearnDCParams">Đọc tham số DC đang chọn</button>
+            <input id="dcBindMatch" placeholder="match (path hoặc group:Tên)" style="flex:1;min-width:200px" />
+            <input id="dcBindExtra" placeholder="param thêm: auto:key=panel, child:key=1" style="flex:1;min-width:220px" />
+            <button class="btn" id="btnAddExtraParam">+ Parameter</button>
+            <select id="dcBindUnit"><option value="length">length</option><option value="mm">mm</option><option value="none">none</option></select>
+            <button class="btn primary" id="btnCreateBinding">Tạo binding</button>
+          </div>
+          <div id="dcAttrsList" class="empty" style="font-size:12px;color:#ccc">Chưa đọc tham số DC.</div>
+        </div>
+
+        <div class="table-wrap" id="tbl_dc_thickness_bindings"></div>
+      </div>
+
+      <div class="card superimp-card" data-card-id="dc_manual_materials" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <div class="mh-manual-title-row">
+              <h3>DC — Danh sách mã VL thủ công</h3>
+              <input id="dcManualSearch" class="mh-manual-search" type="search" placeholder="Tìm mã VL..." />
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="dc_manual_materials">+ mã</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tbl_dc_manual_materials"></div>
+      </div>
+
+      <div class="card superimp-card" data-card-id="dc_thickness_options_library" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <div class="mh-card-title-row">
+              <h3>Độ dày vật liệu — THƯ VIỆN <span class="badge glob">LIBRARY</span></h3>
+              <input id="dcThicknessLibrarySearch" class="mh-card-search" type="search" placeholder="Tìm mã VL..." />
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" id="btnAddThicknessTypeLib">+ Dòng</button>
+            <button class="btn" id="btnAddThicknessOptionLib">+ Option</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tbl_dc_thickness_options_library"></div>
+      </div>
+      </div>
+    </section>
+
+    <!-- ============ ĐẶT TÊN (Config.xlsx) ============ -->
+    <section class="panel" data-panel="naming">
+      <div class="panel-head">
+        <div>
+          <h2>Định nghĩa tên <span class="badge proj">PROJECT</span></h2>
+          <p class="hint">Rule mã sản phẩm nằm trong card <code>Cấu trúc mã sản phẩm</code>. JSON là nguồn app đọc; Excel chỉ giữ dữ liệu danh sách.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn" id="btnOpenConfigFolder">Mở thư mục</button>
+          <button class="btn" id="btnReloadConfig">Tải từ Excel</button>
+          <button class="btn primary" id="btnSaveConfig">Lưu → Excel + Registry</button>
+        </div>
+      </div>
+
+      <div class="card product-code-rule-card" style="margin-bottom:12px">
+        <div class="panel-head">
+          <div>
+            <h3>Cấu trúc mã sản phẩm</h3>
+            <p class="hint">Đặt dấu tách, kéo các ô mã để đổi thứ tự. Mã sản phẩm dùng họ mã như SP, NT, D; app tự hiểu SP01, NT01, D01 mà không cần nhập từng mã.</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn xs" id="btnAddProductCodeCell" type="button">+ ô</button>
+          </div>
+        </div>
+
+        <div class="material-code-rule-grid">
+          <div>
+            <label>Dấu tách lớp</label>
+            <input id="pcr_segment_separator" value="." />
+          </div>
+          <label class="mcr-check"><input id="pcr_uppercase" type="checkbox" checked /> Viết hoa khi đọc</label>
+        </div>
+
+        <div id="pcr_builder" class="mcr-test-builder pcr-builder"></div>
+        <div class="mcr-test-separator-row" hidden>
+          <span>Dấu tách</span>
+          <input id="pcr_test_separator" class="mcr-test-separator-input" value="." />
+        </div>
+        <div id="pcr_contract" class="mcr-contract pcr-contract" hidden></div>
+        <textarea id="nc_suffix" rows="8" hidden></textarea>
+      </div>
+
+      <div hidden>
+        <input id="nc_sep_sub_prefix" value="-" />
+        <input id="nc_sep_prefix" value="_" />
+        <input id="nc_sep_suffix" value="_" />
+        <input id="nc_default_prefix" value="SP" />
+        <select id="nc_active_sub_prefix"></select>
+        <select id="nc_active_prefix"></select>
+        <select id="nc_active_modul"></select>
+        <p id="nc_preview"></p>
+        <span id="nc_sub_prefix_col"></span>
+        <span id="nc_prefix_col"></span>
+        <span id="nc_modul_col"></span>
+        <textarea id="nc_sub_prefix" rows="1"></textarea>
+        <textarea id="nc_prefix" rows="1"></textarea>
+        <textarea id="nc_modul" rows="1"></textarea>
+      </div>
+
+    </section>
+
+    <!-- ============ VẬT LIỆU: MÃ VẬT LIỆU + MATERIAL ASSIGN ============ -->
+    <section class="panel" data-panel="ma_vat_lieu">
+      <div class="panel-head">
+        <div>
+          <h2>Vật liệu <span class="badge glob">GLOBAL</span> <span class="badge proj">PROJECT</span></h2>
+          <p class="hint">Gộp Mã Vật Liệu + Material Assign. GLOBAL hiểu cha/con; PROJECT chứa quy đổi độ dày, valid/fallback và rule gán vật liệu.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn" id="btnOpenConfigFolder2">Mở thư mục</button>
+          <button class="btn" id="btnReloadConfig2">Tải từ Excel</button>
+          <button class="btn primary" id="btnSaveConfig2">Lưu → Excel + Registry</button>
+        </div>
+      </div>
+
+      <div class="card material-code-rule-card" style="margin-bottom:12px">
+        <div class="panel-head">
+          <div>
+            <h3>Cấu trúc mã vật liệu</h3>
+            <p class="hint">Đặt dấu tách, kéo các ô mã để đổi thứ tự đọc. Bảng dưới là hợp đồng dữ liệu cho toàn hệ thống.</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn xs" id="btnAddMaterialCodeLayer">+ ô</button>
+          </div>
+        </div>
+
+        <div class="material-code-rule-grid">
+          <div>
+            <label>Dấu tách lớp</label>
+            <input id="mcr_segment_separator" value="." />
+          </div>
+          <div>
+            <label>Dấu tách nhiều vật liệu</label>
+            <input id="mcr_multi_separators" value="&" />
+          </div>
+          <label class="mcr-check"><input id="mcr_uppercase" type="checkbox" checked /> Viết hoa khi đọc</label>
+        </div>
+
+        <div id="mcr_test_panel" class="mcr-subpanel active">
+          <div class="mcr-test-head">
+            <div>
+              <h4>Cấu trúc theo ô mã</h4>
+              <p class="hint">Ô trên là tên lớp mã; kéo thả để đổi thứ tự. Danh sách dưới mỗi cột là thư viện giá trị của lớp đó.</p>
+            </div>
+            <button class="btn xs" id="btnAddMcrTestCell" type="button">+ ô</button>
+          </div>
+          <div id="mcr_test_builder" class="mcr-test-builder"></div>
+          <div class="mcr-test-separator-row">
+            <span>Dấu tách</span>
+            <input id="mcr_test_separator" class="mcr-test-separator-input" value="." />
+          </div>
+
+          <div class="material-code-test" hidden>
+            <input id="mcr_test_input" type="hidden" value="MDFCA.17.AC.MS.30gy 88/014-30" />
+            <pre id="mcr_test_output"></pre>
+          </div>
+        </div>
+
+        <div id="mcr_rules_panel" class="mcr-subpanel" hidden>
+          <div id="mcr_contract" class="mcr-contract"></div>
+          <div id="mcr_group_rules" class="mcr-group-rules"></div>
+        </div>
+
+        <div class="table-wrap" id="tbl_material_code_layers" hidden></div>
+        <div id="mcr_validation" class="mcr-validation"></div>
+      </div>
+
+      <!-- Mapping table -->
+      <div class="card mh-mapping-card">
+        <div class="panel-head">
+          <div>
+            <h3>Từ điển mã vật liệu</h3>
+            <p class="hint"><code>Từ điển</code> chỉ chuẩn hóa token/alias từng lớp. Parent độ dày lấy từ khung <code>Parent</code> trong bảng cấu trúc mã vật liệu: mã ngoài parent fallback về parent gần nhất, các parent không fallback lẫn nhau.</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="ma_vat_lieu_global">+ Thêm dòng</button>
+          </div>
+        </div>
+        <div id="tbl_ma_vat_lieu_global"></div>
+      </div>
+
+      <div class="panel-head" style="margin-top:12px">
+        <div>
+          <h2>Material Assign <span class="badge proj">PROJECT</span></h2>
+          <p class="hint">Cấu hình cho MH_Material_Assign — đọc/ghi từ <code>Config.xlsx</code>.</p>
+        </div>
+      </div>
+
+      <div id="materialAssignCardGrid" class="material-assign-card-grid">
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="thickness">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Quy đổi độ dày</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_thickness">+ dòng</button></div>
+          </div>
+          <div class="table-wrap" id="tbl_ma_thickness"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="detail_aliases">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Detail Aliases</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_detail_aliases">+ dòng</button></div>
+          </div>
+          <p class="hint">Pattern → Target (VD: canh trai → canh)</p>
+          <div class="table-wrap" id="tbl_ma_detail_aliases"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="tag_material">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Tag → Material</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_tag_materials">+ dòng</button></div>
+          </div>
+          <p class="hint">Layer/Tag → tên material (VD: MH_Sat → Sat)</p>
+          <div class="table-wrap" id="tbl_ma_tag_materials"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="valid_materials">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Vật liệu hợp lệ</h3>
+            <div class="panel-actions">
+              <button class="btn xs" data-add="ma_valid">+ dòng</button>
+              <button class="btn xs" id="btnAddMaValidThicknessColumn">+ Cặp cột</button>
+            </div>
+          </div>
+          <p class="hint">Whitelist theo mã vật liệu. Mỗi slot có 2 ô Ghi/Thực tế chỉ để ghi nhớ cho người nhìn, không tham gia validate/map của hệ thống.</p>
+          <div class="table-wrap" id="tbl_ma_valid"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="invalid_materials">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Vật liệu không hợp lệ legacy</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_invalid">+ dòng</button></div>
+          </div>
+          <p class="hint">Chỉ dùng khi bảng Vật liệu hợp lệ trống.</p>
+          <div class="table-wrap" id="tbl_ma_invalid"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="surface_face_rules">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Quy luật surface_variant</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_surface_face_rules">+ quy luật</button></div>
+          </div>
+          <p class="hint">Khai chi tiết nhận <code>surface_variant</code> hai mặt (<code>.2M</code>). Chi tiết còn lại dùng biến thể một mặt (<code>.1M</code> hoặc override theo nhóm phủ).</p>
+          <div class="table-wrap" id="tbl_ma_surface_face_rules"></div>
+        </div>
+
+        <div class="card material-assign-card mh-card-full" data-ma-card-id="column_aliases">
+          <div class="panel-head">
+            <span class="mh-card-drag-handle" title="Kéo card" aria-label="Kéo card">⋮⋮</span>
+            <h3>Column Aliases</h3>
+            <div class="panel-actions"><button class="btn xs" data-add="ma_column_aliases">+ dòng</button></div>
+          </div>
+          <p class="hint">Tên nội bộ → alias (VD: Ma_SP → Mã SP, Product Code)</p>
+          <div class="table-wrap" id="tbl_ma_column_aliases"></div>
+        </div>
+
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="statusbar"><span id="status">Sẵn sàng.</span></footer>
+
+  <script type="text/javascript" src="js/registry_app.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/registry_collapse.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/registry_card_sort.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/material_assign_card_layout.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/registry_split_resize.js?v=material-code-contract-20260626-48"></script>
+</body>
+</html>
+

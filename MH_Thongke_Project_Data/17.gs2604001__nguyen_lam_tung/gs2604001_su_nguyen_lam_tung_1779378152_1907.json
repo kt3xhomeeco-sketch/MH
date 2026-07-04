@@ -1,0 +1,40 @@
+{
+  "schema": "mh_thongke_project_snapshot",
+  "schema_version": 1,
+  "generated_at": "2026-05-25 10:46:42",
+  "source": {
+    "skp_path": "D:\\Cong viec\\2026\\17.GS2604001_ Nguyễn Lâm Tùng\\SU\\GS2604001_SU Nguyễn Lâm Tùng.skp",
+    "skp_name": "GS2604001_SU Nguyễn Lâm Tùng.skp",
+    "skp_mtime": "2026-05-23 11:59:08"
+  },
+  "snapshot": {
+    "id": "1779378152_1907",
+    "project": "17.GS2604001_ Nguyễn Lâm Tùng",
+    "label": "Cắt lần 1",
+    "skp_path": "D:\\Cong viec\\2026\\17.GS2604001_ Nguyễn Lâm Tùng\\SU\\GS2604001_SU Nguyễn Lâm Tùng.skp",
+    "skp_name": "GS2604001_SU Nguyễn Lâm Tùng.skp",
+    "file_created_at": "2026-05-21 10:23:11",
+    "nesting_at": "2026-05-21 22:42:32",
+    "exported_at": "2026-05-21 22:42:32",
+    "items": [
+      {
+        "name": "Phào chỉ 30x80",
+        "product": "--",
+        "ten_sp": "",
+        "qty": 8,
+        "unit": "md",
+        "kich_thuoc": "",
+        "ghi_chu": "",
+        "ngay_dat": "",
+        "layer": "Layer0",
+        "last_modified": "",
+        "type": "phaochi",
+        "trang_thai": ""
+      }
+    ],
+    "mat_items": [
+
+    ],
+    "json_path": "C:/Users/mhngu/AppData/Roaming/SketchUp/SketchUp 2025/SketchUp/Plugins/MH_Thongke_Project_Data/17.gs2604001__nguyen_lam_tung/gs2604001_su_nguyen_lam_tung_1779378152_1907.json"
+  }
+}

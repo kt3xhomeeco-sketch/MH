@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <title>MH Export</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --line: #cfd6df;
+      --text: #1f2933;
+      --muted: #627386;
+      --button: #1f5f99;
+      --button2: #4f5b66;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      font-size: 13px;
+      color: var(--text);
+      background: var(--bg);
+    }
+    .bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .title {
+      font-size: 16px;
+      margin-right: auto;
+    }
+    label {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    input[type="checkbox"] {
+      width: 16px;
+      height: 16px;
+    }
+    button {
+      height: 30px;
+      border: 1px solid transparent;
+      border-radius: 4px;
+      padding: 0 12px;
+      color: #fff;
+      background: var(--button2);
+      cursor: pointer;
+      font: inherit;
+    }
+    button.primary { background: var(--button); }
+    button:disabled {
+      opacity: .55;
+      cursor: default;
+    }
+    .meta {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(120px, 1fr));
+      gap: 8px;
+      padding: 10px 12px;
+      background: #eef2f6;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+    }
+    .meta div {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .wrap {
+      height: calc(100vh - 105px);
+      overflow: auto;
+      background: var(--panel);
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+    }
+    th, td {
+      border: 1px solid var(--line);
+      padding: 6px 7px;
+      vertical-align: top;
+      overflow-wrap: anywhere;
+      background: #fff;
+    }
+    th {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      background: #f8fafc;
+      text-align: left;
+      font-weight: normal;
+    }
+    .num { text-align: right; }
+    .center { text-align: center; }
+    .empty {
+      padding: 30px;
+      text-align: center;
+      color: var(--muted);
+    }
+    .status {
+      padding: 8px 12px;
+      color: var(--muted);
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+    .col-stt { width: 46px; }
+    .col-name { width: 230px; }
+    .col-size { width: 86px; }
+    .col-code { width: 220px; }
+    .col-unit { width: 68px; }
+    .col-qty { width: 92px; }
+    .col-note { width: 160px; }
+  </style>
+</head>
+<body>
+  <div class="bar">
+    <div class="title">MH Export - DMVT ván/nẹp</div>
+    <label><input id="paintToggle" type="checkbox"> Hiển thị mã sơn</label>
+    <button id="refreshBtn">Refresh</button>
+    <button id="exportBtn" class="primary">Xuất Excel</button>
+  </div>
+  <div id="meta" class="meta"></div>
+  <div id="status" class="status">Đang đọc model...</div>
+  <div class="wrap">
+    <table>
+      <thead>
+        <tr>
+          <th class="col-stt">STT</th>
+          <th class="col-name">Tên hàng</th>
+          <th class="col-size">Kích thước</th>
+          <th class="col-code">Mã vật liệu</th>
+          <th class="col-unit">Đơn vị</th>
+          <th class="col-qty">Số lượng</th>
+          <th class="col-note">Ghi chú</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <script>
+    const state = { loading: false };
+    const $ = (id) => document.getElementById(id);
+
+    function callSketchUp(name, payload = {}) {
+      const message = JSON.stringify(payload);
+      if (window.sketchup && typeof window.sketchup[name] === 'function') {
+        window.sketchup[name](message);
+        return true;
+      }
+      try {
+        window.location.href = `skp:${name}@${encodeURIComponent(message)}`;
+        return true;
+      } catch (_error) {}
+      return false;
+    }
+
+    function sendSketchUp(name, payload, failMessage) {
+      if (callSketchUp(name, payload)) return true;
+      setBusy(false);
+      $('status').textContent = failMessage || 'Không gọi được lệnh SketchUp.';
+      return false;
+    }
+
+    function options() {
+      return { show_paint_code: $('paintToggle').checked };
+    }
+
+    function setBusy(value) {
+      state.loading = value;
+      $('refreshBtn').disabled = value;
+      $('exportBtn').disabled = value;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (m) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      }[m]));
+    }
+
+    function formatQty(value) {
+      const n = Number(value);
+      if (!Number.isFinite(n)) return escapeHtml(value);
+      return n.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
+    }
+
+    window.mhExportLoad = function(payload) {
+      setBusy(false);
+      const rows = payload.rows || [];
+      const summary = payload.summary || {};
+      $('meta').innerHTML = [
+        `Mã vật liệu: ${summary.material_count ?? 0}`,
+        `Dòng: ${summary.row_count ?? rows.length}`,
+        `Số tấm: ${summary.sheet_count ?? 0}`,
+        `ABF Data: ${summary.abf_data_rows ?? 0}`,
+        `Mét nẹp: ${summary.edge_band_m ?? 0}`
+      ].map((text) => `<div title="${escapeHtml(text)}">${escapeHtml(text)}</div>`).join('');
+
+      $('status').textContent = rows.length ? 'Sẵn sàng review.' : 'Không có dữ liệu để xuất.';
+      if (!rows.length) {
+        $('rows').innerHTML = '<tr><td class="empty" colspan="7">Không có dữ liệu</td></tr>';
+        return;
+      }
+
+      $('rows').innerHTML = rows.map((row, index) => {
+        return `<tr>
+          <td class="center">${index + 1}</td>
+          <td>${escapeHtml(row.name)}</td>
+          <td>${escapeHtml(row.size)}</td>
+          <td>${escapeHtml(row.material_code)}</td>
+          <td class="center">${escapeHtml(row.unit)}</td>
+          <td class="num">${formatQty(row.quantity)}</td>
+          <td>${escapeHtml(row.note || '')}</td>
+        </tr>`;
+      }).join('');
+    };
+
+    window.mhExportError = function(message) {
+      setBusy(false);
+      $('status').textContent = message || 'Có lỗi khi đọc dữ liệu.';
+      $('rows').innerHTML = '<tr><td class="empty" colspan="7">Lỗi đọc dữ liệu</td></tr>';
+    };
+
+    window.mhExportStatus = function(message) {
+      $('status').textContent = message || 'Đang xử lý...';
+    };
+
+    window.mhExportDone = function(message) {
+      setBusy(false);
+      $('status').textContent = message || 'Sẵn sàng review.';
+    };
+
+    $('refreshBtn').addEventListener('click', () => {
+      setBusy(true);
+      $('status').textContent = 'Đang refresh...';
+      sendSketchUp('refresh', options(), 'Không gọi được lệnh refresh. Đóng mở lại dialog.');
+    });
+    $('exportBtn').addEventListener('click', () => {
+      setBusy(true);
+      $('status').textContent = 'Đang xuất Excel...';
+      sendSketchUp('export_excel', options(), 'Không gọi được lệnh xuất Excel. Đóng mở lại dialog.');
+    });
+    $('paintToggle').addEventListener('change', () => {
+      setBusy(true);
+      $('status').textContent = 'Đang đổi chế độ mã sơn...';
+      sendSketchUp('refresh', options(), 'Không gọi được lệnh refresh. Đóng mở lại dialog.');
+    });
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setBusy(true);
+      sendSketchUp('ready', options(), 'Không gọi được lệnh đọc model. Đóng mở lại dialog.');
+    });
+  </script>
+</body>
+</html>
