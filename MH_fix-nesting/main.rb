@@ -28,8 +28,6 @@ module ABF_Ring_OverlayTool
 
       @sheets          = @root.entities.grep(Sketchup::Group)
       @selected_board  = nil
-      @selected_sheet  = nil
-      @input_mode      = false
 
       rebuild_ring_groups
 
@@ -42,7 +40,6 @@ module ABF_Ring_OverlayTool
 
     def deactivate(view)
       @selected_board = nil
-      @selected_sheet = nil
       if ABF_Ring_OverlayTool.dialog
         ABF_Ring_OverlayTool.dialog.close
         ABF_Ring_OverlayTool.dialog = nil
@@ -52,8 +49,6 @@ module ABF_Ring_OverlayTool
 
     def onCancel(reason, view)
       @selected_board = nil
-      @selected_sheet = nil
-      @input_mode     = false
       if ABF_Ring_OverlayTool.dialog
         ABF_Ring_OverlayTool.dialog.close
         ABF_Ring_OverlayTool.dialog = nil
@@ -205,7 +200,6 @@ module ABF_Ring_OverlayTool
       return unless @sheets
 
       clicked_board = nil
-      clicked_sheet = nil
 
       @sheets.each do |sheet|
         get_boards(sheet).each do |board|
@@ -219,7 +213,6 @@ module ABF_Ring_OverlayTool
 
           if point_in_polygon_2d?(x, y, screen_pts)
             clicked_board = board
-            clicked_sheet = sheet
             break
           end
         end
@@ -228,13 +221,10 @@ module ABF_Ring_OverlayTool
 
       if clicked_board
         @selected_board = clicked_board
-        @selected_sheet = clicked_sheet
         view.invalidate
         open_input_dialog
       else
         @selected_board = nil
-        @selected_sheet = nil
-        @input_mode     = false
         hide_dialog_info
         view.invalidate
       end
@@ -251,16 +241,12 @@ module ABF_Ring_OverlayTool
           rebuild_ring_groups
         end
         @selected_board = nil
-        @selected_sheet = nil
-        @input_mode     = false
         hide_dialog_info
         Sketchup.active_model.active_view.invalidate
       end
 
       dialog.add_action_callback("cancel") do |_ctx|
         @selected_board = nil
-        @selected_sheet = nil
-        @input_mode     = false
         if ABF_Ring_OverlayTool.dialog
           ABF_Ring_OverlayTool.dialog.close
           ABF_Ring_OverlayTool.dialog = nil
@@ -271,8 +257,6 @@ module ABF_Ring_OverlayTool
       dialog.set_on_closed do
         ABF_Ring_OverlayTool.dialog = nil
         @selected_board = nil
-        @selected_sheet = nil
-        @input_mode     = false
         Sketchup.active_model.active_view.invalidate
       end
     end

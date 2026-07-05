@@ -25,10 +25,10 @@ module MH
           ok = MH::FastRename.sync_registry_config(config_data)
           reload_active_tool if ok
           module_count = MH::FastRename.respond_to?(:registry_project_modules) ? MH::FastRename.registry_project_modules.length : 0
-          puts "[FastRename Connector] Config synced — product code from NameGrammar, #{module_count} modul rule"
+          MH::RegistryApp.dbg("[FastRename Connector] Config synced — product code from NameGrammar, #{module_count} modul rule") if MH::RegistryApp.respond_to?(:dbg)
           ok
         rescue => e
-          puts "[FastRename Connector] sync_config error: #{e.message}"
+          MH::RegistryApp.dbg("[FastRename Connector] sync_config error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 
@@ -67,7 +67,7 @@ module MH
 
           tool.load_config
         rescue => e
-          puts "[FastRename Connector] reload_active_tool error: #{e.message}"
+          MH::RegistryApp.dbg("[FastRename Connector] reload_active_tool error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
       end
     end

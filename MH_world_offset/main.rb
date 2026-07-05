@@ -396,10 +396,17 @@ module MH
           return
         end
         model = Sketchup.active_model
+        pair = parse_pair_text(@last_pair_text)
+        unless pair
+          UI.beep
+          Sketchup.status_text = 'Sai dinh dang. Nhap "tren,phai" hoac "tren,phai,duoi,trai".'
+          sync_vcb_display
+          return
+        end
+
         model.start_operation('MH World Resize Selected Objects', true)
         begin
           ok_count = 0
-          pair = parse_pair_text(@last_pair_text)
           @selected_picks.each do |pick|
             result = resize_pick_geometry(pick, pair)
             ok_count += 1 if result[:ok]
@@ -533,19 +540,6 @@ module MH
           view.draw(GL_LINES, pa, pb)
           t += step
         end
-      end
-
-      def draw_face_filled(view, face, tr)
-        mesh = face.mesh
-        return unless mesh
-        view.drawing_color = Sketchup::Color.new(255, 170, 60, 90)
-        mesh.polygons.each do |poly|
-          pts = poly.map { |idx| mesh.point_at(idx.abs).transform(tr) }
-          next if pts.length < 3
-          view.draw(GL_POLYGON, pts)
-        end
-      rescue
-        nil
       end
 
       def inset_loop_world(face, tr_world, dist)

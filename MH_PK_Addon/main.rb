@@ -8,6 +8,11 @@ module MH_PK_Addon
   PLUGIN_NAME = 'MH PK Addon'.freeze
   VERSION = '1.0.0'.freeze
   ROOT_DIR = File.dirname(__FILE__).freeze
+  DEBUG = false unless const_defined?(:DEBUG, false)
+
+  def self.dbg(message)
+    puts message if DEBUG
+  end
 
   Sketchup.require File.join(ROOT_DIR, 'core')
   Sketchup.require File.join(ROOT_DIR, 'length_pk')

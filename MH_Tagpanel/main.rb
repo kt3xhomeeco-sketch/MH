@@ -12,7 +12,6 @@ module MH
     @tag_commands = {}
     @folder_commands = {}
     @menu_built = false
-    @observer_attached = false
     @settings = nil # Lưu danh sách tag được chọn
 
 
@@ -34,7 +33,6 @@ module MH
         state = tag.visible? ? "ON" : "OFF"
       end
       
-      # puts "[MH Tagpanel] Tag '#{name}' → #{state}"
       state
     end
 
@@ -130,9 +128,6 @@ module MH
       @tag_menu ||= UI.menu("Plugins").add_submenu("MH Tagpanel – Toggle Tags")
       @folder_menu ||= UI.menu("Plugins").add_submenu("MH Tagpanel – Toggle Folders")
 
-      new_tags_count = 0
-      new_folders_count = 0
-
       # Đăng ký command cho từng tag
       included_tags = get_included_tags
       
@@ -150,12 +145,10 @@ module MH
 
         @tag_menu.add_item(cmd)
         @tag_commands[name] = cmd
-        new_tags_count += 1
       end
 
       # Lấy danh sách Tag Folders (SketchUp 2021+)
       tag_folders = get_tag_folders
-      folder_names = tag_folders.map { |f| f[:path] }
 
       # Đăng ký command cho từng folder
       tag_folders.each do |folder_info|
@@ -171,7 +164,6 @@ module MH
 
         @folder_menu.add_item(cmd)
         @folder_commands[folder_path] = cmd
-        new_folders_count += 1
       end
     end
 
@@ -221,6 +213,14 @@ module MH
       self.register_tag_commands
     end
 
+    def self.html_escape(value)
+      value.to_s
+        .gsub("&", "&amp;")
+        .gsub("<", "&lt;")
+        .gsub(">", "&gt;")
+        .gsub('"', "&quot;")
+        .gsub("'", "&#39;")
+    end
 
     def self.show_settings
       model = Sketchup.active_model
@@ -298,11 +298,13 @@ module MH
         </div>
 
         <div class="tag-list" id="tagList">
-          #{all_tags.map { |name| 
+          #{all_tags.each_with_index.map { |name, index|
             checked = (included_tags.empty? || included_tags.include?(name)) ? "checked" : ""
-            "<div class='tag-item' data-name='#{name}'>
-              <input type='checkbox' id='tag_#{name}' value='#{name}' #{checked}>
-              <label for='tag_#{name}'>#{name}</label>
+            safe_name = html_escape(name)
+            input_id = "tag_#{index}"
+            "<div class='tag-item' data-name=\"#{safe_name}\">
+              <input type='checkbox' id='#{input_id}' value=\"#{safe_name}\" #{checked}>
+              <label for='#{input_id}'>#{safe_name}</label>
             </div>"
           }.join("\n")}
         </div>

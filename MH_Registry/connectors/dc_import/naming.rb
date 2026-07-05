@@ -1,4 +1,4 @@
-﻿# encoding: UTF-8
+# encoding: UTF-8
 #
 # MH_Registry / connectors / dc_import / naming.rb
 # ---------------------------------------------------------------------------
@@ -71,7 +71,7 @@ module MH
             'sep_suffix' => sep_suffix
           }
         rescue => e
-          puts "[DCImportPipeline] resolve naming error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] resolve naming error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           {}
         end
 
@@ -137,7 +137,7 @@ module MH
           end
           used.uniq
         rescue => e
-          puts "[DCImportPipeline] used module indexes error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] used module indexes error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -230,7 +230,7 @@ module MH
           model.commit_operation if started
         rescue => e
           model.abort_operation if started rescue nil
-          puts "[DCImportPipeline] apply naming error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] apply naming error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
 
         def apply_registry_naming_attrs(entity, naming, role = nil, detail_name = nil, full_name = nil)
@@ -287,7 +287,7 @@ module MH
             set_entity_dynamic_name(group, full_name) if write_dc_dynamic_names?
             stats[role] += 1
           end
-          puts "[DCImportPipeline] naming inner panel=#{stats['panel']} back=#{stats['back']}"
+          MH::RegistryApp.dbg("[DCImportPipeline] naming inner panel=#{stats['panel']} back=#{stats['back']}") if MH::RegistryApp.respond_to?(:dbg)
           stats
         end
 

@@ -1,4 +1,4 @@
-﻿# encoding: UTF-8
+# encoding: UTF-8
 #
 # MH_Registry / connectors / dc_import / geometry.rb
 # ---------------------------------------------------------------------------
@@ -26,7 +26,7 @@ module MH
           changed > 0 ? model.commit_operation : model.abort_operation
         rescue => e
           model.abort_operation rescue nil
-          puts "[DCImportPipeline] geometry thickness error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] geometry thickness error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
 
         # Thu thap [group, world_transform] theo CA chuoi transform cha, vi do day
@@ -85,7 +85,7 @@ module MH
           ents.transform_entities(Geom::Transformation.scaling(thickness_scale_anchor(group, bb, axis), sx, sy, sz), ents.to_a)
           1
         rescue => e
-          puts "[DCImportPipeline] scale thickness error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] scale thickness error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           0
         end
 

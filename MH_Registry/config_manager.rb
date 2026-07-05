@@ -128,7 +128,7 @@ module MH
       }
       write_registry_json(config_manifest_path, manifest)
     rescue => e
-      puts "[MH_Registry] write manifest error: #{e.message}"
+      dbg("[MH_Registry] write manifest error: #{e.message}") if respond_to?(:dbg)
     end
 
     def json_clone(value)
@@ -241,7 +241,7 @@ module MH
       MH::Registry.save_global!(global) if changed
       changed
     rescue => e
-      puts "[MH_Registry] sync registry rules error: #{e.class}: #{e.message}"
+      dbg("[MH_Registry] sync registry rules error: #{e.class}: #{e.message}") if respond_to?(:dbg)
       false
     end
 
@@ -263,7 +263,7 @@ module MH
       )
       data
     rescue => e
-      puts "[MH_Registry] apply project settings error: #{e.message}"
+      dbg("[MH_Registry] apply project settings error: #{e.message}") if respond_to?(:dbg)
       data
     end
 
@@ -272,7 +272,7 @@ module MH
       MH::Settings.write('registry', 'dc_thickness_options_project', Array(data['dc_thickness_options_project'] || []), scope: :project)
       true
     rescue => e
-      puts "[MH_Registry] persist project settings error: #{e.message}"
+      dbg("[MH_Registry] persist project settings error: #{e.message}") if respond_to?(:dbg)
       false
     end
 
@@ -401,7 +401,7 @@ module MH
         superimp_import_list = load_rows(library_all, 'superimp_import_list', superimp_import_list_columns)
         panel_defaults = load_rows(all, 'panel_defaults', %w[tool key value])
       rescue => e
-        puts "[MH_Registry] Error loading #{CONFIG_FILE}: #{e.message}"
+        dbg("[MH_Registry] Error loading #{CONFIG_FILE}: #{e.message}") if respond_to?(:dbg)
       end
 
       # Active column values (cho MH_Rename dùng)
@@ -516,7 +516,7 @@ module MH
       ensure_superimp_library(config_sheets)
       MH::ExcelBridge.read_all(superimp_library_path)
     rescue => e
-      puts "[MH_Registry] Error loading #{SUPERIMP_LIBRARY_FILE}: #{e.message}"
+      dbg("[MH_Registry] Error loading #{SUPERIMP_LIBRARY_FILE}: #{e.message}") if respond_to?(:dbg)
       config_sheets || {}
     end
 
@@ -529,13 +529,13 @@ module MH
         defaults = default_superimp_library_sheets(config_sheets)
         missing.each { |name| existing[name] = defaults[name] }
         safe_write_xlsx(superimp_library_path, existing)
-        puts "[MH_Registry] Added missing sheets to #{SUPERIMP_LIBRARY_FILE}: #{missing.join(', ')}"
+        dbg("[MH_Registry] Added missing sheets to #{SUPERIMP_LIBRARY_FILE}: #{missing.join(', ')}") if respond_to?(:dbg)
         return superimp_library_path
       end
 
       sheets = default_superimp_library_sheets(config_sheets)
       safe_write_xlsx(superimp_library_path, sheets)
-      puts "[MH_Registry] Created #{SUPERIMP_LIBRARY_FILE} from #{CONFIG_FILE}"
+      dbg("[MH_Registry] Created #{SUPERIMP_LIBRARY_FILE} from #{CONFIG_FILE}") if respond_to?(:dbg)
       superimp_library_path
     end
 
@@ -727,9 +727,9 @@ module MH
       require 'fileutils'
       FileUtils.mkdir_p(File.dirname(json_path))
       File.write(json_path, JSON.pretty_generate(data), encoding: 'UTF-8')
-      puts "[MH_Registry] Exported #{data.length} rows to #{json_path}"
+      dbg("[MH_Registry] Exported #{data.length} rows to #{json_path}") if respond_to?(:dbg)
     rescue => e
-      puts "[MH_Registry] export_xlsx_to_json error: #{e.message}"
+      dbg("[MH_Registry] export_xlsx_to_json error: #{e.message}") if respond_to?(:dbg)
     end
 
     def find_header_row(rows)

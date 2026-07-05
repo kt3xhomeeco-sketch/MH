@@ -83,7 +83,7 @@ module MH
           matches
         rescue => e
           model.abort_operation rescue nil
-          puts "[MH_Registry] select_similar.select_like error: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry] select_similar.select_like error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 

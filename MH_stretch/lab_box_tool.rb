@@ -770,11 +770,30 @@ module MH::Stretch
     end
 
     def apply_dimension_view_offset(view, offset)
-      Sketchup.status_text = 'MH Stretch: view offset chưa apply geometry.' if offset
+      return unless offset
+
+      model = Sketchup.active_model
+      targets = model.selection.to_a
+      return if targets.empty?
+
+      vector = dominant_view_offset_vector(view, offset)
+      return if vector.length <= 1e-6
+
+      model.start_operation('MH Stretch Dimension View Offset', true)
+      model.active_entities.transform_entities(Geom::Transformation.translation(vector), targets)
+      model.commit_operation
+    rescue => error
+      model.abort_operation rescue nil
+      warn "MH::Stretch dimension view offset failed: #{error.class}: #{error.message}"
     end
 
-    def dominant_view_offset_vector(_view, offset)
-      Geom::Vector3d.new(0, offset.to_f, 0)
+    def dominant_view_offset_vector(view, offset)
+      distance = offset.to_f
+      direction = view.camera.direction.clone
+      direction.normalize!
+      direction = direction.reverse if distance.negative?
+      direction.length = distance.abs
+      direction
     rescue
       Geom::Vector3d.new(0, 0, 0)
     end

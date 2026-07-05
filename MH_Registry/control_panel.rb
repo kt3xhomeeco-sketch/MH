@@ -85,7 +85,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::Settings)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Settings facade error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Settings facade error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -95,7 +95,7 @@ module MH
         load path if File.exist?(path)
         defined?(::MH_PK_Addon) && ::MH_PK_Addon.respond_to?(:save_settings)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load PK Addon error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load PK Addon error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -129,7 +129,7 @@ module MH
         load path if File.exist?(path)
         defined?(::MH_Thongke) && ::MH_Thongke.respond_to?(:save_preferences)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Thongke error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Thongke error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -176,7 +176,7 @@ module MH
         MH::Settings.write(app, key, value, scope: scope)
         true
       rescue => e
-        puts "[MH_Registry::ControlPanel] settings_write #{app}.#{key} error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] settings_write #{app}.#{key} error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -184,7 +184,7 @@ module MH
         return fallback unless ensure_settings_facade
         MH::Settings.read(app, key, fallback, scope: scope)
       rescue => e
-        puts "[MH_Registry::ControlPanel] settings_read #{app}.#{key} error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] settings_read #{app}.#{key} error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         fallback
       end
 
@@ -210,7 +210,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::FastRename)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Fast Rename error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Fast Rename error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -280,7 +280,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::Assemble) && MH::Assemble.respond_to?(:save_config)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Assemble error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Assemble error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -348,7 +348,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::SelectSimilar) && MH::SelectSimilar.respond_to?(:settings)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Select Similar error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Select Similar error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -418,7 +418,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::Rename)
       rescue => e
-        puts "[MH_Registry::ControlPanel] load Rename error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] load Rename error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -459,7 +459,7 @@ module MH
           Sketchup.active_model.active_view.invalidate rescue nil
         end
       rescue => e
-        puts "[MH_Registry::ControlPanel] refresh Viewport Names error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] refresh Viewport Names error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
       end
 
       def refresh_fast_rename_tool
@@ -468,7 +468,7 @@ module MH
         return unless defined?(MH::FastRename::FastRenameTool) && tool.is_a?(MH::FastRename::FastRenameTool)
         tool.reload_user_settings if tool.respond_to?(:reload_user_settings)
       rescue => e
-        puts "[MH_Registry::ControlPanel] refresh Fast Rename error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] refresh Fast Rename error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
       end
 
       def attach_registry_bridge(dialog)
@@ -479,7 +479,7 @@ module MH
         MH::RegistryApp.attach_callbacks(dialog)
         dialog.instance_variable_set(:@mh_cp_registry_attached, true)
       rescue => e
-        puts "[MH_Registry::ControlPanel] registry attach error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] registry attach error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
       end
 
       # ---- Danh sách app launcher (trừ Panel — đã nhúng settings) ---------
@@ -528,7 +528,7 @@ module MH
         switch_section(section) if section
         dialog
       rescue => e
-        puts "[MH_Registry::ControlPanel] open error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] open error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         nil
       end
 
@@ -545,7 +545,7 @@ module MH
                  "else if(k>80){clearInterval(t);}},80);})();"
         UI.start_timer(0.2, false) { @dialog.execute_script(script) rescue nil }
       rescue => e
-        puts "[MH_Registry::ControlPanel] switch_section error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::ControlPanel] switch_section error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
       end
 
       def close

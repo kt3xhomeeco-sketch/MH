@@ -13,7 +13,16 @@ raise "[MH::Superimp] requires MH_shared" unless defined?(MH::Shared) && defined
 module MH
   module Superimp
     def self.reload
-      load __FILE__
+      original_verbose = $VERBOSE
+      $VERBOSE = nil
+
+      base = File.join(__dir__)
+      files = Dir.glob(File.join(base, '**/*.rb')).sort
+      files.each { |file| load file }
+      puts "MH::Superimp reloaded #{files.size} file(s) from: #{base}"
+      true
+    ensure
+      $VERBOSE = original_verbose
     end
 
     XLSX_FILE = File.join(__dir__, 'import_list.xlsx').freeze
@@ -489,10 +498,6 @@ module MH
     # ======================================================
     def self.edges_are_collinear?(e1, e2)
       MH::Geo::Box.edges_are_collinear?(e1, e2)
-    end
-
-    def self.is_intersection_vertex?(v)
-      MH::Geo::Box.intersection_vertex?(v)
     end
 
     def self.find_connected_collinear_edges(start_edge)
@@ -2437,7 +2442,8 @@ module MH
           model.selection.add(inst) if inst.valid?
           update_status
           view.invalidate
-        rescue
+        rescue => e
+          puts "[MH::Superimp] replace_object error: #{e.class}: #{e.message}"
           model.abort_operation
         end
       end
@@ -2515,7 +2521,8 @@ module MH
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)
-        rescue
+        rescue => e
+          puts "[MH::Superimp] import_to_box error: #{e.class}: #{e.message}"
           model.abort_operation
         end
       end
@@ -2561,7 +2568,8 @@ module MH
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)
-        rescue
+        rescue => e
+          puts "[MH::Superimp] import_with_plane error: #{e.class}: #{e.message}"
           model.abort_operation
         end
       end
@@ -2591,7 +2599,8 @@ module MH
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)
-        rescue
+        rescue => e
+          puts "[MH::Superimp] import_final_box error: #{e.class}: #{e.message}"
           model.abort_operation
         end
       end
@@ -2602,20 +2611,6 @@ module MH
         @active_tool.set_import_path(import_path)
       else
         Sketchup.active_model.tools.push_tool(LiveBoxPreviewTool.new(import_path))
-      end
-    end
-
-    module UI_Menu
-      unless file_loaded?(__FILE__)
-        if defined?(MH::RegistryApp::Menu)
-          MH::Superimp.sync_registry_menu!
-          MH::RegistryApp::Menu.add(app: 'Superimp', key: 'manager_runtime', label: 'Quản lý danh sách') { MH::Superimp.show_config_dialog }
-          MH::RegistryApp::Menu.add(app: 'Superimp', key: 'reload_runtime', label: 'Reload xlsx') do
-            MH::Superimp.reload_import_list
-            ::UI.messagebox("Đã reload #{MH::Superimp.import_list.length} items!")
-          end
-        end
-        file_loaded(__FILE__)
       end
     end
 

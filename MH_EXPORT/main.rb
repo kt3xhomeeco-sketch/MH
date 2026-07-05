@@ -3,7 +3,6 @@
 require 'sketchup.rb'
 require 'json'
 require 'tmpdir'
-require 'fileutils'
 require 'open3'
 
 begin
@@ -64,9 +63,6 @@ module MH
       dialog.add_action_callback('export') do |_ctx, payload|
         options = parse_json(payload)
         export_from_dialog(!!options['show_paint_code'])
-      end
-      dialog.add_action_callback('bridge_probe') do |_ctx, payload|
-        warn "[MH_EXPORT] bridge_probe #{payload}"
       end
       dialog
     end

@@ -53,7 +53,7 @@
     result = faces(face, dist)
     result && result.find { |candidate| candidate && candidate.valid? }
   rescue => e
-    puts "MH::Geo::Offset fallback error: #{e.class}: #{e.message}"
+    MH::Shared.dbg("MH::Geo::Offset fallback error: #{e.class}: #{e.message}") if defined?(MH::Shared)
     nil
   end
   def self.faces(face, dist)
@@ -752,7 +752,7 @@
         res = MH::Geo::NativeBridge.offset_polygon(refs, normal, d)
         return res if res && res.size >= 3
       rescue => e
-        puts "MH::Geo Native offset_polygon error: #{e.message}"
+        MH::Shared.dbg("MH::Geo Native offset_polygon error: #{e.message}") if defined?(MH::Shared)
       end
     end
     pts = refs.map { |p| Geom::Point3d.new(p.x.to_f, p.y.to_f, p.z.to_f) }

@@ -34,6 +34,8 @@ _MH_Thongke_Desktop_OLD_*/
 *_BACKUP_*/
 *_BACKUP_*
 *backup*
+!/MH_stretch/mh_engine_backup/
+!/MH_stretch/mh_engine_backup/**
 *.bak
 *.bak_*
 *.backup

@@ -44,7 +44,7 @@ module MH
           end
           out
         rescue => e
-          puts "[MH_Registry::Panel] defaults error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry::Panel] defaults error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           {}
         end
 
@@ -65,7 +65,7 @@ module MH
         def on_config_changed(_config_data)
           MH::Panel::Preset.reload_display_cache if defined?(MH::Panel::Preset)
         rescue => e
-          puts "[MH_Registry::Panel] on_config_changed error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry::Panel] on_config_changed error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
 
         def panel_rows(config = nil)

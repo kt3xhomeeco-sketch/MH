@@ -1,4 +1,4 @@
-﻿# encoding: UTF-8
+# encoding: UTF-8
 #
 # MH_Registry / connectors / dc_import / dc_attrs.rb
 # ---------------------------------------------------------------------------
@@ -514,7 +514,7 @@ module MH
           dc.set_attribute_formula(target, key, formula)
           true
         rescue => e
-          puts "[DCImportPipeline] set_attribute_formula fallback (#{key}): #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] set_attribute_formula fallback (#{key}): #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 

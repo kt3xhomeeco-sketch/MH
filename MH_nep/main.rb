@@ -134,8 +134,9 @@ module MH
         respond_to_dialog(dialog, apply_from_options(options))
       end
       dialog.add_action_callback('manual') do |_ctx, payload|
-        save_defaults(default_options.merge(parse_payload(payload)))
-        result = activate_abf_bridge
+        options = parse_payload(payload)
+        save_defaults(default_options.merge(options))
+        result = activate_manual(options)
         respond_to_dialog(dialog, result)
       end
       dialog.add_action_callback('clear') { |_ctx, payload| respond_to_dialog(dialog, clear_from_options(parse_payload(payload))) }
@@ -338,7 +339,7 @@ module MH
         min_thickness_mm: number_or_nil(options['min_thickness_mm']),
         max_thickness_mm: number_or_nil(options['max_thickness_mm']),
         min_edge_length_mm: number_or_nil(options['min_edge_length_mm']),
-        material_rule_enabled: truthy?(options['material_rule_enabled']) || options['material_prefix'].to_s.strip.downcase == 'ver',
+        material_rule_enabled: truthy?(options['material_rule_enabled']),
         material_prefix: options['material_prefix'].to_s.strip.downcase,
         ignore_tokens: ignore_tokens(options['ignore_names'])
       }
@@ -931,128 +932,6 @@ module MH
       end&.first
     end
 
-    class HudTool
-      def initialize(options, library)
-        @options = MH::Nep.default_options.merge(options || {})
-        @library = library
-        @index = selected_index
-        @buttons = {}
-        @status = 'HUD MH Nep: chọn lệnh trên màn hình'
-      end
-
-      def activate
-        update_status
-        Sketchup.active_model.active_view.invalidate
-      end
-
-      def resume(view)
-        view.invalidate if view
-      end
-
-      def deactivate(view)
-        Sketchup.status_text = ''
-        view.invalidate if view
-      end
-
-      def onCancel(_reason, view)
-        Sketchup.active_model.select_tool(nil)
-        view.invalidate if view
-      end
-
-      def onKeyDown(key, _repeat, _flags, view)
-        return false unless tab_key?(key)
-
-        cycle_band
-        @status = "Nẹp dán tay: #{current_label}"
-        update_status
-        view.invalidate
-        true
-      end
-
-      def onLButtonDown(_flags, x, y, view)
-        hit = MH::Nep.hud_hit(@buttons, x, y)
-        return unless hit
-
-        handle_hud_action(hit, view)
-      end
-
-      def draw(view)
-        @buttons = MH::Nep.draw_hud_overlay(view, @library, @index, :hud, @status)
-      end
-
-      def getExtents
-        Sketchup.active_model.bounds
-      end
-
-      private
-
-      def selected_index
-        selected_id = @options['primary_id'].to_i
-        @library.index { |item| item[:id].to_i == selected_id } || 0
-      end
-
-      def current_source
-        @library[@index]
-      end
-
-      def current_label
-        source = current_source
-        return 'Chưa có nẹp' unless source
-
-        source[:display_name].to_s.empty? ? "#{source[:name]} - #{source[:thickness]}mm" : source[:display_name]
-      end
-
-      def cycle_band
-        return if @library.empty?
-
-        @index = (@index + 1) % @library.length
-        sync_selected_band
-      end
-
-      def sync_selected_band
-        return unless current_source
-
-        @options['primary_id'] = current_source[:id]
-        MH::Nep.save_defaults(@options)
-      end
-
-      def handle_hud_action(hit, view)
-        if hit.is_a?(Array) && hit.first == :band
-          @index = hit[1]
-          sync_selected_band
-          @status = "Nẹp dán tay: #{current_label}"
-          update_status
-          view.invalidate
-          return
-        end
-
-        case hit
-        when :settings
-          MH::Nep.show_settings
-        when :manual
-          sync_selected_band
-          Sketchup.active_model.select_tool(ManualTool.new(@options, @library))
-          return
-        when :auto
-          result = MH::Nep.apply_from_options(@options.merge('scope' => 'model'))
-          @status = result[:message]
-        when :clear
-          result = MH::Nep.clear_from_options(@options.merge('scope' => 'model'))
-          @status = result[:message]
-        end
-        update_status
-        view.invalidate
-      end
-
-      def tab_key?(key)
-        key == (defined?(VK_TAB) ? VK_TAB : 9)
-      end
-
-      def update_status
-        Sketchup.status_text = "#{@status} | Tab đổi nẹp, Esc thoát"
-      end
-    end
-
     class ManualTool
       def initialize(options, library, manual_enabled = true)
         @options = options
@@ -1061,16 +940,12 @@ module MH
         selected_id = options['primary_id'].to_i
         @index = @library.index { |item| item[:id].to_i == selected_id } || 0
         @hover = nil
-        @material_snapshots = {}
-        @entity_material_snapshots = {}
         @tag_visibility_snapshots = {}
         @render_options_backup = nil
         @display_entities = []
         @display_faces = []
         @band_faces = []
         @display_queue = []
-        @restore_entity_queue = []
-        @restore_face_queue = []
         @active = false
         @hud_buttons = {}
         @status_message = nil
@@ -1109,6 +984,7 @@ module MH
       def onKeyDown(key, _repeat, _flags, view)
         tab_key = defined?(VK_TAB) ? VK_TAB : 9
         return false unless key == tab_key
+        return false if @library.empty?
 
         @index = (@index + 1) % @library.length
         sync_selected_band
@@ -1118,6 +994,11 @@ module MH
       end
 
       def onMouseMove(_flags, x, y, view)
+        hit = @manual_enabled ? pick_face(view, x, y) : nil
+        return false if same_hover?(hit, @hover)
+
+        @hover = hit
+        view.invalidate
         false
       end
 
@@ -1129,6 +1010,11 @@ module MH
         end
 
         return false unless @manual_enabled
+        unless current_source
+          update_status('Thư viện ABF chưa có nẹp để dán tay.')
+          view.invalidate
+          return
+        end
 
         hit = pick_face(view, x, y)
         return unless hit
@@ -1160,6 +1046,8 @@ module MH
       def draw(view)
         mode = @manual_enabled ? :manual : :hud
         text = @status_message || (@manual_enabled ? "Dán tay: #{current_label}" : 'HUD MH Nep: chọn lệnh trên màn hình')
+        draw_existing_bands(view)
+        draw_hover(view) if @manual_enabled
         @hud_buttons = MH::Nep.draw_hud_overlay(view, @library, @index, mode, text)
       rescue StandardError => error
         MH::Nep.warn_error(error)
@@ -1276,69 +1164,13 @@ module MH
         @tag_visibility_snapshots.clear
       end
 
-      def save_materials(entities = display_targets)
-        entities.uniq.each do |entity|
-          next unless MH::Nep.container?(entity)
-          @entity_material_snapshots[entity] = entity.material unless @entity_material_snapshots.key?(entity)
-        end
-      end
-
       def restore_display
         @display_queue = []
         @display_faces = []
         @band_faces = []
         restore_abf_tags
         restore_render_options
-
-        if @entity_material_snapshots.empty? && @material_snapshots.empty?
-          Sketchup.active_model.active_view.invalidate
-          return
-        end
-
-        @restore_entity_queue = @entity_material_snapshots.to_a
-        @restore_face_queue = @material_snapshots.to_a
-        schedule_restore_batch
-      end
-
-      def schedule_restore_batch
-        UI.start_timer(0.01, false) { process_restore_batch }
-      rescue StandardError => error
-        MH::Nep.warn_error(error)
-      end
-
-      def process_restore_batch
-        @restore_entity_queue.shift(48).each do |entity, material|
-          entity.material = material if entity.valid?
-        rescue StandardError => error
-          MH::Nep.warn_error(error)
-        end
-
-        @restore_face_queue.shift(96).each do |face, pair|
-          next unless face.valid?
-
-          face.material = pair[0]
-          face.back_material = pair[1]
-        rescue StandardError => error
-          MH::Nep.warn_error(error)
-        end
-
-        if @restore_entity_queue.any? || @restore_face_queue.any?
-          schedule_restore_batch
-        else
-          @entity_material_snapshots.clear
-          @material_snapshots.clear
-          restore_abf_tags
-          restore_render_options
-          Sketchup.active_model.active_view.invalidate
-        end
-      end
-
-      def rebuild_display_cache
-        @display_faces = []
-        @band_faces = []
-        cache_display_entities(@display_entities.uniq)
-      rescue StandardError => error
-        MH::Nep.warn_error(error)
+        Sketchup.active_model.active_view.invalidate
       end
 
       def cache_display_entities(entities)
@@ -1380,54 +1212,15 @@ module MH
         MH::Nep.warn_error(error)
       end
 
-      def apply_display_materials(entities = display_targets)
-        entities = entities.uniq.select { |entity| MH::Nep.container?(entity) }
-        transparent = transparent_material
-
-        entities.each do |entity|
-          data = ABF::EditEdgeBand.get_data(entity) rescue nil
-          faces = MH::Nep.direct_faces(entity)
-          next if faces.empty?
-
-          edge_faces = data && data.faces.is_a?(Hash) ? data.faces : {}
-          types = data && data.types.is_a?(Hash) ? data.types : {}
-
-          faces.each do |face|
-            next unless face.valid?
-            @material_snapshots[face] = [face.material, face.back_material] unless @material_snapshots.key?(face)
-
-            type_id = edge_faces[face]
-            type = types[type_id] if type_id
-            material = type ? edge_band_display_material(type.color) : transparent
-            face.material = material unless face.material == material
-            face.back_material = material unless face.back_material == material
-          end
-        end
-      end
-
-      def transparent_material
-        model = Sketchup.active_model
-        material = model.materials['Transparent1'] || model.materials.add('Transparent1')
-        material.color = Sketchup::Color.new(255, 255, 255)
-        material.alpha = 0.0
-        material
-      end
-
-      def edge_band_display_material(color_hex)
-        model = Sketchup.active_model
-        name = "ABF_#{color_hex}"
-        material = model.materials[name] || model.materials.add(name)
-        material.color = MH::Nep.hex_color(color_hex, 255)
-        material.alpha = 1.0
-        material
-      end
-
       def current_source
         @library[@index]
       end
 
       def current_label
-        current_source[:display_name].to_s.empty? ? "#{current_source[:name]} - #{current_source[:thickness]}mm" : current_source[:display_name]
+        source = current_source
+        return 'Chưa có nẹp' unless source
+
+        source[:display_name].to_s.empty? ? "#{source[:name]} - #{source[:thickness]}mm" : source[:display_name]
       end
 
       def sync_selected_band
@@ -1448,6 +1241,11 @@ module MH
         when :settings
           MH::Nep.show_settings
         when :manual
+          if @library.empty?
+            update_status('Thư viện ABF chưa có nẹp để dán tay.')
+            return
+          end
+
           @manual_enabled = !@manual_enabled
           update_status(@manual_enabled ? "Đã bật dán tay: #{current_label}" : 'Đã tắt dán tay, vẫn giữ HUD')
         when :auto
@@ -1473,15 +1271,6 @@ module MH
         @display_queue = []
         @display_faces = []
         @band_faces = []
-        @material_snapshots.each do |face, pair|
-          next unless face.valid?
-
-          face.material = pair[0] unless face.material == pair[0]
-          face.back_material = pair[1] unless face.back_material == pair[1]
-        rescue StandardError => error
-          MH::Nep.warn_error(error)
-        end
-        @material_snapshots.clear
       end
 
       def update_status(prefix = nil)
@@ -1518,6 +1307,13 @@ module MH
         nil
       end
 
+      def same_hover?(left, right)
+        return true if left.nil? && right.nil?
+        return false unless left && right
+
+        left[:entity] == right[:entity] && left[:face] == right[:face]
+      end
+
       def draw_existing_bands(view)
         wash = Sketchup::Color.new(255, 255, 255)
         wash.alpha = 210 if wash.respond_to?(:alpha=)
@@ -1537,6 +1333,7 @@ module MH
 
       def draw_hover(view)
         return unless @hover && @hover[:entity].valid? && @hover[:face].valid?
+        return unless current_source
 
         transformation = Sketchup.active_model.edit_transform * @hover[:entity].transformation
         draw_face_outline(view, @hover[:face], transformation, MH::Nep.hex_color(current_source[:color], 255), 6)
@@ -1555,13 +1352,6 @@ module MH
         view.drawing_color = color
         view.line_width = width if view.respond_to?(:line_width=)
         view.draw(GL_LINE_LOOP, points)
-      end
-
-      def draw_face_fill(view, face, transformation, color)
-        points = face.outer_loop.vertices.map { |vertex| vertex.position.transform(transformation) }
-        return if points.length < 3
-
-        draw_points_fill(view, points, color)
       end
 
       def draw_points_fill(view, points, color)

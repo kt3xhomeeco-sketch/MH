@@ -35,7 +35,7 @@ module MH
           sync_config
           true
         rescue => e
-          puts "[MaterialAssign Connector] ensure_available error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] ensure_available error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 
@@ -129,10 +129,10 @@ module MH
           mod = config_data['modul'] || []
           MH::MaterialApp.module_names = mod unless mod.empty?
 
-          puts "[MaterialAssign Connector] Config synced from Registry"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] Config synced from Registry") if MH::RegistryApp.respond_to?(:dbg)
           true
         rescue => e
-          puts "[MaterialAssign Connector] sync_config error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] sync_config error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 
@@ -156,7 +156,7 @@ module MH
               clear_material_names_cache
               MH::MaterialApp.remember_excel_path(file_path || '')
               count = MH::MaterialApp.excel_data.length
-              puts "[MaterialAssign Connector] Loaded #{count} rows from ProjectData: #{File.basename(json_path)}"
+              MH::RegistryApp.dbg("[MaterialAssign Connector] Loaded #{count} rows from ProjectData: #{File.basename(json_path)}") if MH::RegistryApp.respond_to?(:dbg)
               return {
                 'ok' => true,
                 'count' => count,
@@ -174,7 +174,7 @@ module MH
             clear_material_names_cache
             MH::MaterialApp.remember_excel_path(file_path || '')
             count = MH::MaterialApp.excel_data.length
-            puts "[MaterialAssign Connector] Loaded #{count} rows from JSON: #{File.basename(json_path)}"
+            MH::RegistryApp.dbg("[MaterialAssign Connector] Loaded #{count} rows from JSON: #{File.basename(json_path)}") if MH::RegistryApp.respond_to?(:dbg)
             return { 'ok' => true, 'count' => count, 'source' => 'json' }
           end
 
@@ -186,7 +186,7 @@ module MH
             clear_material_names_cache
             MH::MaterialApp.remember_excel_path(xlsx)
             count = MH::MaterialApp.excel_data.length
-            puts "[MaterialAssign Connector] Loaded #{count} rows from XLSX: #{File.basename(xlsx)}"
+            MH::RegistryApp.dbg("[MaterialAssign Connector] Loaded #{count} rows from XLSX: #{File.basename(xlsx)}") if MH::RegistryApp.respond_to?(:dbg)
             return { 'ok' => true, 'count' => count, 'source' => 'xlsx' }
           end
 
@@ -211,7 +211,7 @@ module MH
           MH::MaterialApp.remember_excel_path(path)
           MH::RegistryApp.remember_mvl_input_path(path) if MH::RegistryApp.respond_to?(:remember_mvl_input_path)
           count = MH::MaterialApp.excel_data.length
-          puts "[MaterialAssign Connector] Force reloaded #{count} rows from XLSX: #{File.basename(path)}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] Force reloaded #{count} rows from XLSX: #{File.basename(path)}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => true, 'count' => count, 'source' => 'xlsx', 'path' => path }
         rescue => e
           { 'ok' => false, 'error' => e.message }
@@ -247,7 +247,7 @@ module MH
           ensure_material_names_data_loaded
           material_names_from_current_data
         rescue => e
-          puts "[MaterialAssign Connector] material_names error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] material_names error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -270,7 +270,7 @@ module MH
           @material_names_cache = names
           names.dup
         rescue => e
-          puts "[MaterialAssign Connector] material_names_from_current_data error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] material_names_from_current_data error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -309,7 +309,7 @@ module MH
           @material_codes_by_product_cache[cache_key] = codes.map(&:to_s)
           codes
         rescue => e
-          puts "[MaterialAssign Connector] material_codes_for_product error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] material_codes_for_product error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -351,7 +351,7 @@ module MH
           base = material_code_without_thickness(raw_code)
           material_name_for_thickness(base, thickness_mm).to_s
         rescue => e
-          puts "[MaterialAssign Connector] material_name_for_code error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] material_name_for_code error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           ''
         end
 
@@ -716,10 +716,10 @@ module MH
           clear_material_names_cache
           xlsx_path = File.join(MH::RegistryApp.spec_dir, File.basename(json_path, '.json') + '.xlsx') rescue nil
           MH::MaterialApp.remember_excel_path(xlsx_path) if xlsx_path && File.exist?(xlsx_path)
-          puts "[MaterialAssign Connector] Loaded #{MH::MaterialApp.excel_data.length} rows from latest project JSON: #{File.basename(json_path)}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] Loaded #{MH::MaterialApp.excel_data.length} rows from latest project JSON: #{File.basename(json_path)}") if MH::RegistryApp.respond_to?(:dbg)
           !MH::MaterialApp.excel_data.empty?
         rescue => e
-          puts "[MaterialAssign Connector] load_latest_project_json error: #{e.message}"
+          MH::RegistryApp.dbg("[MaterialAssign Connector] load_latest_project_json error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 

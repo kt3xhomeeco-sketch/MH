@@ -116,7 +116,7 @@ module MH
       # Only use the split if the jump is significant (> 30% of range)
       range = sorted.last - sorted.first
       if best_split && best_jump > range * 0.2
-        puts "FastRename: NN distances range=#{sorted.first.round(2)}..#{sorted.last.round(2)}, best_jump=#{best_jump.round(2)}"
+        dbg("FastRename: NN distances range=#{sorted.first.round(2)}..#{sorted.last.round(2)}, best_jump=#{best_jump.round(2)}") if respond_to?(:dbg)
         best_split
       else
         # Fallback: use median * 2
@@ -131,7 +131,7 @@ module MH
       return [create_zone(0, entities)] if entities.length == 1
 
       gap_threshold ||= auto_gap_threshold(entities)
-      puts "FastRename: auto gap_threshold = #{gap_threshold.round(2)}"
+      dbg("FastRename: auto gap_threshold = #{gap_threshold.round(2)}") if respond_to?(:dbg)
 
       # Single-linkage clustering using edge-to-edge distance
       clusters = entities.map { |e| [e] }

@@ -1,12 +1,12 @@
-# encoding: UTF-8
+﻿# encoding: UTF-8
 require 'sketchup.rb'
 require 'json'
 
 module MH
-  module AssembleThreeTest
-    PLUGIN_NAME = 'MH_assemble_three_test'.freeze
-    VERSION = '0.1.0'.freeze
-    ROOT = File.dirname(__FILE__).freeze
+  module Assemble
+    PLUGIN_NAME = 'MH_assemble'.freeze unless const_defined?(:PLUGIN_NAME)
+    VERSION = '0.1.0'.freeze unless const_defined?(:VERSION)
+    ROOT = File.dirname(__FILE__).freeze unless const_defined?(:ROOT)
 
     module_function
 
@@ -24,7 +24,7 @@ module MH
     def dashboard
       html = <<~HTML
         <body style="font-family:Arial,sans-serif;margin:12px;font-size:13px;background:#f7f7f7;color:#222">
-          <h3 style="margin:0 0 12px">MH Assemble Three</h3>
+          <h3 style="margin:0 0 12px">MH Assemble</h3>
           <label style="display:block;margin-bottom:8px">Tên sản phẩm<br><input id="pname" style="width:100%;height:28px;box-sizing:border-box"></label>
           <button data-act="selection" style="width:100%;background:#2577c9;color:#fff;padding:12px;border:0;border-radius:4px;font-weight:bold">XUẤT THEO SELECTION</button>
           <div style="display:flex;align-items:center;gap:8px;margin-top:10px">
@@ -57,8 +57,8 @@ module MH
         </body>
       HTML
       dlg = UI::HtmlDialog.new(
-        dialog_title: 'MH Assemble Three Test',
-        preferences_key: 'mh_assemble_three_test_panel',
+        dialog_title: 'MH Assemble',
+        preferences_key: 'mh_assemble_panel',
         width: 330,
         height: 255,
         style: UI::HtmlDialog::STYLE_UTILITY
@@ -88,7 +88,7 @@ module MH
     rescue StandardError => e
       puts "[#{PLUGIN_NAME}] Lỗi: #{e.class}: #{e.message}"
       puts e.backtrace.first(8).join("\n")
-      UI.messagebox("Lỗi Three Test: #{e.message}")
+      UI.messagebox("Lỗi MH Assemble: #{e.message}")
     end
 
     def settings_dialog
@@ -124,7 +124,7 @@ module MH
             <div class="sec"><h4>KHÔNG CÁNH - BẢN TỔNG</h4><div class="hint">Ẩn khi xuất trang tổng sản phẩm.</div><textarea id="no_door_product" rows="4"></textarea></div>
             <div class="sec"><h4>KHÔNG CÁNH - BẢN MODULE</h4><div class="hint">Ẩn khi xuất từng module / chi tiết.</div><textarea id="no_door_module" rows="4"></textarea></div>
             <div class="sec"><h4>Chi tiết CẦN ẨN</h4><div class="hint">Ẩn ở mọi bản.</div><textarea id="hide_common" rows="4"></textarea></div>
-            <div class="sec"><h4>TAG/LAYER CẦN ẨN</h4><div class="hint">Mỗi dòng 1 tên tag/layer, áp dụng riêng cho bản vẽ Three.</div><textarea id="hidden_tags" rows="3"></textarea></div>
+            <div class="sec"><h4>TAG/LAYER CẦN ẨN</h4><div class="hint">Mỗi dòng 1 tên tag/layer, áp dụng cho bản vẽ HTML.</div><textarea id="hidden_tags" rows="3"></textarea></div>
             <div class="sec"><h4>Chi tiết KHÔNG ĐÁNH SỐ</h4><div class="hint">Vẫn hiện nhưng không có bóng/bảng.</div><textarea id="no_number" rows="4"></textarea></div>
             <div class="sec"><h4>TỈ LỆ bản vẽ</h4><div class="hint">Mặc định cho file HTML xuất sau.</div><div id="ratios" class="ratios"></div><div class="customRatio">1:<input id="custom_ratio" type="number" min="1" max="1000"><button id="custom_btn">Dùng tỉ lệ này</button></div><div class="presetLine"><span>Preset</span><input id="ratio_presets"><button id="apply_presets">Cập nhật nút</button></div></div>
             <div class="sec">
@@ -198,8 +198,8 @@ module MH
           </script>
         </body>
       HTML
-      dlg = UI::HtmlDialog.new(dialog_title: 'MH Assemble Three - Cài đặt',
-                               preferences_key: 'mh_assemble_three_settings',
+       dlg = UI::HtmlDialog.new(dialog_title: 'MH Assemble - Cài đặt',
+                                preferences_key: 'mh_assemble_settings',
                                width: 540, height: 820,
                                style: UI::HtmlDialog::STYLE_DIALOG)
       dlg.set_html(html)
@@ -236,9 +236,10 @@ module MH
     end
 
     unless file_loaded?(__FILE__)
-      menu = UI.menu('Plugins').add_submenu('MH Assemble Three Test')
-      menu.add_item('Mở bảng test') { dashboard }
+      menu = UI.menu('Plugins').add_submenu('MH Assemble')
+      menu.add_item('Mở bảng điều khiển') { dashboard }
       file_loaded(__FILE__)
     end
   end
 end
+

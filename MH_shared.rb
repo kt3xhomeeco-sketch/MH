@@ -26,6 +26,13 @@ module MH
   module Shared
     VERSION = '1.1.0'.freeze
     DIR = File.join(__dir__, 'MH_shared').freeze
+    DEBUG = false unless const_defined?(:DEBUG, false)
+
+    module_function
+
+    def dbg(message)
+      puts message if DEBUG
+    end
   end
 end
 

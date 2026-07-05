@@ -67,7 +67,7 @@ module MH
           rows = MH::ExcelBridge.read_sheet(xlsx_path, sheet: "prefix")
           @prefix_suggestions = rows.flatten.compact.map { |v| v.to_s.strip }.reject(&:empty?)
         rescue => e
-          puts "FastRename config load error: #{e.message}"
+          MH::FastRename.dbg("FastRename config load error: #{e.message}") if MH::FastRename.respond_to?(:dbg)
         end
       end
 

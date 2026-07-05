@@ -28,24 +28,5 @@ module MH
       file_loaded(__FILE__)
     end
 
-    # ======================================================
-    # RELOAD – Load lại toàn bộ file .rb trong thư mục src
-    # Dùng cho dev và cho HtmlDialog (bấm Lưu -> reload)
-    # ======================================================
-    def self.reload
-      original_verbose = $VERBOSE
-      $VERBOSE = nil
-
-      base = File.join(__dir__, 'MH_Superimp', 'src')
-      pattern = File.join(base, '**/*.rb')
-      files = Dir.glob(pattern)
-
-      files.each { |f| load f }
-
-      puts "MH::Superimp reloaded #{files.size} file(s) from: #{base}"
-    ensure
-      $VERBOSE = original_verbose
-    end
-
   end
 end

@@ -48,10 +48,10 @@ module MH
 
           apply_profile(instance, profile) if instance && instance.valid?
 
-          puts "[DCImportPipeline] after_import_dc pid=#{instance.persistent_id rescue '?'} profile=#{profile.inspect}"
+          MH::RegistryApp.dbg("[DCImportPipeline] after_import_dc pid=#{instance.persistent_id rescue '?'} profile=#{profile.inspect}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => true, 'profile' => profile, 'label' => profile_label(profile) }
         rescue => e
-          puts "[DCImportPipeline] after_import_dc error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] after_import_dc error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => false, 'error' => e.message }
         end
 
@@ -80,7 +80,7 @@ module MH
           apply_profile(instance, profile)
           { 'ok' => true, 'panel' => panel, 'back' => back }
         rescue => e
-          puts "[DCImportPipeline] apply_quick_thickness error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] apply_quick_thickness error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => false, 'error' => e.message }
         end
 
@@ -127,7 +127,7 @@ module MH
           result = thongke.resolve_product_for_import(instance, context)
           result['product_code'].to_s.strip
         rescue => e
-          puts "[DCImportPipeline] resolve product error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] resolve product error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           ''
         end
 
@@ -229,7 +229,7 @@ module MH
             redraw_dc(instance)
             did_sync_redraw = true
           rescue => sync_error
-            puts "[DCImportPipeline] sync redraw deferred to timer: #{sync_error.class}: #{sync_error.message}"
+            MH::RegistryApp.dbg("[DCImportPipeline] sync redraw deferred to timer: #{sync_error.class}: #{sync_error.message}") if MH::RegistryApp.respond_to?(:dbg)
           end
 
           schedule_deferred_profile_finish(instance, profile, binding, inferred_thickness_params, did_sync_redraw)
@@ -262,7 +262,7 @@ module MH
               assign_profile_materials(instance, profile_snapshot)
               Sketchup.status_text = "VL: #{profile_label(profile_snapshot)}"
             rescue => timer_error
-              puts "[DCImportPipeline] apply timer error: #{timer_error.class}: #{timer_error.message}"
+              MH::RegistryApp.dbg("[DCImportPipeline] apply timer error: #{timer_error.class}: #{timer_error.message}") if MH::RegistryApp.respond_to?(:dbg)
             ensure
               @deferred_profile_finish_generations.delete(key) if @deferred_profile_finish_generations && @deferred_profile_finish_generations[key] == generation
             end

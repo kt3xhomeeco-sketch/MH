@@ -21,7 +21,7 @@ module MH
       # Đăng ký 1 connector module.
       def register(name, mod)
         @registered[name.to_s] = mod
-        puts "[MH_Registry] Connector registered: #{name}"
+        MH::RegistryApp.dbg("[MH_Registry] Connector registered: #{name}") if MH::RegistryApp.respond_to?(:dbg)
       end
 
       # Lấy connector theo tên.
@@ -56,7 +56,7 @@ module MH
         return nil unless c && c.respond_to?(method)
         c.send(method, *args)
       rescue => e
-        puts "[MH_Registry] Connector #{name}.#{method} error: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry] Connector #{name}.#{method} error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         nil
       end
 
@@ -67,7 +67,7 @@ module MH
 
         { ok: true, value: c.send(method, *args), reason: :ok, error: nil }
       rescue => e
-        puts "[MH_Registry] Connector #{name}.#{method} error: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry] Connector #{name}.#{method} error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         { ok: false, value: nil, reason: :raised, error: e.message }
       end
 
@@ -78,7 +78,7 @@ module MH
           next unless c.respond_to?(:on_config_changed)
           c.on_config_changed(config_data)
         rescue => e
-          puts "[MH_Registry] #{name}.on_config_changed error: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry] #{name}.on_config_changed error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
       end
 
@@ -90,7 +90,7 @@ module MH
           begin
             load f
           rescue => e
-            puts "[MH_Registry] Error loading connector #{File.basename(f)}: #{e.message}"
+            MH::RegistryApp.dbg("[MH_Registry] Error loading connector #{File.basename(f)}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           end
         end
       end

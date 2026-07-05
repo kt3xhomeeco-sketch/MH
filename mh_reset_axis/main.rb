@@ -527,7 +527,7 @@ module MH
         content
       )
       instance.transformation = new_transformation
-      definition.invalidate_bounds
+      definition.invalidate_bounds if definition.respond_to?(:invalidate_bounds)
       nil
     end
 

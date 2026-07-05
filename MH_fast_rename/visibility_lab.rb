@@ -252,4 +252,4 @@ module MH
 end
 
 MH::FastRenameVisibilityLab.install_menu
-puts "MH::FastRenameVisibilityLab loaded"
+MH::FastRename.dbg("MH::FastRenameVisibilityLab loaded") if defined?(MH::FastRename) && MH::FastRename.respond_to?(:dbg)

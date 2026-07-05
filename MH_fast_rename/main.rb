@@ -1,5 +1,4 @@
 ﻿# MH_fast_rename v93 - CPv5 Logic Integrated & Box Slicing
-puts "MH_FastRename v93 loading..."
 
 require 'sketchup.rb'
 require File.join(Sketchup.find_support_file('Plugins'), 'MH_shared.rb')
@@ -15,6 +14,7 @@ module MH
     # ════════════════════════════════════════════════════════════════
     # CONSTANTS
     # ════════════════════════════════════════════════════════════════
+    DEBUG = false unless const_defined?(:DEBUG, false)
     CP_TOL      = 0.05 / 25.4   unless defined?(CP_TOL)
     CP_PENE_TOL = 0.05 / 25.4   unless defined?(CP_PENE_TOL)
 
@@ -109,6 +109,10 @@ module MH
         { 'a' => Array(row[:a]), 'b' => Array(row[:b]), 'axis' => row[:axis].to_s }
       }
     }.freeze
+
+    def self.dbg(message)
+      puts message if DEBUG
+    end
 
     def self.invalidate_settings_cache
       @settings_cache = nil
@@ -1910,7 +1914,7 @@ module MH
       sync_registry_project_config
       true
     rescue => e
-      puts "MH::FastRename registry sync error: #{e.message}"
+      dbg("MH::FastRename registry sync error: #{e.message}")
       false
     end
 
@@ -1928,7 +1932,7 @@ module MH
       @registry_module_suggestions = Array(project_moduls).map(&:to_s).map(&:strip).reject(&:empty?) unless Array(project_moduls).empty?
       true
     rescue => e
-      puts "MH::FastRename registry project sync error: #{e.message}"
+      dbg("MH::FastRename registry project sync error: #{e.message}")
       false
     end
 
@@ -2099,7 +2103,7 @@ module MH
         update_status if respond_to?(:update_status)
         @view.invalidate if @view
       rescue => e
-        puts "FastRename reload_user_settings error: #{e.message}"
+        MH::FastRename.dbg("FastRename reload_user_settings error: #{e.message}")
       end
 
       def load_config
@@ -2111,7 +2115,7 @@ module MH
           end
           @prefix_suggestions = []
         rescue => e
-          puts "FastRename config load error: #{e.message}"
+          MH::FastRename.dbg("FastRename config load error: #{e.message}")
         end
       end
 
@@ -2597,7 +2601,7 @@ module MH
         @zones.each_with_index { |z, i| z.id = i }
 
         elapsed = ((Time.now-t0)*1000).round(0)
-        puts "MH::FastRename auto_split: #{total_splits} split(s), #{@zones.length} zones, #{elapsed}ms"
+        MH::FastRename.dbg("MH::FastRename auto_split: #{total_splits} split(s), #{@zones.length} zones, #{elapsed}ms")
       end
 
       def deactivate(view)
@@ -3932,7 +3936,7 @@ module MH
 
     def self.reload
       load __FILE__
-      puts 'MH::FastRename reloaded'
+      dbg('MH::FastRename reloaded')
     end
 
     unless defined?(@loaded)

@@ -275,7 +275,7 @@ module MH
       MH::NameGrammar.configure(MH::NameGrammar.respond_to?(:last_config) ? MH::NameGrammar.last_config : {})
       true
     rescue => e
-      puts "[MH::Registry] refresh_name_grammar error: #{e.class}: #{e.message}"
+      MH::Shared.dbg("[MH::Registry] refresh_name_grammar error: #{e.class}: #{e.message}") if defined?(MH::Shared)
       false
     end
 

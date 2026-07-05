@@ -758,6 +758,8 @@ module MH
 
     def self.attach_global_observers
       @selection_observers ||= {}
+      return true if @selection_observers[:model_hub]
+
       @selection_observers[:model_hub] = MH::ModelHub.subscribe(
         :rename_quick_tools,
         on_selection: ->(_kind) { MH::Rename.on_selection_change(Sketchup.active_model.selection) },
@@ -1676,8 +1678,8 @@ module MH
     # =========================================================================
     # HTML HELPERS
     # =========================================================================
-    def self.esc_attr(s); s.to_s.gsub('"','&quot;').gsub("'",'&#39;'); end
     def self.esc_html(s); s.to_s.gsub('&','&amp;').gsub('<','&lt;').gsub('>','&gt;'); end
+    def self.esc_attr(s); esc_html(s).gsub('"','&quot;').gsub("'",'&#39;'); end
     def self.esc_js(s);   s.to_s.gsub("\\","\\\\").gsub("'","\\'").gsub('"','\\"'); end
 
     def self.build_row(obj, tag_opts, mat_opts)

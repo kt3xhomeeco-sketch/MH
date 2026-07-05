@@ -1,7 +1,7 @@
-# encoding: UTF-8
+﻿# encoding: UTF-8
 
 module MH
-module Scale
+module Stretch
   module PlaneVertexSelector
     DEFAULT_CLEARANCE = 0.1.mm
 
@@ -34,9 +34,11 @@ module Scale
     end
 
     def make_selection_unique(selection)
+      changed = 0
       selection.each do |entity|
-        make_container_tree_unique(entity) if group_or_component?(entity)
+        changed += make_container_tree_unique(entity) if group_or_component?(entity)
       end
+      changed
     end
 
     def world_delta(axis, amount)
@@ -174,12 +176,17 @@ module Scale
     end
 
     def make_container_tree_unique(entity)
-      entity.make_unique if needs_unique?(entity)
-      child_entities(entity).each do |child|
-        make_container_tree_unique(child) if group_or_component?(child)
+      changed = 0
+      if needs_unique?(entity)
+        entity.make_unique
+        changed += 1
       end
+      child_entities(entity).each do |child|
+        changed += make_container_tree_unique(child) if group_or_component?(child)
+      end
+      changed
     rescue
-      nil
+      0
     end
 
     def group_or_component?(entity)
@@ -239,3 +246,4 @@ module Scale
   end
 end
 end
+

@@ -30,7 +30,7 @@ module MH
       @codes_cache = nil
       true
     rescue => e
-      puts "[MH::ProductContext] refresh_grammar error: #{e.class}: #{e.message}"
+      MH::Shared.dbg("[MH::ProductContext] refresh_grammar error: #{e.class}: #{e.message}") if defined?(MH::Shared)
       false
     end
 
@@ -314,7 +314,7 @@ module MH
       refresh_from_selection(model, allow_slow_scan: false)
       true
     rescue => e
-      puts "[MH::ProductContext] selection observer error: #{e.class}: #{e.message}"
+      MH::Shared.dbg("[MH::ProductContext] selection observer error: #{e.class}: #{e.message}") if defined?(MH::Shared)
       false
     end
 

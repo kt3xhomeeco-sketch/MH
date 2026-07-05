@@ -17,6 +17,11 @@ module MH
     PATH = File.dirname(__FILE__) unless defined?(self::PATH)
     DEFAULTS_KEY = 'MH_Registry' unless defined?(self::DEFAULTS_KEY)
     LAST_MVL_INPUT_KEY = 'LastMVLInputPath' unless defined?(self::LAST_MVL_INPUT_KEY)
+    DEBUG = false unless const_defined?(:DEBUG, false)
+
+    def self.dbg(message)
+      puts message if DEBUG
+    end
 
     # Nạp hạ tầng dùng chung (idempotent).
     shared_loader = File.join(File.dirname(PATH), 'MH_shared.rb')
@@ -45,7 +50,7 @@ module MH
       @runtime_ready = true
       true
     rescue => e
-      puts "[MH_Registry] ensure_runtime_ready error: #{e.class}: #{e.message}"
+      dbg("[MH_Registry] ensure_runtime_ready error: #{e.class}: #{e.message}")
       false
     end
 
@@ -58,7 +63,7 @@ module MH
       path = File.join(Sketchup.find_support_file('Plugins'), *parts)
       load path if File.exist?(path)
     rescue => e
-      puts "[MH_Registry] load_app_file #{parts.join('/')} error: #{e.class}: #{e.message}"
+      dbg("[MH_Registry] load_app_file #{parts.join('/')} error: #{e.class}: #{e.message}")
       false
     end
 
@@ -570,7 +575,7 @@ module MH
               model.commit_operation
             rescue => e
               model.abort_operation rescue nil
-              puts "[MH_Registry] mark_products error: #{e.message}"
+              dbg("[MH_Registry] mark_products error: #{e.message}")
             end
           end
         rescue => e
@@ -633,7 +638,7 @@ module MH
               model.commit_operation
             rescue => e
               model.abort_operation rescue nil
-              puts "[MH_Registry] mark_products_auto error: #{e.message}"
+              dbg("[MH_Registry] mark_products_auto error: #{e.message}")
             end
           end
         rescue => e
@@ -853,7 +858,7 @@ module MH
       Sketchup.active_model.active_view.invalidate if Sketchup.active_model
       true
     rescue => e
-      puts "[MH_Registry] refresh Superimp HUD error: #{e.class}: #{e.message}"
+      dbg("[MH_Registry] refresh Superimp HUD error: #{e.class}: #{e.message}")
       false
     end
 
@@ -1298,7 +1303,7 @@ module MH
       if payload['config']
         config_payload = symbolize_safe(payload['config'])
         save_config(config_payload)
-        puts "[MH_Registry] Config auto-saved before run_mvl"
+        dbg("[MH_Registry] Config auto-saved before run_mvl")
       end
 
       data = load_config
@@ -1765,7 +1770,7 @@ module MH
       begin
         Menu.root.add_item('★ MH Control Panel') { ControlPanel.open }
       rescue => e
-        puts "[MH_Registry] add control panel menu error: #{e.message}"
+        dbg("[MH_Registry] add control panel menu error: #{e.message}")
       end
 
       file_loaded(__FILE__)

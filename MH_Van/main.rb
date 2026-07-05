@@ -534,7 +534,8 @@ module MH
         return if @materials_observer_attached
         return unless defined?(MaterialsChangeObserver)
 
-        Sketchup.active_model.materials.add_observer(MaterialsChangeObserver.new)
+        @materials_observer ||= MaterialsChangeObserver.new
+        Sketchup.active_model.materials.add_observer(@materials_observer)
         @materials_observer_attached = true
       rescue StandardError
         @materials_observer_attached = true
@@ -1075,11 +1076,6 @@ module MH
         text
       end
 
-      def original_or_default_material_code(entity)
-        original = entity.get_attribute(DICT, ATTR_ORIGINAL_CODE).to_s.strip
-        original.empty? ? default_material_code(entity) : original
-      end
-
       def primary_material(entity)
         entity.respond_to?(:material) ? entity.material : nil
       end
@@ -1106,36 +1102,11 @@ module MH
         material.color = Sketchup::Color.new(hex[1, 2].to_i(16), hex[3, 2].to_i(16), hex[5, 2].to_i(16))
       end
 
-      def remember_original_material(entity)
-        return if entity.get_attribute(DICT, ATTR_ORIGINAL_CODE)
-
-        material = primary_material(entity)
-        entity.set_attribute(DICT, ATTR_ORIGINAL_CODE, material.display_name.to_s) if material
-      end
-
       def assign_material_code(entity, code, material = nil)
         return unless entity.respond_to?(:material=)
 
         material ||= material_by_name(code, primary_material(entity))
         entity.material = material
-      end
-
-      def reset_material_code(entity, original_code)
-        original_code = original_code.to_s.strip
-        return if original_code.empty?
-
-        current = primary_material(entity)
-        existing = Sketchup.active_model.materials[original_code]
-        if existing
-          entity.material = existing if entity.respond_to?(:material=)
-        elsif current
-          current.name = original_code
-          entity.material = current if entity.respond_to?(:material=)
-        else
-          assign_material_code(entity, original_code)
-        end
-      rescue StandardError
-        assign_material_code(entity, original_code)
       end
 
       def material_for_code_change(code, current_materials, target_entities = [])
@@ -1216,22 +1187,6 @@ module MH
         false
       rescue StandardError
         true
-      end
-
-      def two_face?(entity, transform = nil)
-        attr = entity.get_attribute(DICT, ATTR_TWO_FACE)
-        return attr == true || attr.to_s == 'true' if !attr.nil?
-
-        return false unless defined?(ABF::SheetTypesTool)
-        return false unless defined?(ABF::NestingUtil)
-        return false unless ABF::NestingUtil.respond_to?(:get_b2_faces)
-
-        tool = abf_sheet_types_tool
-        group_transform = transform || (entity.respond_to?(:transformation) ? entity.transformation : Geom::Transformation.new)
-        b2_faces = ABF::NestingUtil.get_b2_faces(entity, group_transform)
-        tool.check_if_2faces_cnc(entity, group_transform, b2_faces) == true
-      rescue StandardError
-        false
       end
 
       def abf_sheet_types_tool

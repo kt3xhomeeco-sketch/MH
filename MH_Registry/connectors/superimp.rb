@@ -70,7 +70,7 @@ module MH
           config = MH::RegistryApp.load_config
           normalize_rows(config['superimp_import_list'])
         rescue => e
-          puts "[MH_Registry::Superimp] registry import_list error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry::Superimp] registry import_list error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -92,7 +92,7 @@ module MH
             }
           end)
         rescue => e
-          puts "[MH_Registry::Superimp] legacy import_list error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[MH_Registry::Superimp] legacy import_list error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 

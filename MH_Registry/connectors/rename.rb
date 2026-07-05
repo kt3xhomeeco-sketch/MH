@@ -66,10 +66,10 @@ module MH
             vpt.reload_config if vpt && vpt.respond_to?(:reload_config)
           end
 
-          puts "[Rename Connector] Config synced — product code from NameGrammar, #{sfx.length} suffix, #{mod.length} modul"
+          MH::RegistryApp.dbg("[Rename Connector] Config synced — product code from NameGrammar, #{sfx.length} suffix, #{mod.length} modul") if MH::RegistryApp.respond_to?(:dbg)
           true
         rescue => e
-          puts "[Rename Connector] sync_config error: #{e.message}"
+          MH::RegistryApp.dbg("[Rename Connector] sync_config error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 

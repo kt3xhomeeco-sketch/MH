@@ -43,7 +43,7 @@ module MH
         @entries << { app: app.to_s, key: key.to_s, label: label.to_s, block: block }
         true
       rescue => e
-        puts "[MH_Registry::Menu] add #{full_key} error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::Menu] add #{full_key} error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
 
@@ -87,7 +87,7 @@ module MH
         entry[:block].call
         true
       rescue => e
-        puts "[MH_Registry::Menu] invoke #{app}:#{key} error: #{e.class}: #{e.message}"
+        MH::RegistryApp.dbg("[MH_Registry::Menu] invoke #{app}:#{key} error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         false
       end
     end

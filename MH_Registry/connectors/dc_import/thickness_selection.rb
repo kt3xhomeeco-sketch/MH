@@ -1,4 +1,4 @@
-﻿# encoding: UTF-8
+# encoding: UTF-8
 #
 # MH_Registry / connectors / dc_import / thickness_selection.rb
 # ---------------------------------------------------------------------------
@@ -460,7 +460,7 @@ module MH
           end
           []
         rescue => e
-          puts "[DCImportPipeline] ordered material codes error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] ordered material codes error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -618,7 +618,7 @@ module MH
           end
           names.map { |n| material_code_key(n) }.reject(&:empty?).uniq.sort
         rescue => e
-          puts "[DCImportPipeline] project_material_types error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] project_material_types error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 

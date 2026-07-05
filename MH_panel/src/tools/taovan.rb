@@ -1,4 +1,4 @@
-﻿class MH::Panel::TaoVan
+class MH::Panel::TaoVan
   include MH::Panel::Preset
   settings_section "tao_van"
   def initialize
@@ -425,7 +425,7 @@
     offset_points = MH::Geo::Offset.offset_pts(points, @normal, distance)
     offset_points && offset_points.length >= 3 ? offset_points : points
   rescue => e
-    puts "[MH::Panel::TaoVan] offset_profile_points error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoVan] offset_profile_points error: #{e.class}: #{e.message}")
     points
   end
   def setback_profile_points(points, distance)
@@ -439,7 +439,7 @@
     moved[next_index] = moved[next_index].offset(inward, distance)
     moved
   rescue => e
-    puts "[MH::Panel::TaoVan] setback_profile_points error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoVan] setback_profile_points error: #{e.class}: #{e.message}")
     points
   end
   def setback_edge_for_profile(points)
@@ -609,7 +609,7 @@
       face.back_material = nil
     end
   rescue => e
-    puts "[MH::Panel::TaoVan] apply material error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoVan] apply material error: #{e.class}: #{e.message}")
   end
   def sync_material_appearance(target, source)
     return unless target
@@ -617,7 +617,7 @@
     return unless source && target == source
     target.alpha = source.alpha if source.respond_to?(:alpha) && target.respond_to?(:alpha=)
   rescue => e
-    puts "[MH::Panel::TaoVan] sync material error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoVan] sync material error: #{e.class}: #{e.message}")
   end
   def copy_face_to_entities(source_face, source_tr, target_entities, bottom, top)
     original_vertices = source_face.outer_loop.vertices.map { |v| v.position.transform(source_tr) }

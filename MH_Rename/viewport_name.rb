@@ -64,7 +64,7 @@ module MH
         load path if File.exist?(path)
         defined?(MH::Settings)
       rescue => e
-        puts "[ViewportNameTool] settings facade error: #{e.message}"
+        MH::Rename.dbg "[ViewportNameTool] settings facade error: #{e.message}" if MH::Rename.respond_to?(:dbg)
         false
       end
 

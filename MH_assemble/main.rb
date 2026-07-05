@@ -1,8 +1,8 @@
 # encoding: UTF-8
 #
-# MH_assemble — tạo bản vẽ tủ/module → PDF (A3).
-# Phase 1: Scanner — parse tên part theo MH::ProductContext.parse_full,
-#          dựng cây Tủ → Module → Part và in ra để kiểm trên model thật.
+# MH_assemble — tạo bản vẽ tủ/module bằng viewer Three/HTML.
+# Core scanner parse tên part theo MH::ProductContext.parse_full,
+# dựng cây Tủ → Module → Part cho exporter Three.
 #
 # Quy ước tên part (parts rời rạc, không group container):
 #   "__28. SP47.6_Đợt Cố Định"
@@ -131,17 +131,18 @@ module MH
       tree
     end
 
-    # ---- Nạp các phase phụ ----------------------------------------------
+    # ---- Nạp backend + exporter Three ------------------------------------
     load File.join(ROOT, 'config.rb')
     load File.join(ROOT, 'camera.rb')
     load File.join(ROOT, 'renderer.rb')
-    load File.join(ROOT, 'html.rb')
+    load File.join(ROOT, 'three_export.rb')
+    load File.join(ROOT, 'three_dashboard.rb')
 
     # ---- Menu + Toolbar (1 lần): chỉ MỞ bảng điều khiển ------------------
     unless file_loaded?(__FILE__)
       tb  = UI::Toolbar.new('MH Assemble')
       cmd = UI::Command.new('MH Assemble') { MH::Assemble.dashboard }
-      cmd.tooltip = 'MH Assemble — tạo bản vẽ tủ/module'
+      cmd.tooltip = 'MH Assemble — xuất bản vẽ Three/HTML'
       cmd.status_bar_text = 'Mở bảng điều khiển MH Assemble'
       icon = File.join(ROOT, 'icons', 'assemble.svg')
       if File.exist?(icon)

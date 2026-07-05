@@ -1,4 +1,4 @@
-﻿# encoding: UTF-8
+# encoding: UTF-8
 #
 # MH_Registry / connectors / dc_import / materials.rb
 # ---------------------------------------------------------------------------
@@ -69,7 +69,7 @@ module MH
             stats[is_back ? 'back' : 'panel'] += 1
           end
           model.commit_operation
-          puts "[DCImportPipeline] materials panel=#{stats['panel']} back=#{stats['back']} excel=#{stats['excel']} fallback=#{stats['fallback']} miss=#{stats['miss']}#{single_thickness ? ' (single-thickness)' : ''}"
+          MH::RegistryApp.dbg("[DCImportPipeline] materials panel=#{stats['panel']} back=#{stats['back']} excel=#{stats['excel']} fallback=#{stats['fallback']} miss=#{stats['miss']}#{single_thickness ? ' (single-thickness)' : ''}") if MH::RegistryApp.respond_to?(:dbg)
           stats
         rescue => e
           model.abort_operation rescue nil
@@ -90,14 +90,14 @@ module MH
             spec = material_assign.material_row_for_product(product_code, candidate['detail'])
             next unless spec && spec['ok']
             unless material_spec_relevant_for_candidate?(candidate['detail'], spec)
-              puts "[DCImportPipeline] skip unrelated material match for #{product_code} #{candidate['detail']}: #{spec['excel_detail']} -> #{spec['material_code']}"
+              MH::RegistryApp.dbg("[DCImportPipeline] skip unrelated material match for #{product_code} #{candidate['detail']}: #{spec['excel_detail']} -> #{spec['material_code']}") if MH::RegistryApp.respond_to?(:dbg)
               next
             end
 
             raw_code = spec['material_code'].to_s.strip
             codes = material_code_parts(raw_code)
             if codes.length > 1
-              puts "[DCImportPipeline] skip multi material bootstrap for #{product_code} #{candidate['detail']}: #{raw_code}"
+              MH::RegistryApp.dbg("[DCImportPipeline] skip multi material bootstrap for #{product_code} #{candidate['detail']}: #{raw_code}") if MH::RegistryApp.respond_to?(:dbg)
               next
             end
 
@@ -127,7 +127,7 @@ module MH
 
           nil
         rescue => e
-          puts "[DCImportPipeline] resolve material error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] resolve material error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           nil
         end
 
@@ -475,7 +475,7 @@ module MH
           resolved['profile_name'] = "#{product} | #{resolved['profile_name']}"
           resolved
         rescue => e
-          puts "[DCImportPipeline] resolve product material error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] resolve product material error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           profile
         end
 
@@ -516,7 +516,7 @@ module MH
           )
           names && names['ok'] ? apply_surface_face_suffix_to_names(names, instance, context, profile) : names
         rescue => e
-          puts "[DCImportPipeline] resolve material names error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] resolve material names error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           nil
         end
 
@@ -549,7 +549,7 @@ module MH
           parsed = { detail_name: detail, raw_name: detail }
           MH::MaterialApp::MaterialAssigner.apply_surface_face_suffix(name, instance, thickness_mm, parsed).to_s.strip
         rescue => e
-          puts "[DCImportPipeline] surface face suffix error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] surface face suffix error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           name
         end
 
@@ -581,7 +581,7 @@ module MH
           spec = material_assign.material_spec_for_product(product_code, detail)
           spec && spec['ok'] ? spec['material_code'].to_s.strip : ''
         rescue => e
-          puts "[DCImportPipeline] preferred material code error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] preferred material code error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           ''
         end
 

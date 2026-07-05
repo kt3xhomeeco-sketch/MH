@@ -1,4 +1,4 @@
-﻿module MH::Panel::Offset
+module MH::Panel::Offset
   def self.offset_face_pts(face, offset)
     verts = face.outer_loop.vertices.map { |v| v.position }
     offset_pts(verts, face.normal, offset)
@@ -727,7 +727,7 @@
         res = MH::Panel::NativeBridge.offset_polygon(refs, normal, d)
         return res if res && res.size >= 3
       rescue => e
-        puts "MH::Panel Native offset_polygon error: #{e.message}"
+        MH::Panel.dbg("MH::Panel Native offset_polygon error: #{e.message}")
       end
     end
     pts = refs.map { |p| Geom::Point3d.new(p.x.to_f, p.y.to_f, p.z.to_f) }

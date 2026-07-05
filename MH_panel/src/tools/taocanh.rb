@@ -1,4 +1,4 @@
-﻿class MH::Panel::TaoCanh
+class MH::Panel::TaoCanh
   include MH::Panel::Preset
   settings_section "tao_canh"
   VK_LEFT = 37
@@ -1423,7 +1423,7 @@
     thickness = dominant_panel_thickness(thicknesses)
     { material: material, thickness: thickness }
   rescue => e
-    puts "[MH::Panel::TaoCanh] nested panel profile error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] nested panel profile error: #{e.class}: #{e.message}")
     {}
   end
   def collect_nested_panel_candidates(entity, transform, candidates, depth, root = false)
@@ -2007,7 +2007,7 @@
       @box_selected_picks << pick if pick
     end
   rescue => e
-    puts "[MH::Panel::TaoCanh] sync bbox selection error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] sync bbox selection error: #{e.class}: #{e.message}")
   end
   def bounding_box_selection_picks(view = nil)
     view ||= Sketchup.active_model.active_view rescue nil
@@ -2055,7 +2055,7 @@
       @box_selected_picks << pick
     end
   rescue => e
-    puts "[MH::Panel::TaoCanh] select bbox rect error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] select bbox rect error: #{e.class}: #{e.message}")
   end
   def bounding_pick_in_screen_rect?(pick, view, min_x, min_y, max_x, max_y, window_mode)
     points = Array(pick[:corners])
@@ -2170,7 +2170,7 @@
     view.invalidate
   rescue => e
     Sketchup.active_model.abort_operation rescue nil
-    puts "[MH::Panel::TaoCanh] tạo cánh Bounding Box batch error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] tạo cánh Bounding Box batch error: #{e.class}: #{e.message}")
   end
   def prepare_bounding_box_batch_preview(view)
     @box_batch_preview = build_bounding_box_batch_preview(view)
@@ -2696,7 +2696,7 @@
       draw_tam_entity_highlight(view, @tam_pick_hover, selected.length)
     end
   rescue => e
-    puts "[MH::Panel::TaoCanh] draw Tấm selection error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] draw Tấm selection error: #{e.class}: #{e.message}")
   end
   def draw_tam_entity_highlight(view, entity, index)
     corners = entity_world_corners(entity)
@@ -2961,7 +2961,7 @@
     draw_active_batch_item(items[hover_idx], view) if hover_idx
     ve_kich_thuoc_chia(items.map { |item| item[:cell] }) if items.length > 1
   rescue => e
-    puts "[MH::Panel::TaoCanh] draw bbox batch grid error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] draw bbox batch grid error: #{e.class}: #{e.message}")
   end
   def detect_hover_batch_item(items)
     return nil unless @last_ray
@@ -3183,7 +3183,7 @@
     return unless source && target == source
     target.alpha = source.alpha if source.respond_to?(:alpha) && target.respond_to?(:alpha=)
   rescue => e
-    puts "[MH::Panel::TaoCanh] sync material error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] sync material error: #{e.class}: #{e.message}")
   end
   def add_division_point(view)
     save_division_state
@@ -3739,7 +3739,7 @@
       face.back_material = nil
     end
   rescue => e
-    puts "[MH::Panel::TaoCanh] apply material error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::TaoCanh] apply material error: #{e.class}: #{e.message}")
   end
   def draw_grid_preview(view)
     cells = get_grid_cells

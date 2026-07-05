@@ -477,9 +477,6 @@
 
     window.mhNepSetStatus = function(payload) {
       setStatus(payload.message || '', !!payload.ok);
-      if (payload.stats && payload.stats.errors && payload.stats.errors.length) {
-        console.log(payload.stats.errors);
-      }
     };
 
     el('mode-view').addEventListener('click', () => setMode('view'));

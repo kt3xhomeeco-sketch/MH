@@ -307,16 +307,6 @@ module MH
         end
       end
 
-      def face_color(face)
-        mat = face.material
-        if mat && mat.color
-          c = mat.color
-          Sketchup::Color.new(c.red, c.green, c.blue, 255)
-        else
-          Sketchup::Color.new(180, 180, 180, 255)
-        end
-      end
-
       # Vẽ mặt cafe bằng 2D (nhìn xuyên thấu với opacity 180)
       def draw_entity_faces_2d(view, entity)
         eid = entity.entityID
@@ -369,38 +359,6 @@ module MH
             collect_edges_simple(e.entities, parent_tr * e.transformation, result)
           elsif e.is_a?(Sketchup::ComponentInstance)
             collect_edges_simple(e.definition.entities, parent_tr * e.transformation, result)
-          end
-        end
-      end
-
-      def update_lines_cache(entity)
-        @line_cache ||= {}
-        eid = entity.entityID
-        unless @line_cache[eid]
-          data = []
-          collect_lines_recursive(entity.is_a?(Sketchup::Group) ? entity.entities : entity.definition.entities, entity.transformation, data)
-          @line_cache[eid] = data
-        end
-        @line_cache[eid]
-      end
-
-      def collect_lines_recursive(entities, parent_tr, result)
-        flipped = tr_flipped?(parent_tr)
-        entities.each do |e|
-          if e.is_a?(Sketchup::Edge)
-            p1 = e.start.position.transform(parent_tr)
-            p2 = e.end.position.transform(parent_tr)
-            pt_world = p1
-            faces_info = e.faces.map do |f|
-              n_world = f.normal.transform(parent_tr)
-              n_world = n_world.reverse if flipped
-              { n_world: n_world, pt_world: pt_world }
-            end
-            result << { p1: p1, p2: p2, faces: faces_info }
-          elsif e.is_a?(Sketchup::Group)
-            collect_lines_recursive(e.entities, parent_tr * e.transformation, result)
-          elsif e.is_a?(Sketchup::ComponentInstance)
-            collect_lines_recursive(e.definition.entities, parent_tr * e.transformation, result)
           end
         end
       end
@@ -722,8 +680,10 @@ module MH
             <div id="entityList" style="max-height: 140px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--r); padding: 4px; margin-bottom: 12px; background: rgba(0,0,0,0.2);">
               #{@entities.each_with_index.map { |e, i| 
                 name = @entity_names[e] || "Unknown"
+                escaped_name = escape_html(name)
+                escaped_attr = escape_html(name.downcase)
                 sel = @selected_indices.include?(i) ? "checked" : ""
-                "<div class='item-row' data-name='#{name.downcase}'><label style='display:flex; align-items:center; cursor:pointer'><input type='checkbox' class='ent-cb' value='#{i}' #{sel} onchange='updateSelection()'> <span style='margin-left:6px; font-size:11px'>#{name}</span></label></div>"
+                "<div class='item-row' data-name='#{escaped_attr}'><label style='display:flex; align-items:center; cursor:pointer'><input type='checkbox' class='ent-cb' value='#{i}' #{sel} onchange='updateSelection()'> <span style='margin-left:6px; font-size:11px'>#{escaped_name}</span></label></div>"
               }.join("\n")}
             </div>
 
@@ -756,9 +716,27 @@ module MH
         @dialog.execute_script("if(typeof setCheckboxes === 'function') setCheckboxes('#{@selected_indices.join(',')}');")
       rescue
       end
+
+      def escape_html(value)
+        value.to_s.gsub('&', '&amp;')
+                  .gsub('<', '&lt;')
+                  .gsub('>', '&gt;')
+                  .gsub('"', '&quot;')
+                  .gsub("'", '&#39;')
+      end
     end
 
-    @loaded = true unless @loaded
+    def self.activate_tool
+      Sketchup.active_model.select_tool(NameTool.new)
+    end
+
+    unless file_loaded?(__FILE__)
+      command = UI::Command.new('MH Name') { activate_tool }
+      command.tooltip = 'Hiển thị tên đối tượng'
+      command.status_bar_text = 'Hiển thị tên Group/Component và sửa tên nhanh'
+      UI.menu('Extensions').add_item(command)
+      file_loaded(__FILE__)
+    end
 
   end
 end

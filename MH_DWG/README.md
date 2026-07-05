@@ -11,14 +11,14 @@ Tài liệu này ghi lại kết cấu kiến trúc, các tính năng và cơ ch
 
 ## 2. Cấu trúc thư mục
 
-* **`MH_Dwg.rb`** (Ngoài cùng):
+* **`MH_DWG.rb`** (Ngoài cùng):
   - Khai báo extension `MH DWG Clipboard Import` với SketchUp.
-  - Cấu hình thông tin cơ bản: Tác giả (`MH`), Phiên bản (`1.0.0`), mô tả và đăng ký load file `MH_Dwg/main.rb`.
-* **`MH_Dwg/main.rb`** (Quan trọng nhất):
+  - Cấu hình thông tin cơ bản: Tác giả (`MH`), Phiên bản (`1.0.0`), mô tả và đăng ký load file `MH_DWG/main.rb`.
+* **`MH_DWG/main.rb`** (Quan trọng nhất):
   - Xử lý tìm kiếm file DWG tạm trong thư mục Temp của hệ thống.
   - Gọi API import gốc của SketchUp để nhập bản vẽ.
   - Lớp tương tác màn hình `RotatePlaceTool` điều khiển việc di chuột, snap điểm neo, xoay trục và vẽ preview bản vẽ dưới dạng khung dây (wireframe).
-* **`MH_Dwg/mh_dwg_debug.log`**:
+* **`MH_DWG/mh_dwg_debug.log`**:
   - File ghi log chi tiết mọi sự kiện hoạt động của plugin (paste start, import status, tool rotation, error stacktrace) dưới dạng JSON để phục vụ gỡ lỗi.
 
 ---

@@ -22,7 +22,7 @@ module MH
       MH::ProductContext.refresh_grammar if defined?(MH::ProductContext) && MH::ProductContext.respond_to?(:refresh_grammar)
       @grammar
     rescue => e
-      puts "[MH::NameGrammar] configure error: #{e.class}: #{e.message}"
+      MH::Shared.dbg("[MH::NameGrammar] configure error: #{e.class}: #{e.message}") if defined?(MH::Shared)
       @grammar ||= build_grammar({})
     end
 

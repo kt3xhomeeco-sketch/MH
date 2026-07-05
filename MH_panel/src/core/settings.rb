@@ -201,7 +201,7 @@ module MH::Panel::Settings
     defaults = connector.defaults(category) || {}
     defaults.key?(key.to_s) ? coerce(defaults[key.to_s], default) : nil
   rescue => e
-    puts "[MH::Panel::Settings] project default error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::Settings] project default error: #{e.class}: #{e.message}")
     nil
   end
 
@@ -665,7 +665,7 @@ module MH::Panel::Settings
     MH::RegistryApp::ControlPanel.open(tab_id)
     true
   rescue => e
-    puts "[MH::Panel::Settings] open Control Panel error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel::Settings] open Control Panel error: #{e.class}: #{e.message}")
     false
   end
 end

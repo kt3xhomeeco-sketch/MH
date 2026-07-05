@@ -1,9 +1,9 @@
-# encoding: UTF-8
+﻿# encoding: UTF-8
 require 'json'
 require 'base64'
 
 module MH
-  module AssembleThreeTest
+  module Assemble
     module ThreeExport
       extend self
 
@@ -13,9 +13,9 @@ module MH
         base = if defined?(MH::Assemble) && MH::Assemble.respond_to?(:out_dir)
                  MH::Assemble.out_dir
                elsif Sketchup.active_model && !Sketchup.active_model.path.to_s.empty?
-                 File.join(File.dirname(Sketchup.active_model.path), 'MH_assemble_three_test_out')
+                 File.join(File.dirname(Sketchup.active_model.path), 'MH_assemble_out')
                else
-                 File.join(ENV['USERPROFILE'] || ENV['HOME'] || '.', 'Desktop', 'MH_assemble_three_test_out')
+                 File.join(ENV['USERPROFILE'] || ENV['HOME'] || '.', 'Desktop', 'MH_assemble_out')
                end
         Dir.mkdir(base) unless File.directory?(base)
         base
@@ -31,7 +31,7 @@ module MH
 
         all_solids = mods.values.flatten.reject { |p| p[:flat] }
         builders = module_page_builders(product, label, source_parts, resolve_profiles(profile), all_solids, mods)
-        run_render_queue(builders, "#{product}.#{label}.three.html", "Three Test #{product}.#{label}")
+        run_render_queue(builders, "#{product}.#{label}.three.html", "MH Assemble #{product}.#{label}")
       end
 
       def export_product_book(product, profile: 'all')
@@ -39,7 +39,7 @@ module MH
         MH::Assemble.scan_reset if MH::Assemble.respond_to?(:scan_reset)
         builders = product_page_builders(product, profile)
         return notify("Tủ #{product} không có trang để xuất (kiểm tra mã tủ / model).") if builders.empty?
-        run_render_queue(builders, "#{product}.three.book.html", "Three Test #{product}")
+        run_render_queue(builders, "#{product}.three.book.html", "MH Assemble #{product}")
       end
 
       def product_pages(product, profile)
@@ -59,7 +59,7 @@ module MH
         return notify('Chưa chọn gì trong model. Hãy chọn part / module / tủ rồi bấm lại.') if selected_ids.empty?
 
         parts = []
-        if MH::AssembleThreeTest.ensure_assemble
+        if MH::Assemble.ensure_assemble
           MH::Assemble.scan_reset if MH::Assemble.respond_to?(:scan_reset)
           MH::Assemble.scan.each do |prod, mods|
             mods.each do |label, arr|
@@ -79,7 +79,7 @@ module MH
           builders = selection_product_builders(parts, profile)
           return notify("Tủ #{products.join(', ')} không dựng được trang nào (không có part 3D hợp lệ).") if builders.empty?
           filename = products.length == 1 ? "#{products.first}.selection.three.book.html" : 'SELECTION.products.three.book.html'
-          title = products.length == 1 ? "Three Test #{products.first} từ selection" : "Three Test Selection #{products.join(', ')}"
+          title = products.length == 1 ? "MH Assemble #{products.first} từ selection" : "MH Assemble Selection #{products.join(', ')}"
           return run_render_queue(builders, filename, title)
         end
 
@@ -93,7 +93,7 @@ module MH
                        }
                      end
                    end
-        run_render_queue(builders, 'SELECTION.three.html', 'Three Test Selection')
+        run_render_queue(builders, 'SELECTION.three.html', 'MH Assemble Selection')
       end
 
       def save_selection_product_name(products, product_name)
@@ -272,7 +272,7 @@ module MH
       end
 
       def ensure_source!
-        ok = MH::AssembleThreeTest.ensure_assemble
+        ok = MH::Assemble.ensure_assemble
         raise 'Không load được MH_assemble để lấy scan/part.' unless ok
       end
 
@@ -757,7 +757,7 @@ module MH
       def report_progress(done, total, text)
         pct = total > 0 ? (done * 100 / total) : 100
         Sketchup.status_text = "#{PLUGIN_NAME} #{done}/#{total} (#{pct}%): #{text}"
-        panel = (MH::AssembleThreeTest.respond_to?(:panel) ? MH::AssembleThreeTest.panel : nil) rescue nil
+        panel = (MH::Assemble.respond_to?(:panel) ? MH::Assemble.panel : nil) rescue nil
         return unless panel
         begin
           panel.execute_script("mhThreeProgress(#{pct}, #{done}, #{total}, #{text.to_json})")
@@ -1022,7 +1022,7 @@ module MH
           </head>
           <body>
             <div class="toolbar">
-              <b>Three Test</b>
+              <b>MH Assemble</b>
               <label style="display:flex;gap:6px;align-items:center;margin-top:8px;font-size:12px"><input type="checkbox" id="allMono"> Không màu (tất cả)</label>
               <label style="display:flex;gap:6px;align-items:center;font-size:12px"><input type="checkbox" id="allBack"> Back edge (tất cả)</label>
               <button id="printBtn">In PDF</button>
@@ -1832,3 +1832,4 @@ module MH
     end
   end
 end
+

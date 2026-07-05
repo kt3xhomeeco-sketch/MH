@@ -84,6 +84,15 @@ module MH
                     :surface_face_rules
     end
 
+    def self.dbg(message)
+      puts message if DEBUG
+    end
+
+    def self.notify(message)
+      Sketchup.status_text = message.to_s rescue nil
+      dbg(message)
+    end
+
     # ========== CONFIG LOADER ==========
     module ConfigLoader
       # Đọc file CONFIG.xlsx bằng MH::ExcelBridge
@@ -288,7 +297,7 @@ module MH
                   MH::MaterialApp.thickness_mappings.length + MH::MaterialApp.header_columns.length +
                   MH::MaterialApp.detail_aliases.length + MH::MaterialApp.tag_material_map.length +
                   MH::MaterialApp.column_aliases.values.flatten.length + MH::MaterialApp.valid_materials.length + MH::MaterialApp.invalid_materials.length
-          puts "[MH::MaterialApp] Total configs loaded from CONFIG.xlsx: #{total}"
+          MH::MaterialApp.dbg("[MH::MaterialApp] Total configs loaded from CONFIG.xlsx: #{total}")
           
           true
         rescue => e
@@ -318,7 +327,7 @@ module MH
           end
           
           unless header_row
-            puts("❌ Không tìm thấy dòng header trong file Excel!\nĐảm bảo có cột 'Ma_SP'.")
+            MH::MaterialApp.notify("❌ Không tìm thấy dòng header trong file Excel!\nĐảm bảo có cột 'Ma_SP'.")
             workbook.Close(false)
             excel.Quit
             return false
@@ -363,12 +372,12 @@ module MH
           end
           
           puts "[MH::MaterialApp] Imported #{MH::MaterialApp.excel_data.length} records from Excel" if DEBUG
-          puts("✅ Đã import #{MH::MaterialApp.excel_data.length} dòng dữ liệu từ Excel!")
+          MH::MaterialApp.notify("✅ Đã import #{MH::MaterialApp.excel_data.length} dòng dữ liệu từ Excel!")
           true
           
         rescue => e
-          puts("❌ Lỗi import Excel: #{e.message}")
-          puts "[MH::MaterialApp] Error: #{e.message}"
+          MH::MaterialApp.notify("❌ Lỗi import Excel: #{e.message}")
+          MH::MaterialApp.dbg("[MH::MaterialApp] Error: #{e.message}")
           puts e.backtrace.first(5).join("\n") if DEBUG
           false
         end
@@ -435,7 +444,7 @@ module MH
           header_row_idx, column_map = find_header_row(rows)
           
           unless header_row_idx
-            puts("❌ Không tìm thấy dòng header trong file CSV!\nĐảm bảo có cột 'Ma_SP'.")
+            MH::MaterialApp.notify("❌ Không tìm thấy dòng header trong file CSV!\nĐảm bảo có cột 'Ma_SP'.")
             return false
           end
           
@@ -479,12 +488,12 @@ module MH
           end
           
           puts "[MH::MaterialApp] Imported #{MH::MaterialApp.excel_data.length} records from CSV" if DEBUG
-          puts("✅ Đã import #{MH::MaterialApp.excel_data.length} dòng dữ liệu từ CSV!")
+          MH::MaterialApp.notify("✅ Đã import #{MH::MaterialApp.excel_data.length} dòng dữ liệu từ CSV!")
           true
           
         rescue => e
-          puts("❌ Lỗi import CSV: #{e.message}")
-          puts "[MH::MaterialApp] CSV Error: #{e.message}"
+          MH::MaterialApp.notify("❌ Lỗi import CSV: #{e.message}")
+          MH::MaterialApp.dbg("[MH::MaterialApp] CSV Error: #{e.message}")
           puts e.backtrace.first(5).join("\n") if DEBUG
           false
         end
@@ -2327,7 +2336,7 @@ module MH
         puts "[MH::MaterialApp] Assigned '#{material_name}' to '#{name}' (thickness: #{thickness}mm)" if DEBUG
         :success
       rescue => e
-        puts "[MH::MaterialApp] Error assigning material to '#{instance.name}': #{e.message}"
+        MH::MaterialApp.dbg("[MH::MaterialApp] Error assigning material to '#{instance.name}': #{e.message}")
         puts e.backtrace.first(5).join("\n") if DEBUG
         add_skip_detail(stats, "Khong gan: #{instance_label(instance)} loi #{e.message}")
         :skip_error
@@ -2387,7 +2396,7 @@ module MH
           UI.messagebox("⚠️ CẢNH BÁO: Các vật liệu sau không hợp lệ độ dày (đã bị bỏ qua):\n\n- " + MH::MaterialApp.missing_materials.join("\n- "))
         end
         
-        puts "✅ Gán VL: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}"
+        MH::MaterialApp.notify("✅ Gán VL: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
         stats
       end
 
@@ -2433,7 +2442,7 @@ module MH
           UI.messagebox("⚠️ CẢNH BÁO: Các vật liệu sau không hợp lệ độ dày (đã bị bỏ qua):\n\n- " + MH::MaterialApp.missing_materials.join("\n- "))
         end
         
-        puts "✅ Gán toàn bộ: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}"
+        MH::MaterialApp.notify("✅ Gán toàn bộ: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
         stats
       end
     end
@@ -2441,7 +2450,7 @@ module MH
     # ========== UI FUNCTIONS ==========
     def self.load_configs
       ConfigLoader.load_all
-      puts("✅ Đã load configs từ folder:\n#{CONFIG_DIR}")
+      notify("✅ Đã load configs từ folder:\n#{CONFIG_DIR}")
     end
 
     # Lưu đường dẫn file Excel cuối cùng để refresh
@@ -2590,7 +2599,7 @@ module MH
     def self.refresh_excel_data
       restore_last_excel_path
       unless @last_excel_path && File.exist?(@last_excel_path)
-        puts("⚠️ Chưa có file Excel nào được import trước đó!\nVui lòng dùng 'Import Excel/CSV' trước.")
+        notify("⚠️ Chưa có file Excel nào được import trước đó!\nVui lòng dùng 'Import Excel/CSV' trước.")
         return
       end
       
@@ -2615,7 +2624,7 @@ module MH
       elsif file_path.downcase.end_with?('.xlsx')
         ExcelReader.import(file_path)
       else
-        puts("Khong ho tro dinh dang file nay: #{File.extname(file_path)}")
+        notify("Khong ho tro dinh dang file nay: #{File.extname(file_path)}")
       end
     end
 
@@ -2626,9 +2635,9 @@ module MH
         data = JSON.parse(raw)
         @excel_data = data.is_a?(Array) ? data : []
         puts "[MH::MaterialApp] Imported #{@excel_data.length} records from JSON" if DEBUG
-        puts("Da import #{@excel_data.length} dong du lieu tu JSON!")
+        notify("Da import #{@excel_data.length} dong du lieu tu JSON!")
       rescue => e
-        puts("Loi import JSON: #{e.message}")
+        notify("Loi import JSON: #{e.message}")
         puts "[MH::MaterialApp] JSON Error: #{e.message}" if DEBUG
       end
     end
@@ -2651,7 +2660,7 @@ module MH
       msg += "Thickness Mapping: #{@thickness_mappings.length} quy tắc\n"
       msg += "Header Columns: #{@header_columns.length} cột\n"
       
-      puts(msg)
+      UI.messagebox(msg)
     end
 
     # Debug thickness của object được chọn
@@ -2660,14 +2669,14 @@ module MH
       selection = model.selection
       
       if selection.empty?
-        puts("⚠️ Chưa chọn đối tượng!")
+        notify("⚠️ Chưa chọn đối tượng!")
         return
       end
       
       entity = selection.first
       
       unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-        puts("⚠️ Chọn Group hoặc Component!")
+        notify("⚠️ Chọn Group hoặc Component!")
         return
       end
       
@@ -2750,7 +2759,7 @@ module MH
       mapped = MaterialCodeBuilder.map_thickness(thickness)
       msg += "Mapped thickness: #{mapped || 'NIL (không có trong mapping)'}\n"
       
-      puts(msg)
+      UI.messagebox(msg)
     end
 
     # ========== HUD OVERLAY ==========
@@ -3285,7 +3294,7 @@ module MH
 
     def self.view_excel_data
       if @excel_data.empty?
-        puts("⚠️ Chưa có dữ liệu. Vui lòng import file Excel trước.")
+        notify("⚠️ Chưa có dữ liệu. Vui lòng import file Excel trước.")
         return
       end
 

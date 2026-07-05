@@ -62,7 +62,7 @@ module MH
             'mode' => 'remember_import_excel_path'
           }
         rescue => e
-          puts "[Thongke Connector] load_import_excel error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] load_import_excel error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => false, 'error' => e.message }
         end
 
@@ -180,7 +180,7 @@ module MH
             'counts' => { 'accessories' => accessories.length, 'materials' => materials.length, 'import_excel' => excel.length }
           }
         rescue => e
-          puts "[Thongke Connector] bom_for_product error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] bom_for_product error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => false, 'product_code' => product_code.to_s, 'accessories' => [], 'materials' => [], 'import_excel' => [], 'counts' => { 'accessories' => 0, 'materials' => 0, 'import_excel' => 0 }, 'error' => e.message }
         end
 
@@ -191,7 +191,7 @@ module MH
 
           []
         rescue => e
-          puts "[Thongke Connector] import_excel_data error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] import_excel_data error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -199,7 +199,7 @@ module MH
           return [] unless defined?(::MH_Thongke) && ::MH_Thongke.respond_to?(:import_excel_cache_sources)
           ::MH_Thongke.import_excel_cache_sources
         rescue => e
-          puts "[Thongke Connector] import_excel_cache_sources error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] import_excel_cache_sources error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -210,7 +210,7 @@ module MH
 
           false
         rescue => e
-          puts "[Thongke Connector] begin_external_mutation error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] begin_external_mutation error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 
@@ -221,7 +221,7 @@ module MH
 
           false
         rescue => e
-          puts "[Thongke Connector] end_external_mutation error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] end_external_mutation error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 
@@ -236,7 +236,7 @@ module MH
 
           Array(codes).map { |code| normalize_product_code(code) }.reject(&:empty?).uniq
         rescue => e
-          puts "[Thongke Connector] selected_product_codes error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] selected_product_codes error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -252,7 +252,7 @@ module MH
                   end
           Array(codes).map { |code| normalize_product_code(code) }.reject(&:empty?).uniq
         rescue => e
-          puts "[Thongke Connector] product_codes_for_entity error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] product_codes_for_entity error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -305,7 +305,7 @@ module MH
 
           codes
         rescue => e
-          puts "[Thongke Connector] material_codes_for_product error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] material_codes_for_product error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -336,7 +336,7 @@ module MH
 
           names
         rescue => e
-          puts "[Thongke Connector] material_names error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] material_names error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 
@@ -454,7 +454,7 @@ module MH
             load(path) if File.exist?(path)
           end
         rescue => e
-          puts "[Thongke Connector] reload processors error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] reload processors error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
 
         def self.load_classified_import_processor
@@ -467,7 +467,7 @@ module MH
           path = File.join(root.to_s, 'core', 'classified_import.rb')
           load(path) if !path.empty? && File.exist?(path)
         rescue => e
-          puts "[Thongke Connector] load classified_import error: #{e.message}"
+          MH::RegistryApp.dbg("[Thongke Connector] load classified_import error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
         end
 
         def self.sync_fill_sp_state(path)

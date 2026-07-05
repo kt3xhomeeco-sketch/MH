@@ -78,7 +78,7 @@ module MH
               return result.filter_map { |pt| vertices.find { |vtx| vtx.position.distance(pt) < TOL } }
             end
           rescue => e
-            puts "MH::Geo Native find_concave_vertex error: #{e.message}"
+            MH::Shared.dbg("MH::Geo Native find_concave_vertex error: #{e.message}") if defined?(MH::Shared)
           end
         end
 

@@ -133,7 +133,7 @@ module MH_PK_Addon
       group: group
     )
   rescue => e
-    puts "MH_PK_Addon trace_record_virtual error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon trace_record_virtual error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     nil
   end
 
@@ -154,7 +154,7 @@ module MH_PK_Addon
     trace_fallback_excel_match(marker, meta) if match_ok == false || match_ok.nil?
     trace_record_virtual(marker, data)
   rescue => e
-    puts "MH_PK_Addon trace_record_add error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon trace_record_add error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     nil
   end
 
@@ -184,7 +184,7 @@ module MH_PK_Addon
     # va keo ten manual truoc do ve ten Excel.
     trace_record_virtual(marker, data)
   rescue => e
-    puts "MH_PK_Addon trace_record_rename error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon trace_record_rename error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     nil
   end
 end

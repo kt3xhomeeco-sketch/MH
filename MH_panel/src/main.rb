@@ -8,8 +8,13 @@ module MH
   module Panel
     ROOT = File.expand_path('..', __dir__).freeze
     SRC = __dir__.freeze
+    DEBUG = false unless const_defined?(:DEBUG, false)
 
     module_function
+
+    def dbg(message)
+      puts message if DEBUG
+    end
 
     def require_core
       %w[
@@ -35,7 +40,7 @@ module MH
       $VERBOSE = nil
       files = Dir.glob(File.join(SRC, '**/*.rb')).sort
       files.each { |file| load file }
-      puts "MH::Panel reloaded #{files.size} file(s)"
+      dbg("MH::Panel reloaded #{files.size} file(s)")
       true
     ensure
       $VERBOSE = original_verbose

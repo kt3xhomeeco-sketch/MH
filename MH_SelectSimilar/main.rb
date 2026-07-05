@@ -7,6 +7,12 @@ raise "MH::SelectSimilar requires MH_shared" unless defined?(MH::Shared) && defi
 
 module MH
   module SelectSimilar
+    DEBUG = false unless const_defined?(:DEBUG, false)
+
+    def self.dbg(message)
+      puts message if DEBUG
+    end
+
     class << self
       old_bounds_method = %w[get_world_bounds cached].join('_').to_sym
       remove_method(old_bounds_method) if method_defined?(old_bounds_method)
@@ -260,7 +266,7 @@ module MH
       load path if File.exist?(path)
       defined?(MH::Settings)
     rescue => e
-      puts "MH::SelectSimilar: Settings facade error: #{e.message}"
+      dbg("MH::SelectSimilar: Settings facade error: #{e.message}")
       false
     end
 
@@ -269,10 +275,10 @@ module MH
       items = MH::Settings.read('select_similar', 'quick_search_items', [], scope: :global)
       return false unless items.is_a?(Array) && items.any?
       self.quick_search_items = items
-      puts "MH::SelectSimilar: Loaded #{quick_search_items.length} suggestions from JSON settings"
+      dbg("MH::SelectSimilar: Loaded #{quick_search_items.length} suggestions from JSON settings")
       true
     rescue => e
-      puts "MH::SelectSimilar: Error loading JSON suggestions: #{e.message}"
+      dbg("MH::SelectSimilar: Error loading JSON suggestions: #{e.message}")
       false
     end
 
@@ -282,11 +288,11 @@ module MH
 
       excel_path = File.join(File.dirname(__FILE__), 'config.xlsx')
       unless File.exist?(excel_path)
-        puts "MH::SelectSimilar: Excel config not found at #{excel_path}"
+        dbg("MH::SelectSimilar: Excel config not found at #{excel_path}")
         return false
       end
 
-      puts "MH::SelectSimilar: Loading suggestions from Excel..."
+      dbg("MH::SelectSimilar: Loading suggestions from Excel...")
       
       begin
         rows = MH::ExcelBridge.read_sheet(excel_path, sheet: 'suggestions')
@@ -295,11 +301,11 @@ module MH
           @quick_search_items = items
           @search_suggestions = items.map { |item| item[:text] }
           rebuild_quick_search_shortcuts
-          puts "MH::SelectSimilar: Loaded #{items.length} suggestions from Excel"
+          dbg("MH::SelectSimilar: Loaded #{items.length} suggestions from Excel")
           return true
         end
       rescue => e
-        puts "MH::SelectSimilar: Error loading from Excel: #{e.message}"
+        dbg("MH::SelectSimilar: Error loading from Excel: #{e.message}")
       end
       false
     end
@@ -322,7 +328,7 @@ module MH
     
     def self.load_suggestions_from_file(filepath, type)
       unless File.exist?(filepath)
-        puts "File not found: #{filepath}"
+        dbg("File not found: #{filepath}")
         return false
       end
       
@@ -331,16 +337,16 @@ module MH
       case type
       when :prefix
         @prefix_suggestions = []
-        puts "Ignored prefix suggestions from #{filepath}; product code uses MH::NameGrammar"
+        dbg("Ignored prefix suggestions from #{filepath}; product code uses MH::NameGrammar")
       when :modul
         @modul_suggestions = lines
-        puts "Loaded #{lines.length} modul suggestions from #{filepath}"
+        dbg("Loaded #{lines.length} modul suggestions from #{filepath}")
       when :search
         rebuild_quick_search_items(lines)
-        puts "Loaded #{lines.length} search suggestions from #{filepath}"
+        dbg("Loaded #{lines.length} search suggestions from #{filepath}")
       else
         @suffix_suggestions = lines
-        puts "Loaded #{lines.length} suffix suggestions from #{filepath}"
+        dbg("Loaded #{lines.length} suffix suggestions from #{filepath}")
       end
       true
     end
@@ -419,7 +425,7 @@ module MH
           end
         end
       end
-      puts "MH::SelectSimilar: Settings loaded from preferences"
+      dbg("MH::SelectSimilar: Settings loaded from preferences")
     end
 
     # =========================================================================
@@ -525,8 +531,8 @@ module MH
       
       if panel_dims && panel_dims[0] > 0
         if debug
-          puts "[BOUNDS DEBUG] #{entity_name} - Using FACE ANALYSIS"
-          puts "  panel dims: #{panel_dims[0].to_mm.round(1)}, #{panel_dims[1].to_mm.round(1)}, #{panel_dims[2].to_mm.round(1)} mm"
+          dbg("[BOUNDS DEBUG] #{entity_name} - Using FACE ANALYSIS")
+          dbg("  panel dims: #{panel_dims[0].to_mm.round(1)}, #{panel_dims[1].to_mm.round(1)}, #{panel_dims[2].to_mm.round(1)} mm")
         end
         return panel_dims.sort
       end
@@ -553,8 +559,8 @@ module MH
         dim3 = local_z * scale_z
         
         if debug
-          puts "[BOUNDS DEBUG] #{entity_name} (Component) - Using BOUNDS"
-          puts "  final dims: #{dim1.to_mm.round(1)}, #{dim2.to_mm.round(1)}, #{dim3.to_mm.round(1)} mm"
+          dbg("[BOUNDS DEBUG] #{entity_name} (Component) - Using BOUNDS")
+          dbg("  final dims: #{dim1.to_mm.round(1)}, #{dim2.to_mm.round(1)}, #{dim3.to_mm.round(1)} mm")
         end
         
       elsif entity.is_a?(Sketchup::Group)
@@ -578,8 +584,8 @@ module MH
         dim3 = local_z * scale_z
         
         if debug
-          puts "[BOUNDS DEBUG] #{entity_name} (Group) - Using BOUNDS"
-          puts "  final dims: #{dim1.to_mm.round(1)}, #{dim2.to_mm.round(1)}, #{dim3.to_mm.round(1)} mm"
+          dbg("[BOUNDS DEBUG] #{entity_name} (Group) - Using BOUNDS")
+          dbg("  final dims: #{dim1.to_mm.round(1)}, #{dim2.to_mm.round(1)}, #{dim3.to_mm.round(1)} mm")
         end
         
       else
@@ -2137,7 +2143,7 @@ module MH
               select_similar_multi(refs) if refs.length > 0
             end
           rescue => e
-            puts "Error: #{e.message}"
+            MH::SelectSimilar.dbg("Error: #{e.message}")
           end
         end
         
@@ -2336,7 +2342,7 @@ module MH
             
             @settings_dialog.close
           rescue => e
-            puts "Error applying settings: #{e.message}"
+            MH::SelectSimilar.dbg("Error applying settings: #{e.message}")
           end
         end
 
@@ -3180,7 +3186,7 @@ module MH
     # Reload method for development
     def self.reload
       load File.join(__dir__, 'main.rb')
-      puts "MH::SelectSimilar reloaded"
+      dbg("MH::SelectSimilar reloaded")
     end
 
     # Auto-load settings and suggestions on startup

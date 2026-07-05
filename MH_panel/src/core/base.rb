@@ -1,4 +1,4 @@
-﻿module MH::Panel
+module MH::Panel
   # Gán mã hệ MH cho 1 part vừa tạo:
   #  - SP (product_code): lấy từ tấm gốc/parent (ProductContext), ghi attribute.
   #  - Mã vật liệu: từ material gốc + độ dày part + hậu tố .1M/.2M theo tên chi
@@ -99,7 +99,7 @@
       group.definition.name = name
     end
   rescue => e
-    puts "[MH::Panel] name error: #{e.class}: #{e.message}"
+    MH::Panel.dbg("[MH::Panel] name error: #{e.class}: #{e.message}")
   end
 
   def self.effective_detail_name(detail_name, group = nil, source = nil)
@@ -130,7 +130,7 @@
       group.set_attribute('MH_Registry', 'product_code', sp) unless sp.strip.empty?
       assigned_product_code = sp.to_s.strip
     rescue => e
-      puts "[MH::Panel] SP error: #{e.class}: #{e.message}"
+      MH::Panel.dbg("[MH::Panel] SP error: #{e.class}: #{e.message}")
     end
 
     # Không ghép mã SP vào tên obj nữa — chỉ lưu SP ở attribute phía trên.
@@ -165,7 +165,7 @@
       group.entities.grep(Sketchup::Face).each { |f| f.material = nil; f.back_material = nil } rescue nil
       group.set_attribute('MH_Registry', 'dc_material_code', mat_name)
     rescue => e
-      puts "[MH::Panel] material code error: #{e.class}: #{e.message}"
+      MH::Panel.dbg("[MH::Panel] material code error: #{e.class}: #{e.message}")
     end
   end
 

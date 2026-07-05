@@ -13,6 +13,11 @@ module MH_Thongke
   ENGINE_DIR = File.join(ROOT_DIR, 'engine') unless defined?(ENGINE_DIR)
   UI_DIR = File.join(ROOT_DIR, 'ui') unless defined?(UI_DIR)
   TOOLS_DIR = File.join(ROOT_DIR, 'tools') unless defined?(TOOLS_DIR)
+  DEBUG = false unless const_defined?(:DEBUG, false)
+
+  def self.debug_log(message)
+    puts message if DEBUG
+  end
 
   def self.reload_latest!
     return if @reloading_latest
@@ -20,9 +25,9 @@ module MH_Thongke
     @reloading_latest = true
     @defer_next_process_selection = true
     load File.join(DIR, 'main.rb')
-    puts "MH_Thongke: reload_latest! completed"
+    debug_log("MH_Thongke: reload_latest! completed")
   rescue => e
-    puts "MH_Thongke reload_latest error: #{e.class}: #{e.message}"
+    debug_log("MH_Thongke reload_latest error: #{e.class}: #{e.message}")
   ensure
     @reloading_latest = false
   end
@@ -88,7 +93,7 @@ module MH_Thongke
     @process_selection_cache_sig = nil
 
     elapsed = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) rescue Time.now.to_f) - t0) * 1000.0
-    puts "MH_Thongke: hot_reload! done in #{elapsed.round(0)}ms (Excel: #{(saved_excel || []).size} rows preserved)"
+    debug_log("MH_Thongke: hot_reload! done in #{elapsed.round(0)}ms (Excel: #{(saved_excel || []).size} rows preserved)")
 
     # Refresh open dialogs
     if @dlg && (@dlg.visible? rescue false)
@@ -97,8 +102,8 @@ module MH_Thongke
     end
     true
   rescue => e
-    puts "MH_Thongke hot_reload! error: #{e.class}: #{e.message}"
-    puts e.backtrace.first(5).join("\n") rescue nil
+    debug_log("MH_Thongke hot_reload! error: #{e.class}: #{e.message}")
+    debug_log(e.backtrace.first(5).join("\n")) rescue nil
     false
   end
 

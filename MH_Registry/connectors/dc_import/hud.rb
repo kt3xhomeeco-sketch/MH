@@ -30,7 +30,7 @@ module MH
           @hud_detail_finish_cache[cache_key] = result.dup
           result
         rescue => e
-          puts "[DCImportPipeline] hud detail/finish error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] hud detail/finish error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           {}
         end
 
@@ -130,7 +130,7 @@ module MH
           @hud_material_rows_cache[cache_key] = rows.map(&:dup)
           rows
         rescue => e
-          puts "[DCImportPipeline] hud material rows error: #{e.class}: #{e.message}"
+          MH::RegistryApp.dbg("[DCImportPipeline] hud material rows error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           []
         end
 

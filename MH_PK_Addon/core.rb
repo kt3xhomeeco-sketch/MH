@@ -44,7 +44,7 @@ module MH_PK_Addon
 
     nil
   rescue => e
-    puts "MH_PK_Addon Thongke API #{method_name} error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon Thongke API #{method_name} error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     nil
   end
 
@@ -66,7 +66,7 @@ module MH_PK_Addon
 
     false
   rescue => e
-    puts "MH_PK_Addon pause Mini Import error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon pause Mini Import error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     false
   end
 
@@ -77,7 +77,7 @@ module MH_PK_Addon
     return unless api_result.nil?
     MH_Thongke.resume_mini_import_refresh('MH_PK_Addon', was_visible) if MH_Thongke.respond_to?(:resume_mini_import_refresh)
   rescue => e
-    puts "MH_PK_Addon resume Mini Import setup error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon resume Mini Import setup error: #{e.class}: #{e.message}") if respond_to?(:dbg)
   end
 
   def self.with_mh_thongke_mini_suspended
@@ -609,7 +609,7 @@ module MH_PK_Addon
       name.empty? ? nil : name
     end
   rescue => e
-    puts "MH_PK_Addon read xlsx error: #{e.class}: #{e.message}" rescue nil
+    dbg("MH_PK_Addon read xlsx error: #{e.class}: #{e.message}") if respond_to?(:dbg)
     []
   end
 
@@ -625,7 +625,7 @@ module MH_PK_Addon
       when '.xlsx'
         read_accessories_from_xlsx(path)
       when '.xls'
-        puts "MH_PK_Addon: .xls is not supported. Please convert to .xlsx." rescue nil
+        dbg("MH_PK_Addon: .xls is not supported. Please convert to .xlsx.") if respond_to?(:dbg)
         []
       else
         []
@@ -1396,7 +1396,7 @@ module MH_PK_Addon
     end
     rows.sort_by { |row| row[:name].to_s.downcase }
   rescue => e
-    puts "MH_PK_Addon SPEC PK source error: #{e.message}" rescue nil
+    dbg("MH_PK_Addon SPEC PK source error: #{e.message}") if respond_to?(:dbg)
     []
   end
 
@@ -1422,7 +1422,7 @@ module MH_PK_Addon
     end
     []
   rescue => e
-    puts "MH_PK_Addon SPEC PK rows error: #{e.message}" rescue nil
+    dbg("MH_PK_Addon SPEC PK rows error: #{e.message}") if respond_to?(:dbg)
     []
   end
 
@@ -1469,7 +1469,7 @@ module MH_PK_Addon
     filtered = source_rows.select { |row| row.is_a?(Hash) && pk_excel_row?(row) }
     build_suggestions_from_rows(product_code, filtered)
   rescue => e
-    puts "MH_PK_Addon ProjectData PK rows error: #{e.message}" rescue nil
+    dbg("MH_PK_Addon ProjectData PK rows error: #{e.message}") if respond_to?(:dbg)
     []
   end
 
@@ -1607,7 +1607,7 @@ module MH_PK_Addon
     sources = thongke_api_call(:import_excel_cache_sources)
     Array(sources).map { |rows| Array(rows).select { |row| row.is_a?(Hash) } }.reject(&:empty?)
   rescue => e
-    puts "MH_PK_Addon Thongke Excel cache API error: #{e.message}" rescue nil
+    dbg("MH_PK_Addon Thongke Excel cache API error: #{e.message}") if respond_to?(:dbg)
     []
   end
 

@@ -112,7 +112,7 @@ module MH
           "Không redraw được #{failures.length} component.\n\n" \
           'Chi tiết lỗi đã được ghi trong Ruby Console.'
         Sketchup.status_text = "MH Redraw: #{succeeded} thành công, #{failures.length} lỗi."
-        UI.messagebox(message)
+        warn "[MH Redraw] #{message.gsub(/\s+/, ' ')}"
       end
     end
 

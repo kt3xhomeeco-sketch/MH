@@ -30,7 +30,7 @@ module MH_PK_Addon
     begin
       File.write(HUD_HIDDEN_FILE, JSON.pretty_generate(list))
     rescue => e
-      puts "MH_PK_Addon save hidden names error: #{e.message}" rescue nil
+      dbg("MH_PK_Addon save hidden names error: #{e.message}") if respond_to?(:dbg)
     end
     model.set_attribute(ACCESSORY_DICT, 'hud_hidden_names', JSON.generate(list)) rescue nil
     @hud_hidden_cache = list
@@ -90,7 +90,7 @@ module MH_PK_Addon
     begin
       File.write(HUD_LABEL_COLOR_FILE, JSON.pretty_generate(list))
     rescue => e
-      puts "MH_PK_Addon save label colors error: #{e.message}" rescue nil
+      dbg("MH_PK_Addon save label colors error: #{e.message}") if respond_to?(:dbg)
     end
     model.set_attribute(ACCESSORY_DICT, 'hud_label_color_rules', JSON.generate(list)) rescue nil
     @hud_label_color_cache = list
