@@ -19,6 +19,10 @@ module MH
     ATTR_ORIGINAL_CODE = 'original_material_code'.freeze
     ATTR_COLOR = 'color'.freeze
     ATTR_TWO_FACE = 'two_face'.freeze
+    FAST_VISIBILITY_KEY = 'fast_visibility_tag_mode'.freeze
+    FAST_VISIBILITY_STATE_KEY = 'fast_visibility_state'.freeze
+    FAST_VISIBILITY_TAG_MARKER_KEY = 'fast_visibility_tag'.freeze
+    FAST_VISIBILITY_TAG_PREFIX = '__MH_Van_Hidden__'.freeze
     AUTO_REFRESH_SECONDS = 0.5
 
     if defined?(Sketchup::EntityObserver)
@@ -186,7 +190,9 @@ module MH
 
         apply_abf_sheet_type_counts(buckets)
         apply_bottom_face_counts(buckets)
-        buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
+        rows = buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
+        rebuild_row_indexes(rows)
+        rows
       end
 
       def scan_items_for_grouping(records)
@@ -280,16 +286,7 @@ module MH
         @suspend_dirty_tracking = true
         begin
           model.start_operation(visible ? 'MH Van - Hiện dòng' : 'MH Van - Ẩn dòng', true)
-          if visible
-            (ancestors + entities).uniq.each do |entity|
-              next unless entity.valid?
-
-              entity.hidden = false
-              entity.layer.visible = true if entity.respond_to?(:layer) && entity.layer.respond_to?(:visible=)
-            end
-          else
-            entities.each { |entity| entity.hidden = true if entity.valid? }
-          end
+          apply_visible_entities(model, entities, ancestors, visible, payload['key'])
           model.commit_operation
         ensure
           @suspend_dirty_tracking = false
@@ -301,6 +298,386 @@ module MH
       rescue StandardError => e
         abort_operation_safely
         alert_error(e)
+      end
+
+      def set_visible_rows(payload_json)
+        payload = parse_json(payload_json)
+        visible = !!payload['visible']
+        rows = Array(payload['rows'])
+        return if rows.empty?
+
+        model = Sketchup.active_model
+        changed_ids = []
+        ancestor_ids = []
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation(visible ? 'MH Van - Hiện nhiều dòng' : 'MH Van - Ẩn nhiều dòng', true)
+          rows.each do |row|
+            ids = Array(row['ids'])
+            entities = entities_from_ids(ids)
+            next if entities.empty?
+
+            ancestors = visible ? entities_from_ids(row['ancestor_ids']) : []
+            apply_visible_entities(model, entities, ancestors, visible, row['key'])
+            changed_ids.concat(ids)
+            ancestor_ids.concat(Array(row['ancestor_ids'])) if visible
+          end
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
+        end
+        affected_ids = changed_ids + ancestor_ids
+        clear_dirty_entity_ids(affected_ids)
+        update_cached_visibility_after_set(changed_ids, visible)
+        Sketchup.active_model.active_view.invalidate
+      rescue StandardError => e
+        abort_operation_safely
+        alert_error(e)
+      end
+
+      def apply_visible_entities(model, entities, ancestors, visible, key = nil)
+        if visible
+          if fast_visibility_mode?
+            fast_show_entities(model, entities)
+          else
+            restore_fast_hidden_entities(model, entities)
+          end
+          rows_to_show = (ancestors + entities).uniq.select { |entity| entity && entity.valid? }
+          rows_to_show.each { |entity| recover_fast_visibility_entity(model, entity) unless fast_visibility_mode? }
+          layers_to_show = rows_to_show.filter_map { |entity| entity_layer(entity) }.uniq
+          layers_to_show.each do |layer|
+            next if marked_fast_visibility_layer?(layer)
+
+            layer.visible = true if layer.respond_to?(:visible?) && !layer.visible? && layer.respond_to?(:visible=)
+          end
+          rows_to_show.each do |entity|
+            next unless entity.valid?
+
+            entity.hidden = false if entity.hidden?
+          end
+        elsif fast_visibility_mode?
+          fast_hide_entities(model, entities, key)
+        else
+          entities.each { |entity| entity.hidden = true if entity.valid? && !entity.hidden? }
+        end
+      end
+
+      def set_fast_visibility(payload_json)
+        payload = parse_json(payload_json)
+        enabled = !!payload['enabled']
+        Sketchup.write_default(DICT, FAST_VISIBILITY_KEY, enabled)
+        restore_all_fast_hidden_entities(Sketchup.active_model) unless enabled
+        Sketchup.status_text = "MH Van: Ẩn nhanh bằng Tag #{enabled ? 'ON' : 'OFF'}"
+      rescue StandardError => e
+        alert_error(e)
+      end
+
+      def fast_visibility_mode?
+        value = Sketchup.read_default(DICT, FAST_VISIBILITY_KEY, false)
+        value == true || value.to_s == 'true'
+      rescue StandardError
+        false
+      end
+
+      def fast_hide_entities(model, entities, key = nil)
+        targets = Array(entities).select do |entity|
+          entity && entity.valid? && !entity.hidden? && entity_layer(entity)
+        end
+        return if targets.empty?
+
+        state = fast_visibility_state(model)
+        records = state['records'] ||= {}
+        temp_layer = fast_visibility_temp_layer(model, state, key || fast_visibility_key_for_entities(targets))
+        return unless temp_layer
+
+        targets.each do |entity|
+          id = entity.persistent_id.to_i
+          next unless id.positive?
+
+          original_layer = entity_layer(entity)
+          records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+          records[id.to_s]['fast_key'] = fast_visibility_layer_key(temp_layer)
+          entity.layer = temp_layer unless entity.layer == temp_layer
+        rescue StandardError
+          records.delete(id.to_s) if id
+        end
+        temp_layer.visible = false if temp_layer.respond_to?(:visible=)
+        save_fast_visibility_state(model, state)
+      end
+
+      def fast_show_entities(model, entities)
+        state = fast_visibility_state(model)
+        records = state['records']
+        return false unless records.is_a?(Hash) && records.any?
+
+        keys_to_show = {}
+        Array(entities).each do |entity|
+          next unless entity && entity.valid?
+
+          record = records[entity.persistent_id.to_i.to_s]
+          keys_to_show[record['fast_key']] = true if record && record['fast_key']
+        end
+        return false if keys_to_show.empty?
+
+        keys_to_show.each_key do |key|
+          layer = fast_visibility_temp_layer(model, state, key, create: false)
+          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=)
+        end
+        save_fast_visibility_state(model, state)
+        true
+      end
+
+      def isolate_row_by_fast_tags(model, target_key)
+        state = fast_visibility_state(model)
+        records = state['records'] ||= {}
+        target_key = target_key.to_s
+        return false if target_key.empty?
+
+        if state['isolate_active'] == true && state['isolate_key'].to_s == target_key
+          fast_show_all_row_tags(model, state)
+          state['isolate_active'] = false
+          state['isolate_key'] = nil
+          save_fast_visibility_state(model, state)
+          Sketchup.status_text = 'MH Van: đã hiện lại tất cả dòng.'
+          model.active_view.invalidate
+          return false
+        end
+
+        model.start_operation('MH Van - Cô lập dòng ván', true)
+        begin
+          @last_rows.each do |row|
+            key = row['key'].to_s
+            next if key.empty?
+
+            layer = fast_visibility_temp_layer(model, state, key)
+            next unless layer
+
+            entities_from_ids(row['ids']).each do |entity|
+              next unless entity && entity.valid?
+
+              id = entity.persistent_id.to_i
+              next unless id.positive?
+
+              original_layer = entity_layer(entity)
+              unless marked_fast_visibility_layer?(original_layer)
+                records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+              end
+              records[id.to_s]['fast_key'] = fast_visibility_layer_key(layer)
+              entity.hidden = false if entity.hidden?
+              entity.layer = layer unless entity_layer(entity) == layer
+            rescue StandardError
+              next
+            end
+          end
+
+          fast_visibility_tag_layers(state, model).each do |key, layer|
+            next unless layer && layer.valid? && layer.respond_to?(:visible=)
+
+            layer.visible = (key.to_s == fast_visibility_safe_key(target_key))
+          end
+          state['isolate_active'] = true
+          state['isolate_key'] = target_key
+          save_fast_visibility_state(model, state)
+          model.commit_operation
+          model.active_view.invalidate
+          Sketchup.status_text = "MH Van: cô lập dòng #{target_key}."
+          true
+        rescue StandardError
+          model.abort_operation
+          false
+        end
+      end
+
+      def fast_show_all_row_tags(model, state = fast_visibility_state(model))
+        fast_visibility_tag_layers(state, model).each_value do |layer|
+          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=)
+        end
+      rescue StandardError
+        nil
+      end
+
+      def fast_visibility_tag_layers(state, model)
+        result = {}
+        tags = state['tags']
+        return result unless tags.is_a?(Hash)
+
+        tags.each do |key, tag_state|
+          layer = fast_visibility_layer(model, tag_state['temp_tag_pid'], tag_state['temp_tag_name'])
+          result[key] = layer if layer
+        end
+        result
+      rescue StandardError
+        {}
+      end
+
+      def restore_fast_hidden_entities(model, entities)
+        state = fast_visibility_state(model)
+        records = state['records']
+        return false unless records.is_a?(Hash) && records.any?
+
+        restored = false
+        Array(entities).each do |entity|
+          next unless entity && entity.valid?
+
+          id = entity.persistent_id.to_i
+          record = records[id.to_s]
+          next unless record
+
+          target_layer = fast_visibility_layer(model, record['tag_pid'], record['tag_name']) || model.layers[0]
+          target_layer.visible = true if target_layer && target_layer.respond_to?(:visible=)
+          entity.layer = target_layer if target_layer && entity_layer(entity) != target_layer
+          records.delete(id.to_s)
+          restored = true
+        rescue StandardError
+          next
+        end
+
+        if records.empty?
+          cleanup_fast_visibility_tag(model, state)
+          clear_fast_visibility_state(model)
+        else
+          save_fast_visibility_state(model, state)
+        end
+        restored
+      end
+
+      def restore_all_fast_hidden_entities(model)
+        return false unless model
+
+        state = fast_visibility_state(model)
+        records = state['records']
+        return false unless records.is_a?(Hash) && records.any?
+
+        model.start_operation('MH Van - Khôi phục Tag ẩn nhanh', true)
+        begin
+          records.keys.each do |id|
+            entity = model.find_entity_by_persistent_id(id.to_i)
+            next unless entity && entity.valid?
+
+            record = records[id]
+            target_layer = fast_visibility_layer(model, record['tag_pid'], record['tag_name']) || model.layers[0]
+            target_layer.visible = true if target_layer && target_layer.respond_to?(:visible=)
+            entity.layer = target_layer if target_layer && entity_layer(entity) != target_layer
+          rescue StandardError
+            next
+          end
+          cleanup_fast_visibility_tags(model, state)
+          clear_fast_visibility_state(model)
+          model.commit_operation
+          true
+        rescue StandardError
+          model.abort_operation
+          false
+        end
+      end
+
+      def fast_visibility_state(model)
+        raw = model.get_attribute(DICT, FAST_VISIBILITY_STATE_KEY)
+        data = raw.is_a?(String) && !raw.empty? ? JSON.parse(raw) : {}
+        data.is_a?(Hash) ? data : {}
+      rescue StandardError
+        {}
+      end
+
+      def save_fast_visibility_state(model, state)
+        model.set_attribute(DICT, FAST_VISIBILITY_STATE_KEY, JSON.generate(state))
+      rescue StandardError
+        nil
+      end
+
+      def clear_fast_visibility_state(model)
+        dictionary = model.attribute_dictionary(DICT, false)
+        dictionary.delete_key(FAST_VISIBILITY_STATE_KEY) if dictionary
+      rescue StandardError
+        nil
+      end
+
+      def fast_visibility_layer_record(layer)
+        {
+          'tag_pid' => layer && layer.respond_to?(:persistent_id) ? layer.persistent_id : nil,
+          'tag_name' => layer && layer.respond_to?(:name) ? layer.name.to_s : nil
+        }
+      end
+
+      def fast_visibility_layer(model, persistent_id, fallback_name = nil)
+        found = model.find_entity_by_persistent_id(persistent_id.to_i) if persistent_id
+        return found if found.is_a?(Sketchup::Layer)
+        return model.layers[fallback_name] if fallback_name && model.layers[fallback_name]
+
+        nil
+      rescue StandardError
+        nil
+      end
+
+      def fast_visibility_temp_layer(model, state, key = nil, create: true)
+        key = fast_visibility_safe_key(key)
+        tags = state['tags'] ||= {}
+        tag_state = tags[key] ||= {}
+        layer = fast_visibility_layer(model, tag_state['temp_tag_pid'], tag_state['temp_tag_name'])
+        return layer if layer && layer.valid?
+        return nil unless create
+
+        layer = model.layers.add("#{FAST_VISIBILITY_TAG_PREFIX}#{key}_#{Time.now.to_i}_#{rand(1_000_000)}")
+        layer.visible = true
+        layer.set_attribute(DICT, FAST_VISIBILITY_TAG_MARKER_KEY, true)
+        layer.set_attribute(DICT, 'fast_visibility_key', key)
+        tag_state['temp_tag_pid'] = layer.persistent_id
+        tag_state['temp_tag_name'] = layer.name
+        layer
+      rescue StandardError
+        nil
+      end
+
+      def fast_visibility_layer_key(layer)
+        layer.get_attribute(DICT, 'fast_visibility_key', nil) if layer
+      rescue StandardError
+        nil
+      end
+
+      def fast_visibility_key_for_entities(entities)
+        ids = Array(entities).map { |entity| entity.persistent_id.to_i }.sort
+        "ids_#{ids.hash.abs}"
+      rescue StandardError
+        'batch'
+      end
+
+      def fast_visibility_safe_key(key)
+        text = key.to_s.strip
+        text = 'batch' if text.empty?
+        text.gsub(/[^0-9A-Za-z_.-]/, '_')[0, 80]
+      end
+
+      def cleanup_fast_visibility_tag(model, state)
+        tag_states = state['tags'].is_a?(Hash) ? state['tags'].values : [state]
+        tag_states.each do |tag_state|
+          layer = fast_visibility_layer(model, tag_state['temp_tag_pid'], tag_state['temp_tag_name'])
+          next unless layer && layer.valid?
+          next unless marked_fast_visibility_layer?(layer)
+
+          layer.visible = true if layer.respond_to?(:visible=)
+          model.layers.remove(layer, false)
+        end
+      rescue StandardError
+        nil
+      end
+
+      def cleanup_fast_visibility_tags(model, state)
+        cleanup_fast_visibility_tag(model, state)
+      end
+
+      def marked_fast_visibility_layer?(layer)
+        layer && layer.get_attribute(DICT, FAST_VISIBILITY_TAG_MARKER_KEY, false) == true
+      rescue StandardError
+        false
+      end
+
+      def recover_fast_visibility_entity(model, entity)
+        layer = entity_layer(entity)
+        return unless marked_fast_visibility_layer?(layer)
+
+        entity.layer = model.layers[0] if model.layers[0]
+      rescue StandardError
+        nil
       end
 
       def set_code(payload_json)
@@ -477,9 +854,36 @@ module MH
         model = Sketchup.active_model
         model.selection.clear
         entities.each { |entity| model.selection.add(entity) if entity.valid? && entity_visible_in_model?(entity) }
-        model.active_view.zoom(model.selection) unless model.selection.empty?
+        zoom_to_entities(model, model.selection.to_a)
       rescue StandardError => e
         alert_error(e)
+      end
+
+      def isolate_row(payload_json)
+        payload = parse_json(payload_json)
+        key = payload['key'].to_s
+        return select_row(payload_json) if key.empty? || !@last_rows || @last_rows.empty?
+
+        model = Sketchup.active_model
+        isolated = isolate_row_by_fast_tags(model, key)
+        update_cached_visibility_for_row_isolate(key, isolated)
+        target_row = @last_rows.find { |row| row['key'].to_s == key }
+        if target_row
+          model.selection.clear
+          entities_from_ids(target_row['ids']).each do |entity|
+            model.selection.add(entity) if entity && entity.valid? && entity_visible_in_model?(entity)
+          end
+          zoom_to_entities(model, model.selection.to_a)
+        end
+      rescue StandardError => e
+        alert_error(e)
+      end
+
+      def zoom_to_entities(model, entities)
+        valid = Array(entities).select { |entity| entity && entity.valid? }
+        model.active_view.zoom(valid) unless valid.empty?
+      rescue StandardError
+        nil
       end
 
       def clear_all_overrides
@@ -558,10 +962,13 @@ module MH
         @dialog.add_action_callback('ready') { refresh }
         @dialog.add_action_callback('refresh') { refresh }
         @dialog.add_action_callback('set_visible') { |_ctx, payload| set_visible(payload) }
+        @dialog.add_action_callback('set_visible_rows') { |_ctx, payload| set_visible_rows(payload) }
+        @dialog.add_action_callback('set_fast_visibility') { |_ctx, payload| set_fast_visibility(payload) }
         @dialog.add_action_callback('set_code') { |_ctx, payload| set_code(payload) }
         @dialog.add_action_callback('reset_code') { |_ctx, payload| reset_code(payload) }
         @dialog.add_action_callback('set_color') { |_ctx, payload| set_color(payload) }
         @dialog.add_action_callback('select_row') { |_ctx, payload| select_row(payload) }
+        @dialog.add_action_callback('isolate_row') { |_ctx, payload| isolate_row(payload) }
         @dialog.add_action_callback('refresh_surface_materials') { refresh_surface_materials }
         @dialog.add_action_callback('clear_surface_material') { |_ctx, payload| clear_surface_material(payload) }
         @dialog.add_action_callback('clear_all_surface_materials') { clear_all_surface_materials }
@@ -767,6 +1174,7 @@ module MH
         end
 
         @last_rows.sort_by! { |row| [row['thickness_value'].to_f, row['code'].to_s.downcase] }
+        rebuild_row_indexes(@last_rows)
         touched_keys.uniq!
         remove_keys.uniq!
 
@@ -861,17 +1269,11 @@ module MH
       def update_cached_visibility_after_set(ids, visible)
         return refresh_visibility unless @last_rows && @last_rows.any?
 
-        id_lookup = {}
-        Array(ids).each do |id|
-          id = id.to_i
-          id_lookup[id] = true if id.positive?
-        end
-        return if id_lookup.empty?
+        row_lookup = rows_for_entity_ids(ids)
+        return if row_lookup.empty?
 
         payload = []
-        @last_rows.each do |row|
-          next unless Array(row['ids']).any? { |id| id_lookup[id.to_i] }
-
+        row_lookup.each_value do |row|
           row['visible'] = visible
           row['all_hidden'] = !visible
           payload << {
@@ -883,20 +1285,46 @@ module MH
         execute('updateVisibility', payload) unless payload.empty?
       end
 
+      def rebuild_row_indexes(rows = @last_rows)
+        @row_keys_by_entity_id = {}
+        @rows_by_key = {}
+        Array(rows).each do |row|
+          key = row['key']
+          @rows_by_key[key] = row if key
+          Array(row['ids']).each do |id|
+            id = id.to_i
+            next unless id.positive?
+
+            (@row_keys_by_entity_id[id] ||= []) << key
+          end
+        end
+      rescue StandardError
+        @row_keys_by_entity_id = {}
+        @rows_by_key = {}
+      end
+
+      def rows_for_entity_ids(ids)
+        rebuild_row_indexes(@last_rows) unless @row_keys_by_entity_id && @rows_by_key
+        rows = {}
+        Array(ids).each do |id|
+          Array(@row_keys_by_entity_id[id.to_i]).each do |key|
+            row = @rows_by_key[key]
+            rows[key] = row if row
+          end
+        end
+        rows
+      rescue StandardError
+        {}
+      end
+
       def update_cached_visibility_for_ids(ids)
         return unless @last_rows && @last_rows.any?
 
-        id_lookup = {}
-        Array(ids).each do |id|
-          id = id.to_i
-          id_lookup[id] = true if id.positive?
-        end
-        return if id_lookup.empty?
+        row_lookup = rows_for_entity_ids(ids)
+        return if row_lookup.empty?
 
         payload = []
-        @last_rows.each do |row|
-          next unless Array(row['ids']).any? { |id| id_lookup[id.to_i] }
-
+        row_lookup.each_value do |row|
           state = row_visibility_from_paths(row['paths'])
           next if row['visible'] == state[:visible] && row['all_hidden'] == state[:all_hidden]
 
@@ -906,6 +1334,25 @@ module MH
             'key' => row['key'],
             'visible' => state[:visible],
             'all_hidden' => state[:all_hidden]
+          }
+        end
+        execute('updateVisibility', payload) unless payload.empty?
+      end
+
+      def update_cached_visibility_for_row_isolate(target_key, isolated)
+        return unless @last_rows && @last_rows.any?
+
+        payload = []
+        @last_rows.each do |row|
+          visible = isolated ? row['key'].to_s == target_key.to_s : true
+          next if row['visible'] == visible && row['all_hidden'] == !visible
+
+          row['visible'] = visible
+          row['all_hidden'] = !visible
+          payload << {
+            'key' => row['key'],
+            'visible' => visible,
+            'all_hidden' => !visible
           }
         end
         execute('updateVisibility', payload) unless payload.empty?
@@ -972,6 +1419,7 @@ module MH
         end
 
         @last_rows.sort_by! { |row| [row['thickness_value'].to_f, row['code'].to_s.downcase] }
+        rebuild_row_indexes(@last_rows)
         execute('patchRows', { 'rows' => rows_to_upsert.uniq { |row| row['key'] }, 'remove_keys' => remove_keys.uniq })
         true
       rescue StandardError
@@ -1063,14 +1511,18 @@ module MH
       end
 
       def layer_visible?(entity)
-        return true unless entity.respond_to?(:layer)
-
-        layer = entity.layer
+        layer = entity_layer(entity)
         return true unless layer && layer.respond_to?(:visible?)
 
         layer.visible?
       rescue StandardError
         true
+      end
+
+      def entity_layer(entity)
+        entity.layer if entity && entity.respond_to?(:layer)
+      rescue StandardError
+        nil
       end
 
       def part_like?(entity)
@@ -1748,7 +2200,7 @@ module MH
               .toolbar {
                 height: 52px;
                 display: grid;
-                grid-template-columns: 28px 72px minmax(0, 1fr) 86px 74px 72px 34px;
+                grid-template-columns: 28px 72px minmax(0, 1fr) 86px 74px 88px 34px;
                 align-items: center;
                 gap: 8px;
                 padding: 4px 10px;
@@ -1797,6 +2249,17 @@ module MH
                 font-weight: 600;
                 text-align: center;
               }
+              .fast-toggle {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                gap: 4px;
+                height: 24px;
+                color: #111;
+                white-space: nowrap;
+                user-select: none;
+              }
+              .fast-toggle input { margin: 0; }
               .surface-toolbar {
                 height: 52px;
                 display: flex;
@@ -1956,6 +2419,10 @@ module MH
                 </div>
                 <div style="text-align:center">2 Mặt</div>
                 <button id="stripPaint" class="tool-btn" title="Bỏ phần mã sơn của các dòng đang lọc">Bỏ Sơn</button>
+                <label class="fast-toggle" title="Bật: ẩn/hiện dòng bằng temp Tag giống MH Isolate. Tắt: dùng hidden bình thường.">
+                  <input id="fastVisibility" type="checkbox" #{fast_visibility_mode? ? 'checked' : ''}>
+                  <span>Ẩn nhanh</span>
+                </label>
                 <div class="help">[?]</div>
               </div>
               <div class="table-wrap">
@@ -2110,7 +2577,7 @@ module MH
                     <td class="eye-cell">
                       <button class="eye ${row.visible ? '' : 'off'}" title="Ẩn/hiện trong model" data-action="visible" data-key="${escapeHtml(row.key)}">●</button>
                     </td>
-                    <td class="thickness-cell" title="Chọn các object của dòng" data-action="select" data-key="${escapeHtml(row.key)}"><span style="color:#0084d7">${escapeHtml(row.thickness)}</span>&nbsp;&nbsp;mm</td>
+                    <td class="thickness-cell" title="Cô lập dòng này" data-action="isolate" data-key="${escapeHtml(row.key)}"><span style="color:#0084d7">${escapeHtml(row.thickness)}</span>&nbsp;&nbsp;mm</td>
                     <td class="code-cell">
                       <input class="code" value="${escapeHtml(row.code)}" data-action="code" data-key="${escapeHtml(row.key)}">
                     </td>
@@ -2182,9 +2649,10 @@ module MH
                 }
                 const row = rowByKey(el.dataset.key);
                 if (!row) return;
-                if (el.dataset.action === 'visible') callRuby('set_visible', { ids: row.ids, ancestor_ids: row.ancestor_ids || [], visible: !row.visible });
+                if (el.dataset.action === 'visible') callRuby('set_visible', { key: row.key, ids: row.ids, ancestor_ids: row.ancestor_ids || [], visible: !row.visible });
                 if (el.dataset.action === 'reset') callRuby('reset_code', { ids: row.ids });
                 if (el.dataset.action === 'select') callRuby('select_row', { ids: row.ids });
+                if (el.dataset.action === 'isolate') callRuby('isolate_row', { key: row.key, ids: row.ids });
               });
 
               document.querySelectorAll('.sort').forEach((button) => {
@@ -2201,10 +2669,17 @@ module MH
                 draw();
               });
 
+              document.getElementById('fastVisibility').addEventListener('change', (event) => {
+                callRuby('set_fast_visibility', { enabled: event.target.checked });
+              });
+
               document.getElementById('master').addEventListener('change', (event) => {
-                const ids = rows.flatMap((row) => row.ids);
-                const ancestor_ids = rows.flatMap((row) => row.ancestor_ids || []);
-                callRuby('set_visible', { ids, ancestor_ids, visible: event.target.checked });
+                const payloadRows = rows.map((row) => ({
+                  key: row.key,
+                  ids: row.ids || [],
+                  ancestor_ids: row.ancestor_ids || []
+                }));
+                callRuby('set_visible_rows', { rows: payloadRows, visible: event.target.checked });
               });
 
               document.getElementById('stripPaint').addEventListener('click', () => {
