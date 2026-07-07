@@ -22,6 +22,8 @@ module MH
     DEFAULT_TEMPLATE = 'D:/Cong viec/Sample/DMVT-VAN.xlsx'.freeze
     DEFAULT_EXPORTER = File.join(__dir__, 'exporter', 'mh_export_dmvt.py').freeze
     UNKNOWN_MATERIAL = '__UNKNOWN_MATERIAL__'.freeze
+    @collect_payload_cache = nil
+    @collect_payload_cache_key = nil
 
     def export_dmvt
       show_dialog
@@ -174,14 +176,25 @@ module MH
 
     def collect_payload
       model = Sketchup.active_model
-      sheet_id_to_material, material_stats = collect_sheet_stats(model)
+      cache_key = export_payload_cache_key(model)
+      if cache_key && @collect_payload_cache_key == cache_key && @collect_payload_cache
+        cached = deep_dup_data(@collect_payload_cache)
+        cached[:generated_at] = Time.now.strftime('%Y-%m-%d %H:%M:%S')
+        return cached
+      end
+
+      instance_records = collect_instance_records(model)
+      sheet_id_to_material, material_stats = collect_sheet_stats(model, instance_records)
       material_candidates = material_stats.values
         .select { |stat| numeric_or_nil(stat[:thickness_mm]) }
         .map { |stat| { material_code: stat[:material_code], thickness_mm: numeric_or_nil(stat[:thickness_mm]) } }
       board_to_sheet = collect_board_sheet_ids
       edge_summary = { boards: 0, faces: 0, missing_material_boards: 0, inferred_material_boards: 0, missing_edge_types: 0 }
 
-      walk_instances(model.entities, Geom::Transformation.new, []) do |entity, transform, path_names|
+      instance_records.each do |record|
+        entity = record[:entity]
+        transform = record[:transform]
+        path_names = record[:path_names]
         next if nesting_path?(path_names)
         next unless board_entity?(entity)
 
@@ -203,26 +216,17 @@ module MH
         edge_summary[:missing_material_boards] += 1 if material_code == UNKNOWN_MATERIAL
         stat = material_stats[material_code]
         stat[:material_code] = material_code
-
-        each_edge_band_face(entity.definition.entities, transform) do |face, face_transform|
-          edge_id = abf_attr(face, 'edge-band-id')
-          next if edge_id.nil?
-
-          info = edge_types[edge_id.to_i]
-          unless info
-            edge_summary[:missing_edge_types] += 1
-            next
-          end
-
-          edge_summary[:faces] += 1
-          key = [info[:name], info[:thickness_mm]]
-          stat[:edge_bands][key] += max_edge_length_m(face, face_transform)
+        edge_sides = record[:edge_sides] ||= edge_band_sides(entity, transform, edge_types)
+        edge_summary[:faces] += edge_sides[:face_count].to_i
+        edge_summary[:missing_edge_types] += edge_sides[:missing_edge_types].to_i
+        edge_sides[:material_totals].each do |key, length_m|
+          stat[:edge_bands][key] += length_m.to_f
         end
       end
 
       rows = build_rows(material_stats)
-      abf_excel_data = collect_abf_excel_data(model, board_to_sheet, sheet_id_to_material)
-      {
+      abf_excel_data = collect_abf_excel_data(model, board_to_sheet, sheet_id_to_material, instance_records)
+      payload = {
         generated_at: Time.now.strftime('%Y-%m-%d %H:%M:%S'),
         source_model: model.path.to_s,
         content: model.path.to_s.empty? ? model.title.to_s : File.basename(model.path, '.*'),
@@ -241,12 +245,21 @@ module MH
           missing_edge_types: edge_summary[:missing_edge_types]
         }
       }
+      if cache_key
+        @collect_payload_cache_key = cache_key
+        @collect_payload_cache = deep_dup_data(payload)
+      end
+      payload
     end
 
-    def collect_abf_excel_data(model, board_to_sheet, sheet_id_to_material)
+    def collect_abf_excel_data(model, board_to_sheet, sheet_id_to_material, instance_records = nil)
       edge_columns = []
       pending_rows = []
-      walk_instances(model.entities, Geom::Transformation.new, []) do |entity, transform, path_names|
+      records = instance_records || collect_instance_records(model)
+      records.each do |record|
+        entity = record[:entity]
+        transform = record[:transform]
+        path_names = record[:path_names]
         next if nesting_path?(path_names)
         next unless board_index_entity?(entity)
 
@@ -257,7 +270,7 @@ module MH
         material_code = material_from_board(entity, sheet_id, sheet_id_to_material).to_s if material_code.empty?
         product = product_code_from_text((path_names + [entity.name.to_s]).join(' '))
         label = clean_abf_label(entity.name.to_s)
-        edge_sides = edge_band_sides(entity, transform)
+        edge_sides = record[:edge_sides] ||= edge_band_sides(entity, transform)
         dimensions = dimensions_from_edge_sides(dimensions, edge_sides)
         cutting_length = dimensions[:length].to_f -
           edge_sides[:edge_thicknesses][:left].to_f -
@@ -390,7 +403,7 @@ module MH
       (rounded - rounded.round).abs < 0.001 ? rounded.round : rounded
     end
 
-    def collect_sheet_stats(model)
+    def collect_sheet_stats(model, instance_records = nil)
       sheet_id_to_material = {}
       material_stats = Hash.new do |hash, code|
         hash[code] = {
@@ -403,7 +416,9 @@ module MH
         }
       end
 
-      walk_instances(model.entities, Geom::Transformation.new, []) do |entity, _transform, _path_names|
+      records = instance_records || collect_instance_records(model)
+      records.each do |record|
+        entity = record[:entity]
         material_code = abf_attr(entity, 'sheet-type').to_s.strip
         next if material_code.empty?
 
@@ -425,6 +440,28 @@ module MH
 
       supplement_sheets_from_abf(material_stats)
       [sheet_id_to_material, material_stats]
+    end
+
+    def export_payload_cache_key(model)
+      return nil unless model && defined?(MH::ModelHub)
+
+      MH::ModelHub.start! if MH::ModelHub.respond_to?(:start!)
+      [model.object_id, MH::ModelHub.model_signature(model)]
+    rescue StandardError
+      nil
+    end
+
+    def deep_dup_data(value)
+      case value
+      when Hash
+        value.each_with_object({}) { |(key, item), copy| copy[key] = deep_dup_data(item) }
+      when Array
+        value.map { |item| deep_dup_data(item) }
+      when String
+        value.dup
+      else
+        value
+      end
     end
 
     def supplement_sheets_from_abf(material_stats)
@@ -695,6 +732,20 @@ module MH
       output.uniq
     end
 
+    # One model traversal feeds sheet statistics, edge aggregation and the ABF
+    # worksheet. This is the per-revision feature cache for the export pass.
+    def collect_instance_records(model)
+      records = []
+      walk_instances(model.entities, Geom::Transformation.new, []) do |entity, transform, path_names|
+        records << {
+          entity: entity,
+          transform: transform,
+          path_names: path_names.freeze
+        }
+      end
+      records
+    end
+
     def walk_instances(entities, transform, path_names, &block)
       entities.each do |entity|
         next unless entity.respond_to?(:definition) && entity.respond_to?(:transformation)
@@ -716,13 +767,12 @@ module MH
       end
     end
 
-    def edge_band_sides(entity, transform)
+    def edge_band_sides(entity, transform, edge_types = nil)
       sides = blank_edge_sides
-      edge_types = parse_edge_types(abf_attr(entity, 'edge-band-types'))
+      edge_types ||= parse_edge_types(abf_attr(entity, 'edge-band-types'))
       return sides if edge_types.empty?
 
       axes = board_plane_axes(entity, transform)
-      return sides unless axes
 
       grouped = Hash.new { |hash, side| hash[side] = [] }
       each_edge_band_face(entity.definition.entities, transform) do |face, face_transform|
@@ -730,7 +780,16 @@ module MH
         next if edge_id.nil?
 
         info = edge_types[edge_id.to_i]
-        next unless info
+        unless info
+          sides[:missing_edge_types] += 1
+          next
+        end
+
+        length_m = max_edge_length_m(face, face_transform)
+        sides[:face_count] += 1
+        material_key = [info[:name], info[:thickness_mm]]
+        sides[:material_totals][material_key] += length_m.to_f
+        next unless axes
 
         side = classify_edge_side(face.normal, face_transform, axes)
         next unless side
@@ -738,7 +797,8 @@ module MH
         grouped[side] << {
           value: edge_band_display(info),
           thickness_mm: info[:thickness_mm].to_f,
-          length_m: max_edge_length_m(face, face_transform)
+          length_m: length_m,
+          material_key: material_key
         }
       end
 
@@ -771,8 +831,11 @@ module MH
         _bot_: '',
         _left_: '',
         edge_totals: Hash.new(0.0),
+        material_totals: Hash.new(0.0),
         edge_lengths: Hash.new(0.0),
-        edge_thicknesses: Hash.new(0.0)
+        edge_thicknesses: Hash.new(0.0),
+        face_count: 0,
+        missing_edge_types: 0
       }
     end
 

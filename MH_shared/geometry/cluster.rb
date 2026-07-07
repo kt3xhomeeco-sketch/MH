@@ -7,6 +7,19 @@ module MH
     module Cluster
       module_function
 
+      @native_provider = nil
+
+      def register_native_provider(provider)
+        @native_provider = provider if provider && provider.respond_to?(:distance_cluster_indices)
+        !!@native_provider
+      rescue
+        false
+      end
+
+      def native_provider
+        @native_provider
+      end
+
       class UnionFind
         def initialize(count)
           @parent = (0...count).to_a
@@ -143,6 +156,16 @@ module MH
         return [[0]] if count == 1
 
         threshold = gap_threshold || auto_gap_threshold(boxes_flat, count)
+        if @native_provider && count <= 2000
+          begin
+            native_groups = @native_provider.distance_cluster_indices(boxes_flat, threshold.to_f)
+            if native_groups.is_a?(Array) && native_groups.flatten.length == count
+              return native_groups
+            end
+          rescue
+            # Optional native provider must never disable the Ruby fallback.
+          end
+        end
         gap_sq = threshold * threshold
         union_find = UnionFind.new(count)
 
@@ -202,44 +225,59 @@ module MH
         cell_size = gap_threshold > 0.01 ? gap_threshold : 100.0
         inv_cell = 1.0 / cell_size
         grid = {}
+        max_cells_per_box = 4096
 
         count.times do |index|
           offset = index * 6
-          cx = ((boxes_flat[offset] + boxes_flat[offset + 1]) * 0.5 * inv_cell).floor
-          cy = ((boxes_flat[offset + 2] + boxes_flat[offset + 3]) * 0.5 * inv_cell).floor
-          cz = ((boxes_flat[offset + 4] + boxes_flat[offset + 5]) * 0.5 * inv_cell).floor
-          (grid[[cx, cy, cz]] ||= []) << index
+          x0 = (boxes_flat[offset] * inv_cell).floor
+          x1 = (boxes_flat[offset + 1] * inv_cell).floor
+          y0 = (boxes_flat[offset + 2] * inv_cell).floor
+          y1 = (boxes_flat[offset + 3] * inv_cell).floor
+          z0 = (boxes_flat[offset + 4] * inv_cell).floor
+          z1 = (boxes_flat[offset + 5] * inv_cell).floor
+          cell_count = (x1 - x0 + 1) * (y1 - y0 + 1) * (z1 - z0 + 1)
+          return union_all_pairs(boxes_flat, count, gap_sq, union_find) if cell_count > max_cells_per_box
+
+          (x0..x1).each do |x|
+            (y0..y1).each do |y|
+              (z0..z1).each { |z| (grid[[x, y, z]] ||= []) << index }
+            end
+          end
         end
 
-        grid.each do |cell_key, cell_indices|
-          cx, cy, cz = cell_key
-          (-1..1).each do |dx|
-            (-1..1).each do |dy|
-              (-1..1).each do |dz|
-                neighbor = grid[[cx + dx, cy + dy, cz + dz]]
-                next unless neighbor
+        seen_pairs = {}
+        count.times do |index|
+          offset = index * 6
+          ax0 = boxes_flat[offset]
+          ax1 = boxes_flat[offset + 1]
+          ay0 = boxes_flat[offset + 2]
+          ay1 = boxes_flat[offset + 3]
+          az0 = boxes_flat[offset + 4]
+          az1 = boxes_flat[offset + 5]
+          x0 = ((ax0 - gap_threshold) * inv_cell).floor
+          x1 = ((ax1 + gap_threshold) * inv_cell).floor
+          y0 = ((ay0 - gap_threshold) * inv_cell).floor
+          y1 = ((ay1 + gap_threshold) * inv_cell).floor
+          z0 = ((az0 - gap_threshold) * inv_cell).floor
+          z1 = ((az1 + gap_threshold) * inv_cell).floor
 
-                cell_indices.each do |index|
-                  offset = index * 6
-                  ax0 = boxes_flat[offset]
-                  ax1 = boxes_flat[offset + 1]
-                  ay0 = boxes_flat[offset + 2]
-                  ay1 = boxes_flat[offset + 3]
-                  az0 = boxes_flat[offset + 4]
-                  az1 = boxes_flat[offset + 5]
+          (x0..x1).each do |x|
+            (y0..y1).each do |y|
+              (z0..z1).each do |z|
+                Array(grid[[x, y, z]]).each do |other|
+                  next if other <= index
+                  pair_key = index * count + other
+                  next if seen_pairs[pair_key]
 
-                  neighbor.each do |other|
-                    next if other <= index
-
-                    other_offset = other * 6
-                    distance = bb_distance_raw(
-                      ax0, ax1, ay0, ay1, az0, az1,
-                      boxes_flat[other_offset], boxes_flat[other_offset + 1],
-                      boxes_flat[other_offset + 2], boxes_flat[other_offset + 3],
-                      boxes_flat[other_offset + 4], boxes_flat[other_offset + 5]
-                    )
-                    union_find.union(index, other) if distance < gap_sq
-                  end
+                  seen_pairs[pair_key] = true
+                  other_offset = other * 6
+                  distance = bb_distance_raw(
+                    ax0, ax1, ay0, ay1, az0, az1,
+                    boxes_flat[other_offset], boxes_flat[other_offset + 1],
+                    boxes_flat[other_offset + 2], boxes_flat[other_offset + 3],
+                    boxes_flat[other_offset + 4], boxes_flat[other_offset + 5]
+                  )
+                  union_find.union(index, other) if distance < gap_sq
                 end
               end
             end

@@ -10,6 +10,7 @@
 #        MH::ExcelBridge   -- wrapper cấp cao trên XlsxIO
 #        MH::Text          -- chuẩn hoá chuỗi / tiếng Việt
 #        MH::Bounds        -- bounds/dimensions cache dùng chung
+#        MH::SimilarityIndex -- feature cache/index cho loc doi tuong tuong tu
 #        MH::TraverseModel -- walker đệ quy dùng chung
 #        MH::ModelHub      -- hub observer/cache/signature dùng chung
 #        MH::ModelReader   -- đọc raw entity/attribute/bounds/selection dùng chung
@@ -24,7 +25,7 @@
 
 module MH
   module Shared
-    VERSION = '1.1.0'.freeze
+    VERSION = '1.2.0'.freeze
     DIR = File.join(__dir__, 'MH_shared').freeze
     DEBUG = false unless const_defined?(:DEBUG, false)
 
@@ -43,6 +44,7 @@ require File.join(MH::Shared::DIR, 'xlsx_io')
 require File.join(MH::Shared::DIR, 'excel_bridge')
 require File.join(MH::Shared::DIR, 'text')
 require File.join(MH::Shared::DIR, 'bounds')
+require File.join(MH::Shared::DIR, 'similarity_index')
 require File.join(MH::Shared::DIR, 'memo')
 require File.join(MH::Shared::DIR, 'traverse_model')
 require File.join(MH::Shared::DIR, 'model_hub')

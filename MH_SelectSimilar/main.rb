@@ -1217,6 +1217,8 @@ module MH
         @rename_dialog.close if @rename_dialog && @rename_dialog.visible?
         @mini_settings.close if @mini_settings && @mini_settings.visible?
         @cached_entities = nil  # Clear cache
+        @similarity_index = nil
+        @similarity_index_key = nil
         MH::SelectSimilar.invalidate_bounds_cache
         MH::SelectSimilar.unisolate if MH::SelectSimilar.isolated?  # Restore hidden objects on deactivate
         MH::SelectSimilar.current_tool = nil
@@ -1225,13 +1227,15 @@ module MH
       # Refresh entity cache
       def refresh_entity_cache
         settings = MH::SelectSimilar.settings
+        MH::SelectSimilar.invalidate_bounds_cache
         @cached_entities = MH::SelectSimilar.collect_entities(
           settings[:scope_filter],
           settings[:nesting_filter],
           @model
         )
         @cache_time = Time.now
-        MH::SelectSimilar.invalidate_bounds_cache
+        @similarity_index = nil
+        @similarity_index_key = nil
         @overlay_dirty = true
       end
       
@@ -1241,6 +1245,23 @@ module MH
           refresh_entity_cache
         end
         @cached_entities
+      end
+
+      def get_similarity_index(settings = MH::SelectSimilar.settings)
+        entities = get_cached_entities
+        needs_dimensions = settings[:bounding_size] || settings[:bounding_volume] || settings[:min_thickness]
+        index_key = [entities.object_id, !!needs_dimensions]
+        if @similarity_index.nil? || @similarity_index_key != index_key
+          @similarity_index = MH::SimilarityIndex.new(
+            entities,
+            dimensions: (needs_dimensions ? ->(entity) { MH::SelectSimilar.bounds_dims(entity) } : nil),
+            material: ->(entity) { MH::SelectSimilar.get_material(entity) },
+            tag: ->(entity) { MH::SelectSimilar.get_tag(entity) },
+            name: ->(entity) { entity.respond_to?(:name) ? entity.name : entity.definition.name }
+          )
+          @similarity_index_key = index_key
+        end
+        @similarity_index
       end
 
       def onLButtonDown(flags, x, y, view)
@@ -2190,7 +2211,7 @@ module MH
       # Select similar for multiple reference objects
       def select_similar_multi(references)
         settings = MH::SelectSimilar.settings
-        all_entities = get_cached_entities
+        similarity_index = get_similarity_index(settings)
         
         # Pre-compute reference bounds for performance
         needs_bounds = settings[:bounding_size] || settings[:bounding_volume] || settings[:min_thickness]
@@ -2205,18 +2226,17 @@ module MH
         ref_set = references.to_set
         matches = references.dup
         
-        all_entities.each do |entity|
-          next if ref_set.include?(entity)
-          
-          # Pre-compute target bounds once for all ref comparisons
-          target_dims = needs_bounds ? MH::SelectSimilar.bounds_dims(entity) : nil
-          
-          # Match if entity matches ANY of the references
-          references.each do |ref|
-            ref_dims = needs_bounds ? ref_dims_map[ref.object_id] : nil
+        matched_set = ref_set.dup
+        references.each do |ref|
+          ref_dims = needs_bounds ? ref_dims_map[ref.object_id] : nil
+          similarity_index.candidates(ref, settings).each do |entity|
+            next if matched_set.include?(entity)
+
+            feature = similarity_index.feature(entity)
+            target_dims = needs_bounds && feature ? feature.dimensions : nil
             if MH::SelectSimilar.matches_criteria?(ref, entity, settings, ref_dims: ref_dims, target_dims: target_dims)
               matches << entity
-              break  # No need to check other references
+              matched_set.add(entity)
             end
           end
         end
@@ -2258,7 +2278,7 @@ module MH
           end
         end
 
-        all_entities = get_cached_entities
+        similarity_index = get_similarity_index(settings)
         
         # Keep current selection
         current_selection = @selection.to_a
@@ -2271,11 +2291,12 @@ module MH
         # Find new matches for the new reference only
         new_matches = [new_ref]
         
-        all_entities.each do |entity|
+        similarity_index.candidates(new_ref, settings).each do |entity|
           next if current_set.include?(entity)  # Skip if already selected
           next if entity == new_ref
           
-          target_dims = needs_bounds ? MH::SelectSimilar.bounds_dims(entity) : nil
+          feature = similarity_index.feature(entity)
+          target_dims = needs_bounds && feature ? feature.dimensions : nil
           if MH::SelectSimilar.matches_criteria?(new_ref, entity, settings, ref_dims: ref_dims, target_dims: target_dims)
             new_matches << entity
           end

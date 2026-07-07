@@ -6,6 +6,10 @@ begin
   require File.join(Sketchup.find_support_file('Plugins'), 'MH_shared.rb')
 rescue StandardError
 end
+begin
+  require File.join(__dir__, 'native_bridge')
+rescue StandardError
+end
 
 module MH
   module Van
@@ -15,7 +19,7 @@ module MH
     ATTR_ORIGINAL_CODE = 'original_material_code'.freeze
     ATTR_COLOR = 'color'.freeze
     ATTR_TWO_FACE = 'two_face'.freeze
-    AUTO_REFRESH_SECONDS = 1.0
+    AUTO_REFRESH_SECONDS = 0.5
 
     if defined?(Sketchup::EntityObserver)
       class EntityChangeObserver < Sketchup::EntityObserver
@@ -71,8 +75,9 @@ module MH
       end
 
       def refresh
-        sync_material_overrides
-        rows = scan_rows
+        records = part_records
+        sync_material_overrides(records)
+        rows = scan_rows(records)
         @last_rows = rows
         attach_part_observers((@last_records_by_id || {}).values)
         attach_materials_observer
@@ -102,8 +107,10 @@ module MH
 
       def refresh_dirty_rows
         dirty_entity_ids = @dirty_entity_ids ? @dirty_entity_ids.keys : []
-        dirty_ids = detect_changed_record_ids(dirty_entity_ids)
         dirty_materials = @dirty_materials ? @dirty_materials.values : []
+        return if dirty_entity_ids.empty? && dirty_materials.empty?
+
+        dirty_ids = detect_changed_record_ids(dirty_entity_ids)
         @dirty_entity_ids = {}
         @dirty_materials = {}
 
@@ -113,12 +120,16 @@ module MH
         end
 
         dirty_ids.uniq!
-        return if dirty_ids.empty?
+        if dirty_ids.empty?
+          update_cached_visibility_for_ids(dirty_entity_ids)
+          return
+        end
 
         patch_cached_rows_for_ids(dirty_ids) || refresh
       end
 
       def mark_dirty_entity(entity)
+        return if @suspend_dirty_tracking
         return unless entity && entity.valid?
 
         @dirty_entity_ids ||= {}
@@ -128,6 +139,7 @@ module MH
       end
 
       def mark_dirty_material(material)
+        return if @suspend_dirty_tracking
         return unless material
 
         @dirty_materials ||= {}
@@ -137,6 +149,7 @@ module MH
       end
 
       def mark_dirty_definition_entities(entities)
+        return if @suspend_dirty_tracking
         return unless entities && entities.respond_to?(:parent)
 
         definition = entities.parent
@@ -159,42 +172,82 @@ module MH
         nil
       end
 
-      def scan_rows
+      def scan_rows(records = nil)
         @abf_sheet_type_rows_cache = nil
         @sheet_type_thickness_cache = nil
         @sheet_type_thickness_candidates_cache = nil
-        records = part_records
+        records ||= part_records
         @last_records_by_id = {}
         @record_signatures = {}
         @record_row_keys = {}
         @definition_record_ids = Hash.new { |hash, key| hash[key] = [] }
-        buckets = {}
+        items = scan_items_for_grouping(records)
+        buckets = native_group_scan_items(items) || ruby_group_scan_items(items)
 
-        records.each do |record|
+        apply_abf_sheet_type_counts(buckets)
+        apply_bottom_face_counts(buckets)
+        buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
+      end
+
+      def scan_items_for_grouping(records)
+        records.map do |record|
           entity = record[:entity]
-          @last_records_by_id[entity.persistent_id] = record
+          id = entity.persistent_id
+          @last_records_by_id[id] = record
           if entity.respond_to?(:definition) && entity.definition
-            @definition_record_ids[entity.definition.entityID] << entity.persistent_id
+            @definition_record_ids[entity.definition.entityID] << id
           end
+
           default_code = default_material_code(entity)
           thickness = thickness_mm(entity, record[:transform], default_code)
           code = default_code
-          color = entity.get_attribute(DICT, ATTR_COLOR, material_color(entity, code)).to_s
-          key = "#{format_thickness(thickness)}|#{code}"
-          @record_row_keys[entity.persistent_id] = key
-          @record_signatures[entity.persistent_id] = record_signature(entity, record[:transform], thickness)
+          formatted_thickness = format_thickness(thickness)
+          key = "#{formatted_thickness}|#{code}"
+          @record_row_keys[id] = key
+          @record_signatures[id] = record_signature(entity, record[:transform], thickness)
 
-          buckets[key] ||= {
+          {
             'key' => key,
-            'thickness' => format_thickness(thickness),
+            'thickness' => formatted_thickness,
             'thickness_value' => thickness,
             'code' => code,
             'default_code' => default_code,
+            'color' => entity.get_attribute(DICT, ATTR_COLOR, material_color(entity, code)).to_s,
+            'id' => id,
+            'ancestor_ids' => record[:ancestor_ids],
+            'path' => {
+              'id' => id,
+              'ancestor_ids' => record[:ancestor_ids]
+            },
+            'visible' => record_visible?(record)
+          }
+        end
+      end
+
+      def native_group_scan_items(items)
+        return nil unless defined?(NativeBridge)
+        return nil unless NativeBridge.available?
+
+        NativeBridge.group_rows(items)
+      rescue StandardError
+        nil
+      end
+
+      def ruby_group_scan_items(items)
+        buckets = {}
+        items.each do |item|
+          key = item['key']
+          buckets[key] ||= {
+            'key' => key,
+            'thickness' => item['thickness'],
+            'thickness_value' => item['thickness_value'],
+            'code' => item['code'],
+            'default_code' => item['default_code'],
             'count' => 0,
             'two_face' => 0,
             'visible' => false,
             'all_hidden' => true,
-            'color' => color,
+            'color' => item['color'],
             'ids' => [],
             'ancestor_ids' => [],
             'paths' => []
@@ -202,48 +255,48 @@ module MH
 
           row = buckets[key]
           row['count'] += 1
-          record_visible = record_visible?(record)
-          row['visible'] ||= record_visible
-          row['all_hidden'] &&= !record_visible
-          row['ids'] << entity.persistent_id
-          row['ancestor_ids'].concat(record[:ancestor_ids])
-          row['paths'] << {
-            'id' => entity.persistent_id,
-            'ancestor_ids' => record[:ancestor_ids]
-          }
+          row['visible'] ||= !!item['visible']
+          row['all_hidden'] &&= !item['visible']
+          row['ids'] << item['id']
+          row['ancestor_ids'].concat(Array(item['ancestor_ids']))
+          row['paths'] << item['path']
         end
 
         buckets.each_value do |row|
           row['ids'].uniq!
           row['ancestor_ids'].uniq!
         end
-
-        apply_abf_sheet_type_counts(buckets)
-        apply_bottom_face_counts(buckets)
-        buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
+        buckets
       end
 
       def set_visible(payload_json)
         payload = parse_json(payload_json)
         visible = !!payload['visible']
         entities = entities_from_ids(payload['ids'])
-        ancestors = entities_from_ids(payload['ancestor_ids'])
+        ancestors = visible ? entities_from_ids(payload['ancestor_ids']) : []
         return if entities.empty?
 
         model = Sketchup.active_model
-        model.start_operation(visible ? 'MH Van - Hiện dòng' : 'MH Van - Ẩn dòng', true)
-        if visible
-          (ancestors + entities).uniq.each do |entity|
-            next unless entity.valid?
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation(visible ? 'MH Van - Hiện dòng' : 'MH Van - Ẩn dòng', true)
+          if visible
+            (ancestors + entities).uniq.each do |entity|
+              next unless entity.valid?
 
-            entity.hidden = false
-            entity.layer.visible = true if entity.respond_to?(:layer) && entity.layer.respond_to?(:visible=)
+              entity.hidden = false
+              entity.layer.visible = true if entity.respond_to?(:layer) && entity.layer.respond_to?(:visible=)
+            end
+          else
+            entities.each { |entity| entity.hidden = true if entity.valid? }
           end
-        else
-          entities.each { |entity| entity.hidden = true if entity.valid? }
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
         end
-        model.commit_operation
-        refresh_visibility
+        affected_ids = entities.map(&:persistent_id) + ancestors.map(&:persistent_id)
+        clear_dirty_entity_ids(affected_ids)
+        update_cached_visibility_after_set(payload['ids'], visible)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -258,21 +311,36 @@ module MH
         return reset_code(payload_json) if code.empty?
 
         model = Sketchup.active_model
-        model.start_operation('MH Van - Đổi mã vật liệu', true)
         current_materials = entities.map { |entity| primary_material(entity) if entity.valid? }.compact.uniq
-        target_material = material_for_code_change(code, current_materials, entities)
-        entities.each do |entity|
-          next unless entity.valid?
+        target_material = nil
+        renamed_material = nil
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation('MH Van - Đổi mã vật liệu', true)
+          target_material = material_for_code_change(code, current_materials, entities)
+          renamed_material = target_material if current_materials.length == 1 && current_materials.first.equal?(target_material)
 
-          assign_material_code(entity, code, target_material)
-          entity.delete_attribute(DICT, ATTR_CODE)
-          entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
+          # Renaming the shared material already updates every group using it.
+          unless renamed_material
+            entities.each do |entity|
+              next unless entity.valid?
+
+              assign_material_code(entity, code, target_material)
+            end
+          end
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
         end
-        remove_unused_materials(current_materials - [target_material])
-        model.commit_operation
-        affected_ids = entities.map(&:persistent_id)
+        affected_ids = if renamed_material
+                         cached_ids_for_materials([renamed_material])
+                       else
+                         entities.map(&:persistent_id)
+                       end
         clear_dirty_entity_ids(affected_ids)
-        patch_cached_rows_for_ids(affected_ids.uniq) || refresh
+        clear_dirty_materials([target_material])
+        color = material_color(entities.find { |entity| entity && entity.valid? }, code)
+        update_cached_code_after_set(affected_ids.uniq, code, color) || patch_cached_rows_for_ids(affected_ids.uniq) || refresh
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -312,7 +380,6 @@ module MH
           entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
           entity.delete_attribute(DICT, ATTR_COLOR)
         end
-        remove_unused_materials(old_materials)
         model.commit_operation
         refresh
         Sketchup.active_model.active_view.invalidate
@@ -327,15 +394,24 @@ module MH
         return if entities.empty?
 
         model = Sketchup.active_model
-        model.start_operation('MH Van - Reset mã vật liệu', true)
-        entities.each do |entity|
-          next unless entity.valid?
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation('MH Van - Về vật liệu Default', true)
+          entities.each do |entity|
+            next unless entity.valid? && entity.respond_to?(:material=)
 
-          entity.delete_attribute(DICT, ATTR_CODE)
-          entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
+            entity.material = nil
+            entity.delete_attribute(DICT, ATTR_CODE)
+            entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
+          end
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
         end
-        model.commit_operation
-        patch_cached_rows_for_ids(entities.map(&:persistent_id)) || refresh
+        affected_ids = entities.map(&:persistent_id)
+        clear_dirty_entity_ids(affected_ids)
+        color = material_color(entities.find { |entity| entity && entity.valid? }, 'Default')
+        update_cached_code_after_set(affected_ids, 'Default', color) || patch_cached_rows_for_ids(affected_ids) || refresh
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -361,6 +437,35 @@ module MH
         model.commit_operation
         patch_cached_rows_for_ids(cached_ids_for_materials(changed_materials.compact)) || refresh
         Sketchup.active_model.active_view.invalidate
+      rescue StandardError => e
+        abort_operation_safely
+        alert_error(e)
+      end
+
+      def refresh_surface_materials
+        execute('renderSurfaceRows', surface_material_rows)
+      rescue StandardError => e
+        alert_error(e)
+      end
+
+      def clear_surface_material(payload_json)
+        payload = parse_json(payload_json)
+        surface_material_rows unless @surface_material_targets
+        target = @surface_material_targets && @surface_material_targets[payload['id'].to_s]
+        return unless target
+
+        clear_surface_material_targets([target], 'MH Van - Xoa vat lieu Face Edge')
+      rescue StandardError => e
+        abort_operation_safely
+        alert_error(e)
+      end
+
+      def clear_all_surface_materials
+        surface_material_rows unless @surface_material_targets
+        targets = (@surface_material_targets || {}).values
+        return if targets.empty?
+
+        clear_surface_material_targets(targets, 'MH Van - Xoa tat ca vat lieu Face Edge')
       rescue StandardError => e
         abort_operation_safely
         alert_error(e)
@@ -402,8 +507,8 @@ module MH
         alert_error(e)
       end
 
-      def sync_material_overrides
-        targets = part_records.map { |record| record[:entity] }.select do |entity|
+      def sync_material_overrides(records = nil)
+        targets = (records || part_records).map { |record| record[:entity] }.select do |entity|
           next false unless entity.valid?
 
           code = entity.get_attribute(DICT, ATTR_CODE).to_s.strip
@@ -429,7 +534,6 @@ module MH
           entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
           entity.delete_attribute(DICT, ATTR_COLOR)
         end
-        remove_unused_materials(old_materials)
         model.commit_operation
         model.active_view.invalidate
       rescue StandardError => e
@@ -441,7 +545,7 @@ module MH
 
       def build_dialog
         @dialog = UI::HtmlDialog.new(
-          dialog_title: 'Loại Ván',
+          dialog_title: 'Loại Ván - Native Brain',
           preferences_key: 'MH_Van',
           scrollable: true,
           resizable: true,
@@ -458,6 +562,9 @@ module MH
         @dialog.add_action_callback('reset_code') { |_ctx, payload| reset_code(payload) }
         @dialog.add_action_callback('set_color') { |_ctx, payload| set_color(payload) }
         @dialog.add_action_callback('select_row') { |_ctx, payload| select_row(payload) }
+        @dialog.add_action_callback('refresh_surface_materials') { refresh_surface_materials }
+        @dialog.add_action_callback('clear_surface_material') { |_ctx, payload| clear_surface_material(payload) }
+        @dialog.add_action_callback('clear_all_surface_materials') { clear_all_surface_materials }
         @dialog.add_action_callback('strip_paint_codes') { |_ctx, payload| strip_paint_codes(payload) }
         @dialog.add_action_callback('clear_all_overrides') { clear_all_overrides }
         @dialog.set_on_closed do
@@ -472,7 +579,6 @@ module MH
         @refresh_timer_id = UI.start_timer(AUTO_REFRESH_SECONDS, true) do
           if @dialog && @dialog.visible?
             refresh_dirty_rows
-            refresh_visibility
           else
             stop_auto_refresh
           end
@@ -556,14 +662,28 @@ module MH
         end
       end
 
+      def clear_dirty_materials(materials)
+        return unless @dirty_materials
+
+        Array(materials).compact.each { |material| @dirty_materials.delete(material.object_id) }
+      rescue StandardError
+        nil
+      end
+
       def detect_changed_record_ids(force_ids = [])
         return [] unless @last_records_by_id && @record_signatures
 
         force_lookup = {}
         Array(force_ids).each { |id| force_lookup[id.to_i] = true }
+        return [] if force_lookup.empty?
+
         changed = []
-        @last_records_by_id.each do |id, record|
-          next if force_lookup.any? && !force_lookup[id.to_i]
+        force_lookup.each_key do |id|
+          record = @last_records_by_id[id]
+          unless record
+            changed << id
+            next
+          end
 
           entity = record[:entity]
           unless entity && entity.valid?
@@ -709,8 +829,7 @@ module MH
 
       def refresh_record_transform(record)
         transform = Geom::Transformation.new
-        Array(record[:ancestor_ids]).each do |id|
-          ancestor = Sketchup.active_model.find_entity_by_persistent_id(id.to_i)
+        record_ancestor_entities(record).each do |ancestor|
           next unless ancestor && ancestor.valid? && ancestor.respond_to?(:transformation)
 
           transform *= ancestor.transformation
@@ -739,6 +858,126 @@ module MH
         row['all_hidden'] = state[:all_hidden]
       end
 
+      def update_cached_visibility_after_set(ids, visible)
+        return refresh_visibility unless @last_rows && @last_rows.any?
+
+        id_lookup = {}
+        Array(ids).each do |id|
+          id = id.to_i
+          id_lookup[id] = true if id.positive?
+        end
+        return if id_lookup.empty?
+
+        payload = []
+        @last_rows.each do |row|
+          next unless Array(row['ids']).any? { |id| id_lookup[id.to_i] }
+
+          row['visible'] = visible
+          row['all_hidden'] = !visible
+          payload << {
+            'key' => row['key'],
+            'visible' => row['visible'],
+            'all_hidden' => row['all_hidden']
+          }
+        end
+        execute('updateVisibility', payload) unless payload.empty?
+      end
+
+      def update_cached_visibility_for_ids(ids)
+        return unless @last_rows && @last_rows.any?
+
+        id_lookup = {}
+        Array(ids).each do |id|
+          id = id.to_i
+          id_lookup[id] = true if id.positive?
+        end
+        return if id_lookup.empty?
+
+        payload = []
+        @last_rows.each do |row|
+          next unless Array(row['ids']).any? { |id| id_lookup[id.to_i] }
+
+          state = row_visibility_from_paths(row['paths'])
+          next if row['visible'] == state[:visible] && row['all_hidden'] == state[:all_hidden]
+
+          row['visible'] = state[:visible]
+          row['all_hidden'] = state[:all_hidden]
+          payload << {
+            'key' => row['key'],
+            'visible' => state[:visible],
+            'all_hidden' => state[:all_hidden]
+          }
+        end
+        execute('updateVisibility', payload) unless payload.empty?
+      end
+
+      def update_cached_code_after_set(ids, code, color)
+        return false unless @last_rows && @last_rows.any?
+
+        id_lookup = {}
+        Array(ids).each do |id|
+          id = id.to_i
+          id_lookup[id] = true if id.positive?
+        end
+        return true if id_lookup.empty?
+
+        rows_to_upsert = []
+        remove_keys = []
+        moved_rows = []
+
+        @last_rows.dup.each do |row|
+          moved_ids = Array(row['ids']).select { |id| id_lookup[id.to_i] }
+          next if moved_ids.empty?
+
+          moved_paths = Array(row['paths']).select { |path| id_lookup[path['id'].to_i] }
+          row['ids'] = Array(row['ids']).reject { |id| id_lookup[id.to_i] }
+          row['paths'] = Array(row['paths']).reject { |path| id_lookup[path['id'].to_i] }
+
+          if row['ids'].empty?
+            @last_rows.delete(row)
+            remove_keys << row['key']
+          else
+            refresh_cached_row_state(row)
+            rows_to_upsert << row
+          end
+
+          moved_row = {
+            'key' => "#{row['thickness']}|#{code}",
+            'thickness' => row['thickness'],
+            'thickness_value' => row['thickness_value'],
+            'code' => code,
+            'default_code' => code,
+            'count' => moved_ids.length,
+            'two_face' => 0,
+            'visible' => row['visible'],
+            'all_hidden' => row['all_hidden'],
+            'color' => color,
+            'ids' => moved_ids,
+            'ancestor_ids' => moved_paths.flat_map { |path| Array(path['ancestor_ids']) }.uniq,
+            'paths' => moved_paths
+          }
+          moved_rows << moved_row
+          moved_ids.each { |id| @record_row_keys[id.to_i] = moved_row['key'] if @record_row_keys }
+        end
+
+        moved_rows.each do |moved_row|
+          existing = @last_rows.find { |row| row['key'] == moved_row['key'] }
+          if existing
+            merge_cached_row(existing, moved_row)
+            rows_to_upsert << existing
+          else
+            @last_rows << moved_row
+            rows_to_upsert << moved_row
+          end
+        end
+
+        @last_rows.sort_by! { |row| [row['thickness_value'].to_f, row['code'].to_s.downcase] }
+        execute('patchRows', { 'rows' => rows_to_upsert.uniq { |row| row['key'] }, 'remove_keys' => remove_keys.uniq })
+        true
+      rescue StandardError
+        false
+      end
+
       def part_records
         records = []
         walk_entities(Sketchup.active_model.entities, records, [], Geom::Transformation.new)
@@ -759,6 +998,7 @@ module MH
           if part_like?(entity)
             out << {
               entity: entity,
+              ancestors: ancestors.dup,
               ancestor_ids: ancestors.map(&:persistent_id),
               transform: entity_transform
             }
@@ -771,10 +1011,7 @@ module MH
       def record_visible?(record)
         return false unless entity_visible_in_model?(record[:entity])
 
-        record[:ancestor_ids].all? do |id|
-          ancestor = Sketchup.active_model.find_entity_by_persistent_id(id.to_i)
-          ancestor && ancestor.valid? && entity_visible_in_model?(ancestor)
-        end
+        record_ancestor_entities(record).all? { |ancestor| entity_visible_in_model?(ancestor) }
       end
 
       def row_visibility_from_paths(paths)
@@ -782,19 +1019,36 @@ module MH
         all_hidden = true
 
         Array(paths).each do |path|
-          entity = Sketchup.active_model.find_entity_by_persistent_id(path['id'].to_i)
+          record = @last_records_by_id && @last_records_by_id[path['id'].to_i]
+          entity = record && record[:entity]
+          entity ||= Sketchup.active_model.find_entity_by_persistent_id(path['id'].to_i)
           next unless entity && entity.valid?
 
           visible = entity_visible_in_model?(entity) &&
-                    Array(path['ancestor_ids']).all? do |id|
-                      ancestor = Sketchup.active_model.find_entity_by_persistent_id(id.to_i)
-                      ancestor && ancestor.valid? && entity_visible_in_model?(ancestor)
+                    if record
+                      record_ancestor_entities(record).all? { |ancestor| entity_visible_in_model?(ancestor) }
+                    else
+                      Array(path['ancestor_ids']).all? do |id|
+                        ancestor = Sketchup.active_model.find_entity_by_persistent_id(id.to_i)
+                        ancestor && ancestor.valid? && entity_visible_in_model?(ancestor)
+                      end
                     end
           any_visible ||= visible
           all_hidden &&= !visible
         end
 
         { visible: any_visible, all_hidden: all_hidden }
+      end
+
+      def record_ancestor_entities(record)
+        cached = record[:ancestors]
+        return cached if cached
+
+        record[:ancestors] = Array(record[:ancestor_ids]).filter_map do |id|
+          Sketchup.active_model.find_entity_by_persistent_id(id.to_i)
+        end
+      rescue StandardError
+        []
       end
 
       def entity_visible_in_model?(entity)
@@ -845,7 +1099,21 @@ module MH
       end
 
       def entities_from_ids(ids)
-        Array(ids).map { |id| Sketchup.active_model.find_entity_by_persistent_id(id.to_i) }.compact
+        model = Sketchup.active_model
+        Array(ids).filter_map do |id|
+          id = id.to_i
+          next if id.zero?
+
+          record = @last_records_by_id && @last_records_by_id[id]
+          entity = record && record[:entity]
+          if entity && entity.valid?
+            entity
+          else
+            model.find_entity_by_persistent_id(id)
+          end
+        rescue StandardError
+          nil
+        end
       end
 
       def record_signature(entity, transform = nil, expected_thickness = nil)
@@ -1106,6 +1374,8 @@ module MH
         return unless entity.respond_to?(:material=)
 
         material ||= material_by_name(code, primary_material(entity))
+        return if primary_material(entity).equal?(material)
+
         entity.material = material
       end
 
@@ -1116,8 +1386,7 @@ module MH
         existing = Sketchup.active_model.materials[name]
         return existing if existing
 
-        target_ids = Array(target_entities).select { |entity| entity && entity.valid? }.map(&:persistent_id)
-        if current_materials.length == 1 && material_only_used_by_cached_parts?(current_materials.first, target_ids)
+        if current_materials.length == 1
           material = current_materials.first
           material.name = name
           return material
@@ -1168,9 +1437,19 @@ module MH
         collection = Sketchup.active_model.materials
         return unless collection.respond_to?(:remove)
 
+        candidates = materials.each_with_object({}) { |material, map| map[material.object_id] = material }
+        used = {}
+        each_model_entity(Sketchup.active_model.entities) do |entity|
+          material = entity.material if entity.respond_to?(:material)
+          used[material.object_id] = true if material && candidates[material.object_id]
+
+          back_material = entity.back_material if entity.respond_to?(:back_material)
+          used[back_material.object_id] = true if back_material && candidates[back_material.object_id]
+        end
+
         materials.each do |material|
           next unless material
-          next if material_used_in_model?(material)
+          next if used[material.object_id]
 
           collection.remove(material)
         rescue StandardError
@@ -1265,6 +1544,121 @@ module MH
         end
       end
 
+      def surface_material_rows
+        targets = {}
+        definitions = {}
+        records = @last_records_by_id ? @last_records_by_id.values : part_records
+
+        records.each do |record|
+          entity = record[:entity]
+          next unless entity && entity.valid? && entity.respond_to?(:definition)
+
+          definition = entity.definition
+          next unless definition && !definitions[definition.entityID]
+
+          definitions[definition.entityID] = true
+          definition.entities.each do |child|
+            next unless child.valid?
+
+            if child.is_a?(Sketchup::Face)
+              add_surface_material_target(targets, child.material, :fronts, child, definition.entityID)
+              add_surface_material_target(targets, child.back_material, :backs, child, definition.entityID)
+            elsif child.is_a?(Sketchup::Edge) && child.respond_to?(:material)
+              add_surface_material_target(targets, child.material, :edges, child, definition.entityID)
+            end
+          end
+        end
+
+        outline_ids = {}
+        each_model_entity(Sketchup.active_model.entities) do |entity|
+          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+          next if outline_ids[entity.persistent_id]
+          next unless edge_only_group?(entity)
+
+          material = primary_material(entity)
+          next unless material
+
+          outline_ids[entity.persistent_id] = true
+          parent = entity.parent
+          parent_definition_id = parent.entityID if parent.respond_to?(:entityID)
+          add_surface_material_target(targets, material, :outline_groups, entity, parent_definition_id)
+        end
+
+        @surface_material_targets = targets
+        targets.values.map do |target|
+          material = target[:material]
+          {
+            'id' => target[:id],
+            'name' => material.display_name.to_s,
+            'color' => color_to_hex(material.color),
+            'faces' => target[:fronts].length + target[:backs].length,
+            'edges' => target[:edges].length,
+            'groups' => target[:outline_groups].length
+          }
+        end.sort_by { |row| row['name'].downcase }
+      end
+
+      def add_surface_material_target(targets, material, kind, entity, definition_id)
+        return unless material
+
+        id = material.object_id.to_s
+        target = targets[id] ||= {
+          id: id,
+          material: material,
+          fronts: [],
+          backs: [],
+          edges: [],
+          outline_groups: [],
+          definition_ids: {}
+        }
+        target[kind] << entity
+        target[:definition_ids][definition_id] = true if definition_id
+      end
+
+
+      def edge_only_group?(entity)
+        return false unless entity.respond_to?(:definition) && entity.definition
+
+        entities = entity.definition.entities
+        has_edges = false
+        entities.each do |child|
+          return false if child.is_a?(Sketchup::Face)
+
+          has_edges = true if child.is_a?(Sketchup::Edge)
+        end
+        has_edges
+      rescue StandardError
+        false
+      end
+
+      def clear_surface_material_targets(targets, operation_name)
+        model = Sketchup.active_model
+        materials = targets.map { |target| target[:material] }.compact.uniq
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation(operation_name, true)
+          targets.each do |target|
+            target[:fronts].each { |face| face.material = nil if face.valid? }
+            target[:backs].each { |face| face.back_material = nil if face.valid? }
+            target[:edges].each { |edge| edge.material = nil if edge.valid? && edge.respond_to?(:material=) }
+            target[:outline_groups].each { |entity| entity.material = nil if entity.valid? && entity.respond_to?(:material=) }
+          end
+          remove_unused_materials(materials)
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
+        end
+
+        affected_ids = targets.flat_map do |target|
+          target[:definition_ids].keys.flat_map { |id| Array(@definition_record_ids && @definition_record_ids[id]) }
+        end
+        clear_dirty_entity_ids(affected_ids.uniq)
+        clear_dirty_materials(materials)
+        @surface_material_targets = nil
+        refresh_surface_materials
+        model.active_view.invalidate
+      end
+
       def abf_sheet_type_rows
         return @abf_sheet_type_rows_cache if @abf_sheet_type_rows_cache
         return [] unless defined?(ABF::SheetTypesTool)
@@ -1326,6 +1720,31 @@ module MH
                 background: #fff;
                 overflow: hidden;
               }
+              .tabs {
+                height: 34px;
+                display: flex;
+                align-items: end;
+                gap: 2px;
+                padding: 4px 10px 0;
+                background: #e7e7e7;
+                border-bottom: 1px solid #bdbdbd;
+              }
+              .tab {
+                height: 29px;
+                border: 1px solid transparent;
+                border-bottom: 0;
+                background: transparent;
+                padding: 0 14px;
+                font: inherit;
+                cursor: pointer;
+              }
+              .tab.active {
+                background: #fff;
+                border-color: #bdbdbd;
+                color: var(--blue);
+                font-weight: 600;
+              }
+              .panel[hidden] { display: none; }
               .toolbar {
                 height: 52px;
                 display: grid;
@@ -1378,8 +1797,17 @@ module MH
                 font-weight: 600;
                 text-align: center;
               }
+              .surface-toolbar {
+                height: 52px;
+                display: flex;
+                align-items: center;
+                justify-content: space-between;
+                padding: 4px 10px;
+                background: var(--header);
+                border-bottom: 1px solid #bdbdbd;
+              }
               .table-wrap {
-                height: calc(100vh - 52px);
+                height: calc(100vh - 86px);
                 overflow: auto;
               }
               table {
@@ -1396,6 +1824,31 @@ module MH
               .col-reset { width: 74px; }
               .col-color { width: 40px; }
               .col-edit { width: 28px; }
+              .col-surface-color { width: 44px; }
+              .col-surface-name { width: auto; }
+              .col-surface-count { width: 76px; }
+              .col-surface-delete { width: 58px; }
+              .surface-table th {
+                height: 30px;
+                padding: 2px 6px;
+                text-align: left;
+                background: #f7f7f7;
+                border-bottom: 1px solid var(--line);
+                position: sticky;
+                top: 0;
+                z-index: 1;
+              }
+              .surface-table th.count-head,
+              .surface-count { text-align: right; }
+              .surface-name { overflow: hidden; text-overflow: ellipsis; }
+              .surface-delete { text-align: center; }
+              .color-chip {
+                display: inline-block;
+                width: 28px;
+                height: 17px;
+                border: 1px solid #777;
+                vertical-align: middle;
+              }
               td {
                 height: 30px;
                 padding: 2px 6px;
@@ -1488,36 +1941,66 @@ module MH
             </style>
           </head>
           <body>
-            <div class="toolbar">
-              <input id="master" type="checkbox" checked title="Ẩn/hiện tất cả dòng">
-              <button class="sort" data-sort="thickness">Độ Dày ▲</button>
-              <div class="material-head">
-                <button class="sort" data-sort="code">Vật Liệu ▲</button>
-                <input id="search" class="search" type="search" placeholder="Tìm độ dày / vật liệu">
+            <nav class="tabs" aria-label="Loại vật liệu">
+              <button class="tab active" data-tab="group">Group</button>
+              <button class="tab" data-tab="surface">Face &amp; Edge</button>
+            </nav>
+
+            <section id="groupPanel" class="panel">
+              <div class="toolbar">
+                <input id="master" type="checkbox" checked title="Ẩn/hiện tất cả dòng">
+                <button class="sort" data-sort="thickness">Độ Dày ▲</button>
+                <div class="material-head">
+                  <button class="sort" data-sort="code">Vật Liệu ▲</button>
+                  <input id="search" class="search" type="search" placeholder="Tìm độ dày / vật liệu">
+                </div>
+                <div style="text-align:center">2 Mặt</div>
+                <button id="stripPaint" class="tool-btn" title="Bỏ phần mã sơn của các dòng đang lọc">Bỏ Sơn</button>
+                <div class="help">[?]</div>
               </div>
-              <div style="text-align:center">2 Mặt</div>
-              <button id="stripPaint" class="tool-btn" title="Bỏ phần mã sơn của các dòng đang lọc">Bỏ Sơn</button>
-              <div class="help">[?]</div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <colgroup>
-                  <col class="col-eye">
-                  <col class="col-thickness">
-                  <col class="col-code">
-                  <col class="col-count">
-                  <col class="col-two">
-                  <col class="col-reset">
-                  <col class="col-color">
-                  <col class="col-edit">
-                </colgroup>
-                <tbody id="rows"></tbody>
-              </table>
-              <div id="empty" class="empty" hidden>Không tìm thấy group/component dạng tấm trong model.</div>
-            </div>
+              <div class="table-wrap">
+                <table>
+                  <colgroup>
+                    <col class="col-eye">
+                    <col class="col-thickness">
+                    <col class="col-code">
+                    <col class="col-count">
+                    <col class="col-two">
+                    <col class="col-reset">
+                    <col class="col-color">
+                    <col class="col-edit">
+                  </colgroup>
+                  <tbody id="rows"></tbody>
+                </table>
+                <div id="empty" class="empty" hidden>Không tìm thấy group/component dạng tấm trong model.</div>
+              </div>
+            </section>
+
+            <section id="surfacePanel" class="panel" hidden>
+              <div class="surface-toolbar">
+                <strong>Vật liệu Face &amp; Edge</strong>
+                <button id="clearAllSurface" class="tool-btn" title="Chuyển toàn bộ vật liệu Face và Edge về Default">Xóa tất cả</button>
+              </div>
+              <div class="table-wrap">
+                <table class="surface-table">
+                  <colgroup>
+                    <col class="col-surface-color">
+                    <col class="col-surface-name">
+                    <col class="col-surface-count">
+                    <col class="col-surface-count">
+                    <col class="col-surface-count">
+                    <col class="col-surface-delete">
+                  </colgroup>
+                  <thead><tr><th></th><th>Vật liệu</th><th class="count-head">Face</th><th class="count-head">Edge</th><th class="count-head">Group nét</th><th></th></tr></thead>
+                  <tbody id="surfaceRows"></tbody>
+                </table>
+                <div id="surfaceEmpty" class="empty" hidden>Không có vật liệu trên Face hoặc Edge.</div>
+              </div>
+            </section>
 
             <script>
               let rows = [];
+              let surfaceRows = [];
               let sortKey = 'thickness';
               let sortDir = 1;
               let filterText = '';
@@ -1573,6 +2056,24 @@ module MH
                   }
                 });
                 if (!editing) draw();
+              }
+
+              function renderSurfaceRows(data) {
+                surfaceRows = Array.isArray(data) ? data : [];
+                const body = document.getElementById('surfaceRows');
+                const empty = document.getElementById('surfaceEmpty');
+                empty.hidden = surfaceRows.length > 0;
+                body.innerHTML = surfaceRows.map((row) => `
+                  <tr>
+                    <td><span class="color-chip" style="background:${escapeHtml(row.color || '#d8d8d8')}"></span></td>
+                    <td class="surface-name" title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</td>
+                    <td class="surface-count">${escapeHtml(row.faces || 0)}</td>
+                    <td class="surface-count">${escapeHtml(row.edges || 0)}</td>
+                    <td class="surface-count">${escapeHtml(row.groups || 0)}</td>
+                    <td class="surface-delete"><button class="reset" title="Chuyển material này về Default" data-action="clear-surface" data-surface-id="${escapeHtml(row.id)}">×</button></td>
+                  </tr>
+                `).join('');
+                document.getElementById('clearAllSurface').disabled = surfaceRows.length === 0;
               }
 
               function rowMatches(row) {
@@ -1639,6 +2140,10 @@ module MH
                 if (!row) return;
                 const code = el.value.trim();
                 if (code === String(row.code || '').trim()) return;
+                if (el.dataset.pendingCode === code) return;
+                el.dataset.pendingCode = code;
+                row.code = code || 'Default';
+                if (!code) el.value = 'Default';
                 callRuby('set_code', { ids: row.ids, code });
               }
 
@@ -1670,6 +2175,11 @@ module MH
               document.addEventListener('click', (event) => {
                 const el = event.target.closest('[data-action]');
                 if (!el) return;
+                if (el.dataset.action === 'clear-surface') {
+                  el.disabled = true;
+                  callRuby('clear_surface_material', { id: el.dataset.surfaceId });
+                  return;
+                }
                 const row = rowByKey(el.dataset.key);
                 if (!row) return;
                 if (el.dataset.action === 'visible') callRuby('set_visible', { ids: row.ids, ancestor_ids: row.ancestor_ids || [], visible: !row.visible });
@@ -1702,6 +2212,21 @@ module MH
                 callRuby('strip_paint_codes', { ids });
               });
 
+              document.querySelectorAll('.tab').forEach((button) => {
+                button.addEventListener('click', () => {
+                  const surfaceActive = button.dataset.tab === 'surface';
+                  document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab === button));
+                  document.getElementById('groupPanel').hidden = surfaceActive;
+                  document.getElementById('surfacePanel').hidden = !surfaceActive;
+                  if (surfaceActive) callRuby('refresh_surface_materials');
+                });
+              });
+
+              document.getElementById('clearAllSurface').addEventListener('click', (event) => {
+                event.currentTarget.disabled = true;
+                callRuby('clear_all_surface_materials');
+              });
+
               if (window.sketchup) sketchup.ready();
             </script>
           </body>
@@ -1716,6 +2241,14 @@ module MH
       command.status_bar_text = 'Mở bảng Loại Ván của model hiện tại'
       UI.menu('Extensions').add_item(command)
       @menu_loaded = true
+    end
+
+    unless defined?(@native_branch_menu_loaded) && @native_branch_menu_loaded
+      command = UI::Command.new('MH Ván - Native Brain') { MH::Van.show }
+      command.tooltip = 'MH Ván - Native Brain'
+      command.status_bar_text = 'Mở bảng Loại Ván của nhánh native-brain'
+      UI.menu('Extensions').add_item(command)
+      @native_branch_menu_loaded = true
     end
 
     if @dialog && @dialog.visible?

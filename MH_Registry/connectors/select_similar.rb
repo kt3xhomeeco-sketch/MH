@@ -60,18 +60,26 @@ module MH
           )
 
           needs_bounds = settings[:bounding_size] || settings[:bounding_volume] || settings[:min_thickness]
+          similarity_index = MH::SimilarityIndex.new(
+            all_entities,
+            dimensions: (needs_bounds ? ->(entity) { MH::SelectSimilar.bounds_dims(entity) } : nil),
+            material: ->(entity) { MH::SelectSimilar.get_material(entity) },
+            tag: ->(entity) { MH::SelectSimilar.get_tag(entity) }
+          )
           ref_dims = {}
           refs.each { |entity| ref_dims[entity] = MH::SelectSimilar.bounds_dims(entity) } if needs_bounds
           ref_set = refs.to_set
           matches = refs.dup
 
-          all_entities.each do |entity|
-            next if ref_set.include?(entity)
-            target_dims = needs_bounds ? MH::SelectSimilar.bounds_dims(entity) : nil
-            refs.each do |reference|
+          matched_set = ref_set.dup
+          refs.each do |reference|
+            similarity_index.candidates(reference, settings).each do |entity|
+              next if matched_set.include?(entity)
+              feature = similarity_index.feature(entity)
+              target_dims = needs_bounds && feature ? feature.dimensions : nil
               if MH::SelectSimilar.matches_criteria?(reference, entity, settings, ref_dims: ref_dims[reference], target_dims: target_dims)
                 matches << entity
-                break
+                matched_set.add(entity)
               end
             end
           end

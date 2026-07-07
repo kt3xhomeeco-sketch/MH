@@ -1528,45 +1528,13 @@ module MH
           boxes_flat[i6+2]=b.min.y; boxes_flat[i6+3]=b.max.y
           boxes_flat[i6+4]=b.min.z; boxes_flat[i6+5]=b.max.z
         end
-        gap_threshold ||= auto_gap_threshold(boxes_flat, n)
-        gap_sq = gap_threshold*gap_threshold
-        cell_size = gap_threshold > 0.01 ? gap_threshold : 100.0
-        inv_cell = 1.0/cell_size; grid = {}
-        n.times do |i|
-          i6=i*6
-          cx=((boxes_flat[i6]+boxes_flat[i6+1])*0.5*inv_cell).floor
-          cy=((boxes_flat[i6+2]+boxes_flat[i6+3])*0.5*inv_cell).floor
-          cz=((boxes_flat[i6+4]+boxes_flat[i6+5])*0.5*inv_cell).floor
-          (grid[[cx,cy,cz]] ||= []) << i
-        end
-        uf = UnionFind.new(n)
-        grid.each do |cell_key, cell_indices|
-          cx,cy,cz = cell_key
-          (-1..1).each do |dx|
-            (-1..1).each do |dy|
-              (-1..1).each do |dz|
-                neighbor = grid[[cx+dx,cy+dy,cz+dz]]
-                next unless neighbor
-                cell_indices.each do |i|
-                  i6=i*6
-                  ax0=boxes_flat[i6]; ax1=boxes_flat[i6+1]
-                  ay0=boxes_flat[i6+2]; ay1=boxes_flat[i6+3]
-                  az0=boxes_flat[i6+4]; az1=boxes_flat[i6+5]
-                  neighbor.each do |j|
-                    next if j<=i
-                    j6=j*6
-                    d2=bb_distance_raw(ax0,ax1,ay0,ay1,az0,az1,
-                                       boxes_flat[j6],boxes_flat[j6+1],
-                                       boxes_flat[j6+2],boxes_flat[j6+3],
-                                       boxes_flat[j6+4],boxes_flat[j6+5])
-                    uf.union(i,j) if d2<gap_sq
-                  end
-                end
-              end
-            end
-          end
-        end
-        uf.groups.each { |indices| distance_clusters << indices.map { |i| to_cluster[i] } }
+        groups = MH::Geo::Cluster.distance_cluster_indices(
+          boxes_flat,
+          gap_threshold,
+          count: n,
+          grid: true
+        )
+        groups.each { |indices| distance_clusters << indices.map { |i| to_cluster[i] } }
       elsif to_cluster.length == 1
         distance_clusters = [to_cluster]
       end
@@ -1633,7 +1601,7 @@ module MH
       end
 
       if defined?(MH::Geo::Cluster)
-        groups = MH::Geo::Cluster.distance_cluster_indices(boxes_flat, gap_threshold, count: n, grid: false)
+        groups = MH::Geo::Cluster.distance_cluster_indices(boxes_flat, gap_threshold, count: n, grid: true)
         return groups.map { |indices| indices.map { |i| entities[i] } }
       end
 
