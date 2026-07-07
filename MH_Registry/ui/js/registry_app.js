@@ -1213,10 +1213,40 @@
     return collectThicknessOptions('library');
   }
 
+  function manualMaterialCode(row) {
+    return String((row && (row.material_code || row.material_type)) || '').trim();
+  }
+
+  function manualMaterialKey(rowOrCode) {
+    var code = typeof rowOrCode === 'string' ? rowOrCode : manualMaterialCode(rowOrCode);
+    return String(code || '').trim().toUpperCase();
+  }
+
+  function ensureManualMaterialCodeInLibrary(code) {
+    code = String(code || '').trim();
+    if (!code) return false;
+
+    var rows = collectThicknessOptions('library');
+    var key = manualMaterialKey(code);
+    var exists = rows.some(function (row) {
+      return manualMaterialKey(row) === key;
+    });
+    if (exists) return false;
+
+    rows.push({ material_type: code, options: [] });
+    THICK_CFG.library.write(rows);
+    renderThicknessOptions('library');
+    return true;
+  }
+
   function manualSourceKeys() {
     var keys = {};
     manualSourceRows().forEach(function (row) {
-      var code = String(row.material_type || row.material_code || '').trim();
+      var code = manualMaterialCode(row);
+      if (code) keys[code.toUpperCase()] = true;
+    });
+    (state.config.dc_manual_materials || []).forEach(function (row) {
+      var code = manualMaterialCode(row);
       if (code) keys[code.toUpperCase()] = true;
     });
     return keys;
@@ -1232,9 +1262,13 @@
     });
 
     manualSourceRows().forEach(function (row) {
-      var code = String(row.material_type || row.material_code || '').trim();
-      var key = code.toUpperCase();
+      var code = manualMaterialCode(row);
+      var key = manualMaterialKey(code);
       addManualCandidate(map, code, manualState[key] || { enabled: '0', sort_order: '' });
+    });
+
+    Object.keys(manualState).forEach(function (key) {
+      addManualCandidate(map, manualMaterialCode(manualState[key]), manualState[key]);
     });
 
     return Object.keys(map).map(function (key) { return map[key]; });
@@ -4425,6 +4459,7 @@
       var code = window.prompt('Nhập mã vật liệu thêm vào danh sách Manual:', '');
       code = String(code || '').trim();
       if (!code) return;
+      var addedToLibrary = ensureManualMaterialCodeInLibrary(code);
       var rows = collectManualMaterialsPicker();
       var key = code.toUpperCase();
       var exists = rows.some(function (row) {
@@ -4443,6 +4478,7 @@
       }
       state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(rows);
       renderManualMaterialsPicker();
+      status('Đã thêm mã ' + code + ' vào danh sách Manual' + (addedToLibrary ? ' và thư viện độ dày.' : '.'), 'ok');
       return;
     }
     if (name === 'ma_vat_lieu_global') {

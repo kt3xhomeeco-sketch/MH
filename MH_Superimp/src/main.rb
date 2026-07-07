@@ -155,7 +155,14 @@ module MH
 
     def self.ensure_registry_runtime
       plugins = Sketchup.find_support_file('Plugins')
-      load File.join(plugins, 'MH_Registry', 'main.rb') unless defined?(MH::RegistryApp)
+      registry_main = File.join(plugins, 'MH_Registry', 'main.rb')
+      registry_ready =
+        defined?(MH::RegistryApp) &&
+        MH::RegistryApp.respond_to?(:ensure_runtime_ready) &&
+        defined?(MH::RegistryApp::Connector) &&
+        defined?(MH::RegistryApp::Menu)
+
+      load registry_main if !registry_ready && File.exist?(registry_main)
       if defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:ensure_runtime_ready)
         MH::RegistryApp.ensure_runtime_ready
       end
@@ -2612,6 +2619,15 @@ module MH
       else
         Sketchup.active_model.tools.push_tool(LiveBoxPreviewTool.new(import_path))
       end
+    end
+
+    unless file_loaded?(__FILE__)
+      begin
+        reload_import_list
+      rescue => e
+        puts "[MH::Superimp] startup sync error: #{e.class}: #{e.message}"
+      end
+      file_loaded(__FILE__)
     end
 
   end
