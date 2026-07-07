@@ -1,4 +1,4 @@
-# MH Van Native Brain
+# MH Van Native Extension
 
 This folder contains the optional C extension for MH_Van.
 

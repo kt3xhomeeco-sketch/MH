@@ -545,7 +545,7 @@ module MH
 
       def build_dialog
         @dialog = UI::HtmlDialog.new(
-          dialog_title: 'Loại Ván - Native Brain',
+          dialog_title: 'Loại Ván',
           preferences_key: 'MH_Van',
           scrollable: true,
           resizable: true,
@@ -2241,14 +2241,6 @@ module MH
       command.status_bar_text = 'Mở bảng Loại Ván của model hiện tại'
       UI.menu('Extensions').add_item(command)
       @menu_loaded = true
-    end
-
-    unless defined?(@native_branch_menu_loaded) && @native_branch_menu_loaded
-      command = UI::Command.new('MH Ván - Native Brain') { MH::Van.show }
-      command.tooltip = 'MH Ván - Native Brain'
-      command.status_bar_text = 'Mở bảng Loại Ván của nhánh native-brain'
-      UI.menu('Extensions').add_item(command)
-      @native_branch_menu_loaded = true
     end
 
     if @dialog && @dialog.visible?
