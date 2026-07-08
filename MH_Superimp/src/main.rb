@@ -2438,7 +2438,6 @@ module MH
           src_bb = defn.bounds
           transform = MH::Geo::Fit.scale_to_box(src_bb, bb.min, [target_sx, target_sy, target_sz])
           inst = ents.add_instance(defn, transform)
-          MH::Superimp.safe_redraw_dc(inst)
           ents.erase_entities(target_obj) if target_obj.valid?
           
           model.commit_operation
@@ -2523,8 +2522,7 @@ module MH
           bb = defn.bounds
           transform = MH::Geo::Fit.scale_to_box(bb, box_min, [box_sx, box_sy, box_sz])
           inst = ents.add_instance(defn, transform)
-          MH::Superimp.safe_redraw_dc(inst)
-          
+
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)
@@ -2570,8 +2568,7 @@ module MH
 
           transform = MH::Geo::Fit.scale_from_min(bb, target_pt, sx, sy, sz)
           inst = ents.add_instance(defn, transform)
-          MH::Superimp.safe_redraw_dc(inst)
-          
+
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)
@@ -2601,8 +2598,7 @@ module MH
           bb = defn.bounds
           transform = MH::Geo::Fit.scale_to_box(bb, box_min, [box_sx, box_sy, box_sz])
           inst = ents.add_instance(defn, transform)
-          MH::Superimp.safe_redraw_dc(inst)
-          
+
           model.commit_operation
           after_import_dc(inst) if inst.valid?
           finish_import_keep_tool(inst)

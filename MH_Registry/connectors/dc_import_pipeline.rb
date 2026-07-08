@@ -15,10 +15,11 @@ module MH
   module RegistryApp
     module Connectors
       module DCImportPipeline
-        DEFERRED_PROFILE_FINISH_DELAY = 0.35 unless const_defined?(:DEFERRED_PROFILE_FINISH_DELAY)
+        DEFERRED_PROFILE_FINISH_DELAY = 0.10 unless const_defined?(:DEFERRED_PROFILE_FINISH_DELAY)
 
         module_function
         def after_import_dc(instance, context = {})
+          started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
           profile = if context && context[:material_profile].is_a?(Hash)
                       context[:material_profile]
                     elsif context && context['material_profile'].is_a?(Hash)
@@ -48,7 +49,13 @@ module MH
 
           apply_profile(instance, profile) if instance && instance.valid?
 
-          MH::RegistryApp.dbg("[DCImportPipeline] after_import_dc pid=#{instance.persistent_id rescue '?'} profile=#{profile.inspect}") if MH::RegistryApp.respond_to?(:dbg)
+          setup_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000.0).round(1)
+          @last_profile_timing = {
+            'pid' => (instance.persistent_id rescue nil),
+            'setup_ms' => setup_ms,
+            'status' => 'pending'
+          }
+          MH::RegistryApp.dbg("[DCImportPipeline] after_import_dc pid=#{instance.persistent_id rescue '?'} setup_ms=#{setup_ms} profile=#{profile.inspect}") if MH::RegistryApp.respond_to?(:dbg)
           { 'ok' => true, 'profile' => profile, 'label' => profile_label(profile) }
         rescue => e
           MH::RegistryApp.dbg("[DCImportPipeline] after_import_dc error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
@@ -217,22 +224,10 @@ module MH
             model.commit_operation
           end
 
-          # Redraw DONG BO ngay sau commit: set_attribute_formula moi chi ghi
-          # _formula, gia tri thuc + geometry chi cap nhat khi DC redraw. Neu chi
-          # dua vao timer 0.05s, trong workflow HUD (tool dang active) timer co the
-          # khong kip/khong chay -> value & Component Options ket o so cu du formula
-          # da doi. Operation da commit o tren nen redraw_with_undo (mo operation
-          # rieng) KHONG nest. Bao boc rescue: neu context chua cho redraw (vd dang
-          # placement) thi timer ben duoi lo lai.
-          did_sync_redraw = false
-          begin
-            redraw_dc(instance)
-            did_sync_redraw = true
-          rescue => sync_error
-            MH::RegistryApp.dbg("[DCImportPipeline] sync redraw deferred to timer: #{sync_error.class}: #{sync_error.message}") if MH::RegistryApp.respond_to?(:dbg)
-          end
-
-          schedule_deferred_profile_finish(instance, profile, binding, inferred_thickness_params, did_sync_redraw)
+          # Redraw DC co the rat nang. Chay dong bo tai day se khoa callback click
+          # dat vi tri, trong khi pipeline vat lieu phia duoi von da can doi DC on
+          # dinh. De timer thuc hien mot lan redraw duy nhat sau khi callback tra ve.
+          schedule_deferred_profile_finish(instance, profile, binding, inferred_thickness_params, false)
         rescue => e
           model.abort_operation rescue nil
           raise e
@@ -257,16 +252,46 @@ module MH
               # Neu co binding thi DC phai tu cap nhat geometry tu input root.
               # Fallback scale tay chỉ dùng cho DC không có binding VÀ không suy
               # ra được tham số thickness thật từ formula.
+              phase_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
               redraw_dc(instance) unless did_sync_redraw
+              redraw_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - phase_started_at) * 1000.0).round(1)
+
+              geometry_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
               ensure_profile_geometry_thickness(instance, profile_snapshot) unless binding_snapshot || inferred_thickness_params
+              geometry_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - geometry_started_at) * 1000.0).round(1)
+
+              materials_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
               assign_profile_materials(instance, profile_snapshot)
+              materials_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - materials_started_at) * 1000.0).round(1)
+              total_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - phase_started_at) * 1000.0).round(1)
+              @last_profile_timing = {
+                'pid' => (instance.persistent_id rescue nil),
+                'setup_ms' => (@last_profile_timing && @last_profile_timing['setup_ms']),
+                'redraw_ms' => redraw_ms,
+                'geometry_ms' => geometry_ms,
+                'materials_ms' => materials_ms,
+                'total_ms' => total_ms,
+                'status' => 'finished'
+              }
+              if MH::RegistryApp.respond_to?(:dbg)
+                MH::RegistryApp.dbg("[DCImportPipeline] finish pid=#{instance.persistent_id rescue '?'} redraw_ms=#{redraw_ms} geometry_ms=#{geometry_ms} materials_ms=#{materials_ms} total_ms=#{total_ms}")
+              end
               Sketchup.status_text = "VL: #{profile_label(profile_snapshot)}"
             rescue => timer_error
+              @last_profile_timing = (@last_profile_timing || {}).merge(
+                'pid' => (instance.persistent_id rescue nil),
+                'status' => 'error',
+                'error' => "#{timer_error.class}: #{timer_error.message}"
+              )
               MH::RegistryApp.dbg("[DCImportPipeline] apply timer error: #{timer_error.class}: #{timer_error.message}") if MH::RegistryApp.respond_to?(:dbg)
             ensure
               @deferred_profile_finish_generations.delete(key) if @deferred_profile_finish_generations && @deferred_profile_finish_generations[key] == generation
             end
           end
+        end
+
+        def last_profile_timing
+          @last_profile_timing ? @last_profile_timing.dup : nil
         end
 
         def profile_thickness_changed?(instance, profile)

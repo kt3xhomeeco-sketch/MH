@@ -29,7 +29,7 @@ module MH
                              !binding['param_panel'].to_s.strip.empty? &&
                              binding['param_back'].to_s.strip.empty?
 
-          model.start_operation('MH DC Import Materials', true)
+          operation_started = false
           stats = { 'panel' => 0, 'back' => 0, 'excel' => 0, 'fallback' => 0, 'miss' => 0 }
           visible_groups(instance).each do |group|
             resolved = resolve_material_for_group(group, instance, profile, binding, product_code)
@@ -65,14 +65,18 @@ module MH
               stats['miss'] += 1 if !product_code.empty?
             end
             next if group.material == target && group.get_attribute('dynamic_attributes', 'material') == target.name
+            unless operation_started
+              model.start_operation('MH DC Import Materials', true)
+              operation_started = true
+            end
             assign_material(group, target)
             stats[is_back ? 'back' : 'panel'] += 1
           end
-          model.commit_operation
+          model.commit_operation if operation_started
           MH::RegistryApp.dbg("[DCImportPipeline] materials panel=#{stats['panel']} back=#{stats['back']} excel=#{stats['excel']} fallback=#{stats['fallback']} miss=#{stats['miss']}#{single_thickness ? ' (single-thickness)' : ''}") if MH::RegistryApp.respond_to?(:dbg)
           stats
         rescue => e
-          model.abort_operation rescue nil
+          model.abort_operation if operation_started rescue nil
           raise e
         end
 

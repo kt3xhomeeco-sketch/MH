@@ -137,6 +137,7 @@ module MH
           @manual_entry_groups_cache = nil
           @ordered_material_codes_cache = {}
           @material_code_key_cache = {}
+          @material_name_from_code_cache = {}
         end
 
         def profiles_from_config(data)

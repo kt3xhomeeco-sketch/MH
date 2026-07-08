@@ -93,10 +93,18 @@ module MH
         def material_name_from_code(material_code, actual_thickness)
           code = material_code.to_s.strip
           return '' if code.empty?
+          cache_key = [code.upcase, actual_thickness.to_f.round(4)]
+          @material_name_from_code_cache ||= {}
+          cached = @material_name_from_code_cache[cache_key]
+          return cached if cached
+
           connector = material_assign_connector rescue nil
           if connector && connector.respond_to?(:material_name_for_code)
             name = connector.material_name_for_code(code, actual_thickness.to_f)
-            return name.to_s unless name.to_s.empty?
+            unless name.to_s.empty?
+              @material_name_from_code_cache[cache_key] = name.to_s
+              return name.to_s
+            end
           end
 
           if defined?(MH::MaterialApp::MaterialCodeBuilder) &&
@@ -106,18 +114,27 @@ module MH
               actual_thickness.to_f,
               fallback_to_actual: true
             )
-            return name.to_s unless name.to_s.empty?
+            unless name.to_s.empty?
+              @material_name_from_code_cache[cache_key] = name.to_s
+              return name.to_s
+            end
           end
 
-          return code.sub(/^MH_/i, '') if code =~ /^MH_/i
+          if code =~ /^MH_/i
+            result = code.sub(/^MH_/i, '')
+            @material_name_from_code_cache[cache_key] = result
+            return result
+          end
 
           thickness_code = map_thickness(actual_thickness)
           parts = code.split('.').map(&:strip).reject(&:empty?)
-          if parts.length >= 2
-            ([parts[0], thickness_code] + parts[1..-1]).join('.')
-          else
-            "#{code}.#{thickness_code}"
-          end
+          result = if parts.length >= 2
+                     ([parts[0], thickness_code] + parts[1..-1]).join('.')
+                   else
+                     "#{code}.#{thickness_code}"
+                   end
+          @material_name_from_code_cache[cache_key] = result
+          result
         end
       end
     end
