@@ -1012,7 +1012,7 @@ module MH::Stretch
         Sketchup.active_model,
         stretch_bundle(operation, plane, planes),
         amount,
-        make_unique: true
+        make_unique: false
       )
     end
 
@@ -1098,7 +1098,9 @@ module MH::Stretch
     def finish_model_change(result, view)
       redraw_count =
         if result[:ok] && @dc_redraw_enabled
-          UiAdapter.schedule_redraw_dynamic_components(@pending_redraw_components)
+          UiAdapter.schedule_redraw_dynamic_components(@pending_redraw_components) do
+            refresh_after_dc_redraw
+          end
         else
           0
         end
@@ -1118,17 +1120,16 @@ module MH::Stretch
       @hover_dimension_axis = nil
       refresh_actual_bounds
       view.invalidate
-      view.refresh
-
-      UI.start_timer(0.12, false) do
-        refresh_actual_bounds
-        active_view = Sketchup.active_model.active_view
-        active_view.invalidate
-        active_view.refresh
-      end
     rescue => e
       warn "MH::Stretch refresh_ui_box failed: #{e.class}: #{e.message}"
       view.invalidate
+    end
+
+    def refresh_after_dc_redraw
+      refresh_actual_bounds
+      Sketchup.active_model.active_view.invalidate
+    rescue => e
+      warn "MH::Stretch post-redraw refresh failed: #{e.class}: #{e.message}"
     end
 
     def refresh_actual_bounds

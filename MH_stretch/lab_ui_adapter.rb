@@ -78,13 +78,19 @@ module MH::Stretch
       []
     end
 
-    def schedule_redraw_dynamic_components(components, delay: 0.05)
+    def schedule_redraw_dynamic_components(components, delay: 0.05, &after_redraw)
       components = components.to_a.select { |entity| entity && entity.valid? }
       return 0 if components.empty?
 
-      UI.start_timer(delay, false) { redraw_dynamic_components(components) }
+      UI.stop_timer(@redraw_timer_id) if @redraw_timer_id
+      @redraw_timer_id = UI.start_timer(delay, false) do
+        @redraw_timer_id = nil
+        redraw_dynamic_components(components)
+        after_redraw.call if after_redraw
+      end
       components.length
     rescue => error
+      @redraw_timer_id = nil
       warn "MH Stretch redraw schedule failed: #{error.class}: #{error.message}"
       0
     end
