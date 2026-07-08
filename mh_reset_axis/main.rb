@@ -7,7 +7,7 @@ module MH
     extend self
 
     PLUGIN_NAME = 'MH Reset Axis'.freeze
-    VERSION = '1.0.9'.freeze
+    VERSION = '1.0.10'.freeze
     EPSILON = 1.0e-6
     PARALLEL_COSINE = Math.cos(5.0 * Math::PI / 180.0)
     ORTHOGONAL_COSINE = Math.cos(85.0 * Math::PI / 180.0)
@@ -254,15 +254,16 @@ module MH
     end
 
     def orient_parent_axes(xaxis, yaxis, zaxis, mode)
+      target_y = dominant_world_axis(yaxis, [X_AXIS, Y_AXIS, Z_AXIS])
       target_x = if mode == MODE_VERTICAL
                    dominant_world_axis(xaxis, [X_AXIS, Y_AXIS])
                  else
-                   X_AXIS
+                   dominant_world_axis(xaxis, [X_AXIS, Y_AXIS, Z_AXIS])
                  end
       target_z = if mode == MODE_VERTICAL
                    dominant_world_axis(zaxis, [X_AXIS, Y_AXIS, Z_AXIS])
                  else
-                   Z_AXIS
+                   dominant_world_axis(zaxis, [X_AXIS, Y_AXIS, Z_AXIS])
                  end
 
       candidates = []
@@ -281,9 +282,9 @@ module MH
                       (x_candidate.dot(target_x) * 2.0) +
                       z_candidate.dot(target_z)
                   else
-                    x_candidate.dot(X_AXIS) +
-                      y_candidate.dot(Y_AXIS) +
-                      (z_candidate.dot(Z_AXIS) * 2.0)
+                    (y_candidate.dot(target_y) * 6.0) +
+                      (z_candidate.dot(target_z) * 2.0) +
+                      x_candidate.dot(target_x)
                   end
 
           candidates << [score, x_candidate, y_candidate, z_candidate]
@@ -431,17 +432,19 @@ module MH
 
     def orient_axes(instance, xaxis, yaxis, zaxis, mode)
       world_x_unsigned = world_direction(xaxis, instance)
+      world_y_unsigned = world_direction(yaxis, instance)
       world_z_unsigned = world_direction(zaxis, instance)
 
+      target_y = dominant_world_axis(world_y_unsigned, [X_AXIS, Y_AXIS, Z_AXIS])
       target_x = if mode == MODE_VERTICAL
                    dominant_world_axis(world_x_unsigned, [X_AXIS, Y_AXIS])
                  else
-                   X_AXIS
+                   dominant_world_axis(world_x_unsigned, [X_AXIS, Y_AXIS, Z_AXIS])
                  end
       target_z = if mode == MODE_VERTICAL
                    dominant_world_axis(world_z_unsigned, [X_AXIS, Y_AXIS, Z_AXIS])
                  else
-                   Z_AXIS
+                   dominant_world_axis(world_z_unsigned, [X_AXIS, Y_AXIS, Z_AXIS])
                  end
 
       candidates = []
@@ -464,9 +467,9 @@ module MH
                       (world_x.dot(target_x) * 2.0) +
                       world_z.dot(target_z)
                   else
-                    world_x.dot(X_AXIS) +
-                      world_y.dot(Y_AXIS) +
-                      (world_z.dot(Z_AXIS) * 2.0)
+                    (world_y.dot(target_y) * 6.0) +
+                      (world_z.dot(target_z) * 2.0) +
+                      world_x.dot(target_x)
                   end
 
           candidates << [score, x_candidate, y_candidate, z_candidate]

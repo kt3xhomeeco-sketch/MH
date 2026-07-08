@@ -12,7 +12,7 @@ module MH
 
     EXTENSION.creator = 'MH'
     EXTENSION.description = 'Reset trục Group/Component theo kích thước và phương đứng.'
-    EXTENSION.version = '1.0.9'
+    EXTENSION.version = '1.0.10'
     EXTENSION.copyright = '2026 MH'
 
     Sketchup.register_extension(EXTENSION, true)
