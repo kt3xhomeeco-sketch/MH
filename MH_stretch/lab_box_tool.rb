@@ -3,12 +3,18 @@
 module MH::Stretch
   class BoxTool
     DRAG_THRESHOLD_PX = 3
-    AXIS_KEYS = { 39 => :x, 37 => :y, 38 => :z }.freeze
+    DIMENSION_AXIS_KEYS = { 39 => :x, 40 => :y, 38 => :z }.freeze
     PREF_SECTION = 'MH::Stretch'.freeze
     PREF_PLANE_GRIPS = 'show_plane_grips'.freeze
     PREF_DEFAULT_PLANE = 'show_default_plane'.freeze
     PREF_ALLOW_EXTRA_PLANES = 'allow_extra_planes'.freeze
     PREF_DC_REDRAW = 'dc_redraw_enabled'.freeze
+    PREF_OFFSET_PLANES = 'offset_planes_enabled'.freeze
+    PREF_OFFSET_DISTANCE = 'offset_plane_distance'.freeze
+    PREF_OFFSET_COUNT = 'offset_plane_count'.freeze
+    PREF_DIM_OFFSET_AXIS = 'dimension_offset_axis'.freeze
+    PREF_DIM_OFFSET_AXES = 'dimension_offset_axes'.freeze
+    DEFAULT_OFFSET_DISTANCE = 20.mm
 
     def initialize
       @state = State.new
@@ -39,6 +45,12 @@ module MH::Stretch
         Sketchup.read_default(PREF_SECTION, PREF_ALLOW_EXTRA_PLANES, true) != false
       @dc_redraw_enabled =
         Sketchup.read_default(PREF_SECTION, PREF_DC_REDRAW, true) != false
+      @offset_planes_enabled =
+        truthy_pref?(Sketchup.read_default(PREF_SECTION, PREF_OFFSET_PLANES, false))
+      @offset_plane_distance = read_offset_plane_distance
+      @offset_plane_count =
+        Sketchup.read_default(PREF_SECTION, PREF_OFFSET_COUNT, 1).to_i == 2 ? 2 : 1
+      @dimension_offset_axes = read_dimension_offset_axes
       @pending_redraw_components = []
     end
 
@@ -192,7 +204,7 @@ module MH::Stretch
       when 46
         delete_active_plane
       else
-        set_axis_from_key(key)
+        return input_dimension_from_key(key, view)
       end
       refresh_creation_preview(view)
       update_status
@@ -224,6 +236,25 @@ module MH::Stretch
       end
       settings.set_validation_proc(redraw_item) do
         @dc_redraw_enabled ? MF_CHECKED : MF_UNCHECKED
+      end
+      settings.add_separator
+      offset_item = settings.add_item('Tự đặt plane theo offset') do
+        toggle_offset_planes
+      end
+      settings.set_validation_proc(offset_item) do
+        @offset_planes_enabled ? MF_CHECKED : MF_UNCHECKED
+      end
+      settings.add_item("Cài offset plane (#{offset_plane_label})") do
+        configure_offset_planes
+      end
+      move_axis_menu = settings.add_submenu("Trục move sau space: #{dimension_offset_axes_label}")
+      BoxModel::AXES.each do |axis|
+        item = move_axis_menu.add_item(axis.to_s.upcase) do
+          toggle_dimension_offset_axis(axis)
+        end
+        move_axis_menu.set_validation_proc(item) do
+          @dimension_offset_axes.include?(axis) ? MF_CHECKED : MF_UNCHECKED
+        end
       end
       menu.add_separator
       menu.add_item('Make unique selection ngay') { make_unique_selection_now; Sketchup.active_model.active_view.invalidate }
@@ -423,7 +454,11 @@ module MH::Stretch
         @show_default_plane
       )
 
-      if @show_default_plane
+      if @offset_planes_enabled
+        @planes.clear_defaults!
+        @planes.clear_hidden_defaults!
+        ensure_active_axis_plane if @active_axis
+      elsif @show_default_plane
         @planes.clear_hidden_defaults!
         ensure_active_axis_plane if @active_axis
       else
@@ -457,6 +492,67 @@ module MH::Stretch
       )
       Sketchup.status_text =
         @dc_redraw_enabled ? 'MH Stretch | Redraw DC: bật' : 'MH Stretch | Redraw DC: tắt'
+    end
+
+    def toggle_offset_planes
+      @offset_planes_enabled = !@offset_planes_enabled
+      Sketchup.write_default(
+        PREF_SECTION,
+        PREF_OFFSET_PLANES,
+        @offset_planes_enabled
+      )
+      if @offset_planes_enabled
+        @planes.clear_defaults!
+        @planes.clear_hidden_defaults!
+        ensure_active_axis_plane if @active_axis
+      else
+        @planes.clear_offset_planes!
+        ensure_active_axis_plane if @active_axis
+      end
+      @creation_preview = nil
+      Sketchup.status_text =
+        @offset_planes_enabled ? 'MH Stretch | Offset plane: bật' : 'MH Stretch | Offset plane: tắt'
+      Sketchup.active_model.active_view.invalidate
+    end
+
+    def configure_offset_planes
+      result = UI.inputbox(
+        ['Offset cách mép:', 'Số mặt offset (1 hoặc 2):'],
+        [Sketchup.format_length(@offset_plane_distance), @offset_plane_count.to_s],
+        'MH Stretch - Offset Plane'
+      )
+      return unless result
+
+      distance = parse_length(result[0])
+      count = result[1].to_i
+      unless distance && distance >= 0 && [1, 2].include?(count)
+        UI.messagebox('Offset không hợp lệ. Nhập khoảng cách >= 0 và số mặt là 1 hoặc 2.')
+        return
+      end
+
+      @offset_plane_distance = distance.to_f
+      @offset_plane_count = count
+      Sketchup.write_default(PREF_SECTION, PREF_OFFSET_DISTANCE, Sketchup.format_length(@offset_plane_distance))
+      Sketchup.write_default(PREF_SECTION, PREF_OFFSET_COUNT, @offset_plane_count)
+      sync_offset_planes if @offset_planes_enabled
+      Sketchup.status_text = "MH Stretch | Offset plane #{offset_plane_label}."
+      Sketchup.active_model.active_view.invalidate
+    end
+
+    def toggle_dimension_offset_axis(axis)
+      axis = normalize_axis_pref(axis)
+      if @dimension_offset_axes.include?(axis)
+        if @dimension_offset_axes.length <= 1
+          Sketchup.status_text = 'MH Stretch | Phải giữ ít nhất 1 trục move sau space.'
+          return
+        end
+        @dimension_offset_axes = @dimension_offset_axes - [axis]
+      else
+        @dimension_offset_axes = (@dimension_offset_axes + [axis]).uniq
+      end
+      write_dimension_offset_axes
+      Sketchup.status_text = "MH Stretch | Move sau space chọn trục #{dimension_offset_axes_label}."
+      Sketchup.active_model.active_view.invalidate
     end
 
     def make_unique_selection_now
@@ -751,6 +847,56 @@ module MH::Stretch
       nil
     end
 
+    def read_offset_plane_distance
+      stored = Sketchup.read_default(PREF_SECTION, PREF_OFFSET_DISTANCE, Sketchup.format_length(DEFAULT_OFFSET_DISTANCE))
+      value = stored.is_a?(Numeric) ? stored.to_f : parse_length(stored)
+      value && value >= 0 ? value.to_f : DEFAULT_OFFSET_DISTANCE
+    rescue
+      DEFAULT_OFFSET_DISTANCE
+    end
+
+    def truthy_pref?(value)
+      value == true || value.to_s.downcase == 'true'
+    end
+
+    def normalize_axis_pref(value)
+      axis = value.to_s.downcase.to_sym
+      BoxModel::AXES.include?(axis) ? axis : :x
+    end
+
+    def read_dimension_offset_axes
+      stored = Sketchup.read_default(PREF_SECTION, PREF_DIM_OFFSET_AXES, nil)
+      axes = parse_axes_pref(stored)
+      if axes.empty?
+        axes = [normalize_axis_pref(Sketchup.read_default(PREF_SECTION, PREF_DIM_OFFSET_AXIS, :x))]
+      end
+      axes.empty? ? [:x] : axes
+    rescue
+      [:x]
+    end
+
+    def parse_axes_pref(value)
+      value.to_s.split(/[,\s]+/).each_with_object([]) do |item, axes|
+        axis = normalize_axis_pref(item)
+        axes << axis if BoxModel::AXES.include?(axis) && !axes.include?(axis)
+      end
+    end
+
+    def write_dimension_offset_axes
+      @dimension_offset_axes = [:x] if @dimension_offset_axes.to_a.empty?
+      Sketchup.write_default(PREF_SECTION, PREF_DIM_OFFSET_AXES, @dimension_offset_axes.map(&:to_s).join(','))
+    end
+
+    def offset_plane_label
+      "#{Sketchup.format_length(@offset_plane_distance)}, #{@offset_plane_count} mặt"
+    rescue
+      "#{@offset_plane_distance.to_f.to_mm.round(2)}mm, #{@offset_plane_count} mặt"
+    end
+
+    def dimension_offset_axes_label
+      @dimension_offset_axes.to_a.map { |axis| axis.to_s.upcase }.join('+')
+    end
+
     def current_dimension_text(current)
       Sketchup.format_length(current)
     rescue
@@ -770,32 +916,47 @@ module MH::Stretch
     end
 
     def apply_dimension_view_offset(view, offset)
-      return unless offset
+      return 0 unless offset
 
       model = Sketchup.active_model
       targets = model.selection.to_a
-      return if targets.empty?
+      return 0 if targets.empty?
 
-      vector = dominant_view_offset_vector(view, offset)
-      return if vector.length <= 1e-6
+      vector = dimension_offset_vector(view, offset)
+      return 0 if vector.length <= 1e-6
 
-      model.start_operation('MH Stretch Dimension View Offset', true)
+      model.start_operation('MH Stretch Dimension Axis Offset', true)
       model.active_entities.transform_entities(Geom::Transformation.translation(vector), targets)
       model.commit_operation
+      targets.length
     rescue => error
       model.abort_operation rescue nil
-      warn "MH::Stretch dimension view offset failed: #{error.class}: #{error.message}"
+      warn "MH::Stretch dimension axis offset failed: #{error.class}: #{error.message}"
+      0
     end
 
-    def dominant_view_offset_vector(view, offset)
-      distance = offset.to_f
-      direction = view.camera.direction.clone
-      direction.normalize!
-      direction = direction.reverse if distance.negative?
-      direction.length = distance.abs
-      direction
+    def dimension_offset_vector(view, offset)
+      axis, sign = dimension_offset_axis_from_view(view)
+      BoxModel.axis_delta_vector(axis, offset.to_f * sign)
     rescue
       Geom::Vector3d.new(0, 0, 0)
+    end
+
+    def dimension_offset_axis_from_view(view)
+      direction = view.camera.direction.clone
+      direction.normalize!
+      axes = @dimension_offset_axes.to_a.empty? ? [:x] : @dimension_offset_axes
+      best =
+        axes.map do |axis|
+          vector = axis_vector(axis)
+          dot = direction.dot(vector)
+          [axis, dot, dot.abs]
+        end.max_by { |item| item[2] }
+      axis = best ? best[0] : :x
+      dot = best ? best[1] : 1.0
+      [axis, dot.negative? ? -1.0 : 1.0]
+    rescue
+      [:x, 1.0]
     end
 
     def input_dimension(axis, view)
@@ -830,7 +991,15 @@ module MH::Stretch
       operation = build_grip_operation(axis, dimension_side, plane, cuts: dimension_planes)
       result = commit_operation(operation, amount)
       result = correct_dimension_result(result, axis, dimension_side, target)
-      apply_dimension_view_offset(view, parsed_input[:view_offset]) if result[:ok]
+      moved_by_view_offset = apply_dimension_view_offset(view, parsed_input[:view_offset])
+      if moved_by_view_offset.positive?
+        result[:ok] = true
+        result[:changed] = result[:changed].to_i + moved_by_view_offset
+        result[:message] = [
+          result[:message].to_s,
+          "Move #{moved_by_view_offset} object theo hướng nhìn trong trục #{dimension_offset_axes_label}."
+        ].reject(&:empty?).join(' | ')
+      end
       @hover_dimension_axis = nil
       finish_model_change(result, view)
     end
@@ -921,6 +1090,13 @@ module MH::Stretch
       @ip.pick(view, x, y)
       return unless @ip.valid?
 
+      if plane[:kind] == :offset_auto
+        @offset_planes_enabled = false
+        Sketchup.write_default(PREF_SECTION, PREF_OFFSET_PLANES, false)
+        plane[:kind] = :user
+        @planes.clear_offset_planes!
+        Sketchup.status_text = 'MH Stretch | Đã chuyển offset plane thành plane user.'
+      end
       plane[:kind] = :user
       plane[:pos] = BoxModel.clamp_pos(BoxModel.axis_value(@ip.position, plane[:axis]), @bb, plane[:axis])
       @state.set_active(kind: :plane, id: plane[:id])
@@ -1137,7 +1313,11 @@ module MH::Stretch
       return if BoxModel.empty_bounds?(@bb)
 
       @planes.reclamp!(@bb)
-      if @show_default_plane
+      if @offset_planes_enabled
+        @planes.clear_defaults!
+        @planes.clear_hidden_defaults!
+        sync_offset_planes
+      elsif @show_default_plane
         @planes.clear_hidden_defaults!
         @planes.recenter_defaults!(@bb)
         if @active_axis && @planes.first_for_axis(@active_axis).nil?
@@ -1156,6 +1336,25 @@ module MH::Stretch
       source_bounds = outer_selection_bounds
       source_bounds = [@bb] if source_bounds.empty?
       @planes.sync_hidden_defaults!(@bb, axis, @active_side, source_bounds)
+    end
+
+    def sync_offset_planes(axis = @active_axis, side = @active_side)
+      return [] if BoxModel.empty_bounds?(@bb)
+      return [] unless @offset_planes_enabled
+      return [] unless axis
+
+      @planes.sync_offset_planes!(
+        @bb,
+        axis,
+        side || :plus,
+        @offset_plane_distance,
+        @offset_plane_count
+      )
+    end
+
+    def active_offset_plane(axis = @active_axis, side = @active_side)
+      planes = sync_offset_planes(axis, side)
+      planes.find { |plane| plane[:side] == (side || :plus) } || planes.first
     end
 
     def outer_selection_bounds
@@ -1292,6 +1491,7 @@ module MH::Stretch
     def active_plane_for(axis)
       active = @planes.by_id(@state.active_plane_id)
       return active if active && active[:axis] == axis
+      return active_offset_plane(axis, @active_side) if @offset_planes_enabled
 
       existing = @planes.first_for_axis(axis)
       return existing if existing
@@ -1499,12 +1699,14 @@ module MH::Stretch
       @state.set_active(kind: :handle, axis: @active_axis, side: @active_side)
     end
 
-    def set_axis_from_key(key)
-      axis = AXIS_KEYS[key]
+    def input_dimension_from_key(key, view)
+      axis = DIMENSION_AXIS_KEYS[key]
       return unless axis
 
-      switch_axis(axis, :plus)
-      @state.set_active(kind: :handle, axis: @active_axis, side: @active_side)
+      refresh_bounds
+      return if BoxModel.empty_bounds?(@bb)
+
+      input_dimension(axis, view)
     end
 
     def switch_axis(axis, side = :plus)
@@ -1517,6 +1719,14 @@ module MH::Stretch
 
     def ensure_active_axis_plane
       return nil unless @active_axis
+
+      if @offset_planes_enabled
+        @planes.clear_defaults!
+        @planes.clear_hidden_defaults!
+        plane = active_offset_plane(@active_axis, @active_side)
+        @state.set_active(plane ? { kind: :plane, id: plane[:id] } : nil)
+        return plane
+      end
 
       unless @show_default_plane
         sync_hidden_default_planes
@@ -1562,7 +1772,12 @@ module MH::Stretch
         elsif selection_empty?
           'MH Stretch | Hover object để xem dim | Click object để chọn UI box.'
         else
-          plane_mode = @allow_extra_planes ? 'Thêm plane: bật' : 'Thêm plane: tắt'
+          plane_mode =
+            if @offset_planes_enabled
+              "Offset plane: #{offset_plane_label}"
+            else
+              @allow_extra_planes ? 'Thêm plane: bật' : 'Thêm plane: tắt'
+            end
           "MH Stretch | Hover grip/plane để stretch | #{plane_mode}."
         end
       Sketchup.status_text = message

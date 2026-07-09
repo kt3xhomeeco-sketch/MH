@@ -89,6 +89,44 @@ module MH::Stretch
       hidden.first(positions.length)
     end
 
+    def sync_offset_planes!(bb, axis, side, distance, count)
+      return [] unless axis
+
+      @planes.delete_if { |plane| plane[:kind] == :offset_auto && plane[:axis] != axis }
+      count = count.to_i == 2 ? 2 : 1
+      offset = [distance.to_f, 0.0].max
+      min = BoxModel.axis_min(bb, axis)
+      max = BoxModel.axis_max(bb, axis)
+      specs =
+        if count == 2
+          [
+            { pos: min + offset, side: :minus },
+            { pos: max - offset, side: :plus }
+          ]
+        elsif side == :minus
+          [{ pos: min + offset, side: :minus }]
+        else
+          [{ pos: max - offset, side: :plus }]
+        end
+
+      offset_planes = @planes.select { |plane| plane[:kind] == :offset_auto && plane[:axis] == axis }
+      specs.each_with_index do |spec, index|
+        plane = offset_planes[index]
+        if plane
+          plane[:pos] = BoxModel.clamp_pos(spec[:pos], bb, axis)
+          plane[:side] = spec[:side]
+          plane[:usable] = BoxModel.usable_axis?(bb, axis)
+          plane[:hidden] = false
+        else
+          offset_planes[index] = add(axis, spec[:pos], spec[:side], :offset_auto, bb)
+        end
+      end
+
+      extra = offset_planes.drop(specs.length)
+      @planes.delete_if { |plane| extra.include?(plane) } if extra && !extra.empty?
+      offset_planes.first(specs.length)
+    end
+
     def clear_hidden_defaults!
       @planes.delete_if { |plane| plane[:kind] == :hidden_default }
     end
@@ -99,6 +137,10 @@ module MH::Stretch
 
     def clear_user!
       @planes.delete_if { |plane| plane[:kind] == :user }
+    end
+
+    def clear_offset_planes!
+      @planes.delete_if { |plane| plane[:kind] == :offset_auto }
     end
 
     def retain_axis!(axis)
