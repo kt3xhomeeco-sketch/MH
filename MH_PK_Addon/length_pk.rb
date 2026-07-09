@@ -85,7 +85,7 @@ module MH_PK_Addon
         face = placement_face(ents, world_tr)
         next unless face
 
-        face_tr = face_transform(face)
+        face_tr = face_transform(face, world_tr)
         next unless face_tr
 
         length_mm = data[:length_mm].to_f
@@ -99,10 +99,11 @@ module MH_PK_Addon
         target_data[:face_normal] = face.normal.to_s
         target_data[:target_persistent_id] = target.persistent_id rescue nil
 
-        size = marker_size_inches(target_data[:size_mm])
-        transform = free_marker_transform(ents, face, face_tr, size)
+        layout = marker_layout(target_data, face, face_tr, world_tr)
+        marker_data = with_text_layout(target_data, layout)
+        transform = free_marker_transform(ents, face, face_tr, layout[:size])
         transform = unscaled_local_transform(transform, world_tr)
-        marker = create_marker_group(ents, transform, target_data)
+        marker = create_marker_group(ents, transform, marker_data)
         next unless marker
 
         source = data[:length_mm].to_f > 0 ? data[:length_source].to_s : LENGTH_SOURCE_LONGEST_EDGE

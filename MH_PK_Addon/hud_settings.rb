@@ -220,6 +220,8 @@ module MH_PK_Addon
     hidden = hud_hidden_names
     color_rules = hud_label_color_rules
     labels = hud_all_leader_labels
+    marker_shape = default_shape
+    marker_size_mm = default_size_mm
     hidden_set = hidden.map { |n| search_text(n).strip }
 
     chips = labels.map do |label|
@@ -276,11 +278,16 @@ module MH_PK_Addon
         input.rule-color { width: 44px; height: 26px; padding: 0; border: 1px solid #aaa; }
         input.rule-text { width: 100%; box-sizing: border-box; padding: 5px 6px; border: 1px solid #ccc; border-radius: 3px; }
         .rule-actions { margin: 8px 0 10px; }
+        .field { margin-bottom: 12px; }
+        .field label { display: block; font-weight: bold; margin-bottom: 4px; }
+        .field select, .field input { width: 100%; box-sizing: border-box; padding: 6px;
+                                     border: 1px solid #ccc; border-radius: 4px; background: #fff; }
       </style></head>
       <body>
         <div class="tabs">
           <button class="tab-btn active" onclick="showTab('hidden', this)">Ẩn nhãn</button>
           <button class="tab-btn" onclick="showTab('colors', this)">Màu nhãn</button>
+          <button class="tab-btn" onclick="showTab('marker', this)">Hình dạng PK</button>
         </div>
 
         <div id="tab-hidden" class="tab-panel active">
@@ -301,6 +308,24 @@ module MH_PK_Addon
           </table>
           <div class="rule-actions">
             <button onclick="addRule()">Thêm dòng</button>
+          </div>
+        </div>
+
+        <div id="tab-marker" class="tab-panel">
+          <h3>Hình dạng phụ kiện mới</h3>
+          <p class="hint">Chọn “Chữ single-line” để viết tên phụ kiện bằng nét Edge centerline trên mặt đặt PK.</p>
+          <div class="field">
+            <label for="markerShape">Hình dạng PK</label>
+            <select id="markerShape">
+              <option value="square"#{marker_shape == 'square' ? ' selected' : ''}>Vuông</option>
+              <option value="circle"#{marker_shape == 'circle' ? ' selected' : ''}>Tròn</option>
+              <option value="triangle"#{marker_shape == 'triangle' ? ' selected' : ''}>Tam giác</option>
+              <option value="text"#{marker_shape == 'text' ? ' selected' : ''}>Chữ single-line (Edge)</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="markerSize">Kích thước / chiều cao chữ (mm)</label>
+            <input id="markerSize" type="number" min="0.5" max="50" step="0.5" value="#{marker_size_mm}">
           </div>
         </div>
 
@@ -342,7 +367,12 @@ module MH_PK_Addon
               var text = tr.querySelector('.rule-text').value.trim();
               if (text) colors.push({ color: color, text: text });
             });
-            sketchup.save_settings(JSON.stringify({ hidden: names, colors: colors }));
+            sketchup.save_settings(JSON.stringify({
+              hidden: names,
+              colors: colors,
+              shape: document.getElementById('markerShape').value,
+              size_mm: parseFloat(document.getElementById('markerSize').value)
+            }));
           }
         </script>
       </body></html>
@@ -362,6 +392,12 @@ module MH_PK_Addon
       else
         save_hud_hidden_names(payload['hidden'] || [])
         save_hud_label_color_rules(payload['colors'] || [])
+        save_settings(
+          path: default_xlsx_path,
+          shape: payload['shape'] || default_shape,
+          size_mm: payload['size_mm'] || default_size_mm,
+          face_mode: default_face_mode
+        )
       end
       on_change.call if on_change
       dlg.close rescue nil

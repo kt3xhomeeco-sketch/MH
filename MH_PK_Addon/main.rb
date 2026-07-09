@@ -14,6 +14,7 @@ module MH_PK_Addon
     puts message if DEBUG
   end
 
+  Sketchup.require File.join(ROOT_DIR, 'single_line_font')
   Sketchup.require File.join(ROOT_DIR, 'core')
   Sketchup.require File.join(ROOT_DIR, 'length_pk')
   Sketchup.require File.join(ROOT_DIR, 'traceability')

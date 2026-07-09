@@ -7,11 +7,14 @@ module MH_PK_Addon
   DEFAULT_SIZE_MM = 4.0
   MIN_SIZE_MM = 0.5
   DEFAULT_SHAPE = 'square'.freeze
-  DEFAULT_FACE_MODE = 'largest'.freeze
+  DEFAULT_FACE_MODE = 'nearest'.freeze
   ACCESSORY_DICT = 'MH_PK_Addon_Accessory'.freeze
-  SHAPES = %w[square circle triangle].freeze
-  FACE_MODES = %w[largest smallest].freeze
+  SHAPES = %w[square circle triangle text].freeze
+  TEXT_MARKER_Z_OFFSET_MM = 0.1
+  FACE_MODES = %w[nearest nearest_largest largest smallest].freeze
   FACE_MODE_LABELS = {
+    'nearest' => 'nearest - mat gan camera',
+    'nearest_largest' => 'nearest-largest - mat gan camera lon nhat',
     'largest' => 'largest - mat lon nhat',
     'smallest' => 'smallest - mat nho nhat'
   }.freeze
@@ -288,7 +291,12 @@ module MH_PK_Addon
     name = target.name.to_s.strip
     name = target.definition.name.to_s.strip if name.empty? && target.respond_to?(:definition) && target.definition
     name = "Entity #{target.entityID}" if name.empty?
-    mode_text = default_face_mode == 'largest' ? 'mat lon nhat' : 'mat nho nhat'
+    mode_text = case default_face_mode
+                when 'nearest_largest' then 'mat gan camera lon nhat'
+                when 'largest' then 'mat lon nhat'
+                when 'smallest' then 'mat nho nhat'
+                else 'mat gan camera'
+                end
     {
       ok: !!face,
       text: face ? "Target: #{name} | #{mode_text}: #{face_area_for_placement(face, world_tr).round(4)} in2" : "Target: #{name} | khong co face truc tiep"
@@ -328,17 +336,78 @@ module MH_PK_Addon
   end
 
   def self.placement_face(entities, transform = nil)
-    default_face_mode == 'smallest' ? smallest_face(entities, transform) : largest_face(entities, transform)
+    case default_face_mode
+    when 'smallest' then smallest_face(entities, transform)
+    when 'largest' then largest_face(entities, transform)
+    when 'nearest_largest' then nearest_largest_face_to_camera(entities, transform)
+    else nearest_face_to_camera(entities, transform)
+    end
   rescue
-    largest_face(entities, transform) || smallest_face(entities, transform)
+    nearest_face_to_camera(entities, transform) || largest_face(entities, transform) || smallest_face(entities, transform)
   end
 
-  def self.face_transform(face)
+  def self.face_world_normal(face, transform = nil)
+    normal = face.normal.clone
+    normal = normal.transform(transform) if transform
+    normal.normalize! if normal.length > 0
+    normal
+  rescue
+    face.normal
+  end
+
+  # Mat co tam gan camera nhat trong cac face truc tiep cua object.
+  # HUD pick mat bang chuot khong qua ham nay, nen van dung mat user click.
+  def self.nearest_face_to_camera(entities, transform = nil)
+    faces = faces_for_placement(entities)
+    return nil if faces.empty?
+
+    eye = model.active_view.camera.eye
+    tr = transform || Geom::Transformation.new
+    faces.min_by { |face| eye.distance(face.bounds.center.transform(tr)) }
+  rescue
+    faces_for_placement(entities).first
+  end
+
+  # Mat gan camera nhung uu tien dien tich lon: loc cac mat dang quay ve camera,
+  # sau do chon mat lon nhat; neu khong loc duoc thi fallback ve largest.
+  def self.nearest_largest_face_to_camera(entities, transform = nil)
+    faces = faces_for_placement(entities)
+    return nil if faces.empty?
+
+    eye = model.active_view.camera.eye
+    tr = transform || Geom::Transformation.new
+    facing = faces.select do |face|
+      center = face.bounds.center.transform(tr)
+      to_eye = center.vector_to(eye)
+      normal = face_world_normal(face, tr)
+      normal.length > 0 && to_eye.length > 0 && normal.dot(to_eye) > 0
+    rescue
+      false
+    end
+    candidates = facing.empty? ? faces : facing
+    candidates.max_by do |face|
+      area = face_area_for_placement(face, tr)
+      distance = eye.distance(face.bounds.center.transform(tr))
+      [area, -distance]
+    end
+  rescue
+    largest_face(entities, transform) || nearest_face_to_camera(entities, transform)
+  end
+
+
+  def self.face_transform(face, world_tr = nil)
     return nil unless face
 
     origin = face.bounds.center
     normal = face.normal
-    edge = face.edges.max_by { |e| e.length rescue 0.0 }
+    # Chon canh dai nhat sau khi tinh scale cua Group/Component ngoai.
+    edge = face.edges.max_by do |candidate|
+      vector = candidate.start.position.vector_to(candidate.end.position)
+      vector = vector.transform(world_tr) if world_tr
+      vector.length
+    rescue
+      candidate.length rescue 0.0
+    end
     x_axis = edge ? edge.start.position.vector_to(edge.end.position) : normal.axes[0]
     x_axis = normal.axes[0] unless x_axis && x_axis.valid? && x_axis.length > 0
     x_axis.normalize!
@@ -358,6 +427,48 @@ module MH_PK_Addon
     mm = DEFAULT_SIZE_MM if mm <= 0
     mm = [[mm, MIN_SIZE_MM].max, 50.0].min
     mm / 25.4
+  end
+
+  def self.fit_text_size_inches(label, nominal_size, max_width, max_height)
+    metrics = SingleLineFont.measure(label)
+    sizes = [nominal_size.to_f]
+    sizes << max_width.to_f / metrics[:width_em] if max_width.to_f > 0 && metrics[:width_em].to_f > 0
+    sizes << max_height.to_f / metrics[:height_em] if max_height.to_f > 0 && metrics[:height_em].to_f > 0
+    sizes.select { |value| value > 0 }.min || nominal_size.to_f
+  rescue
+    nominal_size.to_f
+  end
+
+  # Kich thuoc chu chi duoc thu nho, khong phong lon hon setting. Gioi han 90%
+  # bbox cua mat de chu khong cham canh object.
+  def self.marker_layout(data, face, face_tr, world_tr = nil)
+    nominal = marker_size_inches(data[:size_mm])
+    return { size: nominal, max_width: 0.0, max_height: 0.0 } unless data[:shape].to_s == 'text'
+
+    bounds = face_local_bounds(face, face_tr)
+    return { size: nominal, max_width: 0.0, max_height: 0.0 } unless bounds
+
+    x_scale = world_tr ? face_tr.xaxis.transform(world_tr).length : 1.0
+    y_scale = world_tr ? face_tr.yaxis.transform(world_tr).length : 1.0
+    x_scale = 1.0 if x_scale <= 0
+    y_scale = 1.0 if y_scale <= 0
+    max_width = (bounds[1] - bounds[0]).abs * x_scale * 0.90
+    max_height = (bounds[3] - bounds[2]).abs * y_scale * 0.90
+    label = display_name(data[:name], data[:spec])
+    size = fit_text_size_inches(label, nominal, max_width, max_height)
+    { size: size, max_width: max_width, max_height: max_height }
+  rescue
+    { size: marker_size_inches(data[:size_mm]), max_width: 0.0, max_height: 0.0 }
+  end
+
+  def self.with_text_layout(data, layout)
+    return data unless data[:shape].to_s == 'text'
+
+    data.merge(
+      render_size_mm: layout[:size].to_f * 25.4,
+      text_max_width_mm: layout[:max_width].to_f * 25.4,
+      text_max_height_mm: layout[:max_height].to_f * 25.4
+    )
   end
 
   def self.face_local_bounds(face, face_tr)
@@ -477,6 +588,30 @@ module MH_PK_Addon
     end
   end
 
+  # Tao ten PK bang font ky thuat single-line (chi Edge centerline, khong Face).
+  def self.add_text_marker_edges(entities, label, size)
+    edges = SingleLineFont.add_edges(
+      entities,
+      label,
+      size,
+      z: TEXT_MARKER_Z_OFFSET_MM / 25.4
+    )
+    return false if edges.empty?
+
+    mat = marker_material
+    edges.each { |edge| edge.material = mat if mat && edge.respond_to?(:material=) }
+    true
+  rescue => e
+    dbg("MH_PK_Addon text marker error: #{e.class}: #{e.message}") if respond_to?(:dbg)
+    false
+  end
+
+  def self.text_marker?(entity)
+    entity && entity.get_attribute('MH_Thongke', 'pk_shape').to_s == 'text'
+  rescue
+    false
+  end
+
   def self.marker_material
     mat = model.materials['MH_PK_Addon'] || model.materials.add('MH_PK_Addon')
     mat.color = Sketchup::Color.new(0, 0, 0)
@@ -510,6 +645,7 @@ module MH_PK_Addon
 
   def self.save_xlsx_path(path)
     model.set_attribute(ACCESSORY_DICT, 'xlsx_path', path.to_s)
+    MH::Settings.write('pk_addon', 'library_path', path.to_s, scope: :global) if ensure_settings_facade
   rescue
     nil
   end
@@ -529,10 +665,20 @@ module MH_PK_Addon
     DEFAULT_SIZE_MM
   end
 
+  def self.default_tag_name
+    settings_value('tag_name', model.get_attribute(ACCESSORY_DICT, 'tag_name', '')).to_s.strip
+  rescue
+    ''
+  end
+
   def self.normalize_face_mode(value, fallback = DEFAULT_FACE_MODE)
     str = value.to_s.strip.downcase
-    return 'largest' if str == 'largest' || str.include?('large') || str.include?('lon')
-    return 'smallest' if str == 'smallest' || str.include?('small') || str.include?('nho')
+    near_text = str.include?('near') || str.include?('camera') || str.include?('gan') || str.include?('gần')
+    large_text = str.include?('large') || str.include?('lon') || str.include?('lớn')
+    return 'nearest_largest' if str == 'nearest_largest' || str.include?('nearest-largest') || (near_text && large_text)
+    return 'nearest' if str == 'nearest' || str.include?('near') || str.include?('camera') || str.include?('gan')
+    return 'largest' if str == 'largest' || large_text
+    return 'smallest' if str == 'smallest' || str.include?('small') || str.include?('nho') || str.include?('nhỏ')
 
     FACE_MODES.include?(fallback.to_s) ? fallback.to_s : DEFAULT_FACE_MODE
   rescue
@@ -551,11 +697,24 @@ module MH_PK_Addon
     FACE_MODE_LABELS[DEFAULT_FACE_MODE]
   end
 
-  def self.save_settings(path:, shape:, size_mm:, face_mode: nil)
+  def self.save_settings(path:, shape:, size_mm:, face_mode: nil, tag_name: nil)
+    shape = SHAPES.include?(shape.to_s) ? shape.to_s : DEFAULT_SHAPE
+    size_mm = size_mm.to_f
+    size_mm = DEFAULT_SIZE_MM if size_mm <= 0
+    face_mode = normalize_face_mode(face_mode, default_face_mode)
+    tag_name = default_tag_name if tag_name.nil?
+    tag_name = tag_name.to_s.strip
     save_xlsx_path(path)
-    model.set_attribute(ACCESSORY_DICT, 'shape', SHAPES.include?(shape.to_s) ? shape.to_s : DEFAULT_SHAPE)
-    model.set_attribute(ACCESSORY_DICT, 'size_mm', size_mm.to_f)
-    model.set_attribute(ACCESSORY_DICT, 'face_mode', normalize_face_mode(face_mode, default_face_mode))
+    model.set_attribute(ACCESSORY_DICT, 'shape', shape)
+    model.set_attribute(ACCESSORY_DICT, 'size_mm', size_mm)
+    model.set_attribute(ACCESSORY_DICT, 'face_mode', face_mode)
+    model.set_attribute(ACCESSORY_DICT, 'tag_name', tag_name)
+    if ensure_settings_facade
+      MH::Settings.write('pk_addon', 'shape', shape, scope: :global)
+      MH::Settings.write('pk_addon', 'size_mm', size_mm, scope: :global)
+      MH::Settings.write('pk_addon', 'face_mode', face_mode, scope: :global)
+      MH::Settings.write('pk_addon', 'tag_name', tag_name, scope: :global)
+    end
   rescue
     nil
   end
@@ -641,22 +800,194 @@ module MH_PK_Addon
     spec = data[:spec].to_s.strip
     label = display_name(name, spec)
     shape = data[:shape].to_s.empty? ? 'square' : data[:shape].to_s
-    size = marker_size_inches(data[:size_mm])
+    render_size_mm = data[:render_size_mm].to_f
+    size = render_size_mm > 0 ? render_size_mm / 25.4 : marker_size_inches(data[:size_mm])
 
     group = entities.add_group
     group.name = label
-    points = marker_points(shape, size)
-    face = group.entities.add_face(points) rescue nil
-    edges = face ? face.edges : points.each_with_index.map { |pt, idx| group.entities.add_line(pt, points[(idx + 1) % points.length]) }
-    mat = marker_material
-    if mat
-      face.material = mat if face
-      face.back_material = mat if face
-      edges.each { |edge| edge.material = mat if edge.respond_to?(:material=) }
+    assign_marker_tag(group, data.key?(:tag_name) ? data[:tag_name] : default_tag_name)
+    if shape == 'text'
+      unless add_text_marker_edges(group.entities, label, size)
+        group.erase! if group.valid?
+        raise "Khong tao duoc chu Edge cho PK: #{label}"
+      end
+    else
+      points = marker_points(shape, size)
+      face = group.entities.add_face(points) rescue nil
+      edges = face ? face.edges : points.each_with_index.map { |pt, idx| group.entities.add_line(pt, points[(idx + 1) % points.length]) }
+      mat = marker_material
+      if mat
+        face.material = mat if face
+        face.back_material = mat if face
+        edges.each { |edge| edge.material = mat if edge.respond_to?(:material=) }
+      end
     end
     group.transformation = transform
     set_marker_attributes(group, data.merge(label: label, shape: shape))
     group
+  end
+
+  def self.marker_shape(entity)
+    shape = entity.get_attribute('MH_Thongke', 'pk_shape').to_s
+    shape = entity.get_attribute('MH_PK_Addon', 'shape').to_s if shape.empty?
+    SHAPES.include?(shape) ? shape : default_shape
+  rescue
+    default_shape
+  end
+
+  def self.rebuild_marker_geometry(marker, label, shape, size)
+    ents = target_entities(marker)
+    return false unless ents
+
+    old_entities = ents.to_a
+    ents.erase_entities(old_entities) unless old_entities.empty?
+    if shape.to_s == 'text'
+      add_text_marker_edges(ents, label, size)
+    else
+      points = marker_points(shape, size)
+      face = ents.add_face(points) rescue nil
+      edges = face ? face.edges : points.each_with_index.map { |pt, idx| ents.add_line(pt, points[(idx + 1) % points.length]) }
+      mat = marker_material
+      if mat
+        face.material = mat if face
+        face.back_material = mat if face
+        edges.each { |edge| edge.material = mat if edge.respond_to?(:material=) }
+      end
+      true
+    end
+  rescue => e
+    dbg("MH_PK_Addon rebuild marker error: #{e.class}: #{e.message}") if respond_to?(:dbg)
+    false
+  end
+
+  def self.pk_markers_in_entities(entities)
+    found = []
+    visited = {}
+    walk = lambda do |ents|
+      return unless ents
+      key = ents.object_id
+      return if visited[key]
+
+      visited[key] = true
+      ents.each do |entity|
+        next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+        next unless live_entity?(entity)
+
+        if pk_marker?(entity)
+          found << entity
+          next
+        end
+
+        walk.call(target_entities(entity))
+      end
+    end
+    walk.call(entities)
+    found
+  rescue
+    []
+  end
+
+  def self.unique_entities(entities)
+    seen = {}
+    Array(entities).select do |entity|
+      next false unless live_entity?(entity)
+
+      key = entity.persistent_id rescue entity.entityID
+      next false if seen[key]
+
+      seen[key] = true
+      true
+    end
+  rescue
+    Array(entities).compact
+  end
+
+  def self.marker_size_update_targets
+    selected = model.selection.to_a
+    markers = selected.select { |entity| pk_marker?(entity) }
+    selected.each do |entity|
+      next if pk_marker?(entity)
+      ents = target_entities(entity)
+      markers.concat(pk_markers_in_entities(ents)) if ents
+    end
+
+    if markers.empty?
+      selected_targets.each do |target|
+        ents = target_entities(target)
+        markers.concat(pk_markers_in_entities(ents)) if ents
+      end
+    end
+
+    markers = pk_markers_in_model.map { |item| item[:marker] } if markers.empty?
+    unique_entities(markers)
+  rescue
+    []
+  end
+
+  def self.update_marker_size(marker, size_mm = default_size_mm)
+    return false unless live_entity?(marker) && pk_marker?(marker)
+
+    shape = marker_shape(marker)
+    label = accessory_label(marker).to_s.strip
+    label = marker.name.to_s.strip if label.empty?
+    label = 'Phu kien' if label.empty?
+
+    nominal_size = marker_size_inches(size_mm)
+    actual_size = nominal_size
+    if shape == 'text'
+      max_width = marker.get_attribute('MH_PK_Addon', 'text_max_width_mm').to_f / 25.4
+      max_height = marker.get_attribute('MH_PK_Addon', 'text_max_height_mm').to_f / 25.4
+      actual_size = fit_text_size_inches(label, nominal_size, max_width, max_height)
+    end
+
+    return false unless rebuild_marker_geometry(marker, label, shape, actual_size)
+
+    if shape == 'text'
+      marker.set_attribute('MH_PK_Addon', 'text_size_mm', actual_size * 25.4)
+      marker.set_attribute('MH_PK_Addon', 'text_nominal_size_mm', size_mm.to_f)
+    end
+    marker.set_attribute('MH_Thongke', 'pk_shape', shape)
+    marker.set_attribute('MH_Thongke', 'last_modified', Time.now.strftime('%d/%m/%y %H:%M'))
+    true
+  rescue => e
+    dbg("MH_PK_Addon update marker size error: #{e.class}: #{e.message}") if respond_to?(:dbg)
+    false
+  end
+
+  def self.update_marker_sizes(size_mm = default_size_mm)
+    mdl = nil
+    count = 0
+    total = 0
+    with_mh_thongke_mini_suspended do
+      mdl = model
+      targets = marker_size_update_targets
+      raise 'Khong tim thay marker PK de update kich thuoc.' if targets.empty?
+
+      mdl.start_operation('MH PK Update Marker Size', true)
+      targets.each do |marker|
+        total += 1
+        count += 1 if update_marker_size(marker, size_mm)
+      end
+      mdl.commit_operation
+      refresh_abf_statistics
+      { count: count, total: total, size_mm: size_mm.to_f }
+    end
+  rescue => e
+    model.abort_operation rescue nil
+    raise e
+  end
+
+  def self.assign_marker_tag(entity, tag_name)
+    name = tag_name.to_s.strip
+    return entity if name.empty? || !entity
+
+    tag = model.layers[name] || model.layers.add(name)
+    entity.layer = tag if tag
+    entity.set_attribute('MH_PK_Addon', 'tag_name', name)
+    entity
+  rescue => e
+    dbg("MH_PK_Addon assign tag error: #{e.class}: #{e.message}") if respond_to?(:dbg)
+    entity
   end
 
   def self.convert_marker_faces_to_edges(entity)
@@ -772,6 +1103,14 @@ module MH_PK_Addon
     group.set_attribute('MH_PK_Addon', 'generated_pk', 'true')
     group.set_attribute('MH_PK_Addon', 'version', VERSION)
     group.set_attribute('MH_PK_Addon', 'pk_uid', uid)
+    if data[:shape].to_s == 'text'
+      actual_size = data[:render_size_mm].to_f
+      actual_size = data[:size_mm].to_f if actual_size <= 0
+      group.set_attribute('MH_PK_Addon', 'text_size_mm', actual_size)
+      group.set_attribute('MH_PK_Addon', 'text_nominal_size_mm', data[:size_mm].to_f)
+      group.set_attribute('MH_PK_Addon', 'text_max_width_mm', data[:text_max_width_mm].to_f)
+      group.set_attribute('MH_PK_Addon', 'text_max_height_mm', data[:text_max_height_mm].to_f)
+    end
 
     # Keep MH_Thongke nesting exclusion, but still write the ABF statistic attrs
     # required by the ABF statistics dialog.
@@ -808,7 +1147,7 @@ module MH_PK_Addon
       group.set_attribute('ABF', 'is-side-drill', true)
     end
 
-    ensure_marker_face(group)
+    ensure_marker_face(group) unless data[:shape].to_s == 'text'
   end
 
   def self.apply_abf_stat_attrs(entity, label, target = nil)
@@ -833,7 +1172,7 @@ module MH_PK_Addon
       entity.set_attribute('ABF', 'face-drill-group-id', target_pid.to_i) rescue nil
       entity.set_attribute('ABF', 'is-side-drill', true) rescue nil
     end
-    ensure_marker_face(entity)
+    ensure_marker_face(entity) unless text_marker?(entity)
   rescue
     nil
   end
@@ -1752,18 +2091,19 @@ module MH_PK_Addon
       face = placement_face(ents, world_tr)
       raise 'Object dich khong co face truc tiep de gan PK.' unless face
 
-      face_tr = face_transform(face)
+      face_tr = face_transform(face, world_tr)
       raise 'Khong tinh duoc mat gan PK.' unless face_tr
 
       added = []
       data[:face_normal] = face.normal.to_s
       data[:target_persistent_id] = target.persistent_id rescue nil
       mdl.start_operation('MH PK Add', true)
+      layout = marker_layout(data, face, face_tr, world_tr)
+      marker_data = with_text_layout(data, layout)
       data[:qty].times do
-        size = marker_size_inches(data[:size_mm])
-        transform = free_marker_transform(ents, face, face_tr, size)
+        transform = free_marker_transform(ents, face, face_tr, layout[:size])
         transform = unscaled_local_transform(transform, world_tr)
-        added << create_marker_group(ents, transform, data)
+        added << create_marker_group(ents, transform, marker_data)
       end
       mdl.commit_operation
       restore_selection(mdl, original_selection)
@@ -1800,7 +2140,7 @@ module MH_PK_Addon
         face = placement_face(ents, world_tr)
         next unless face
 
-        face_tr = face_transform(face)
+        face_tr = face_transform(face, world_tr)
         next unless face_tr
 
         target_data = data.dup
@@ -1810,11 +2150,12 @@ module MH_PK_Addon
         target_data[:face_normal] = face.normal.to_s
         target_data[:target_persistent_id] = target.persistent_id rescue nil
 
+        layout = marker_layout(target_data, face, face_tr, world_tr)
+        marker_data = with_text_layout(target_data, layout)
         target_data[:qty].times do
-          size = marker_size_inches(target_data[:size_mm])
-          transform = free_marker_transform(ents, face, face_tr, size)
+          transform = free_marker_transform(ents, face, face_tr, layout[:size])
           transform = unscaled_local_transform(transform, world_tr)
-          marker = create_marker_group(ents, transform, target_data)
+          marker = create_marker_group(ents, transform, marker_data)
           added << marker if marker
         end
         affected << target
@@ -1859,7 +2200,7 @@ module MH_PK_Addon
         face = placement_face(ents, world_tr)
         next unless face
 
-        face_tr = face_transform(face)
+        face_tr = face_transform(face, world_tr)
         next unless face_tr
 
         target_data = data.dup
@@ -1870,11 +2211,12 @@ module MH_PK_Addon
         target_data[:face_normal] = face.normal.to_s
         target_data[:target_persistent_id] = target.persistent_id rescue nil
 
+        layout = marker_layout(target_data, face, face_tr, world_tr)
+        marker_data = with_text_layout(target_data, layout)
         target_data[:qty].times do
-          size = marker_size_inches(target_data[:size_mm])
-          transform = free_marker_transform(ents, face, face_tr, size)
+          transform = free_marker_transform(ents, face, face_tr, layout[:size])
           transform = unscaled_local_transform(transform, world_tr)
-          marker = create_marker_group(ents, transform, target_data)
+          marker = create_marker_group(ents, transform, marker_data)
           added << marker if marker
         end
         affected << target
@@ -1954,10 +2296,10 @@ module MH_PK_Addon
       end
       raise 'Mat gan PK khong con hop le.' unless face && face.valid?
 
-      face_tr = face_transform(face)
+      world_tr = hover_ctx[:target_world_tr] || entity_world_transform(target)
+      face_tr = face_transform(face, world_tr)
       raise 'Khong tinh duoc mat gan PK.' unless face_tr
 
-      world_tr = hover_ctx[:target_world_tr] || entity_world_transform(target)
       detected_product = detect_product_code(target)
       data[:product_code] = product_code_base(detected_product) unless detected_product.to_s.empty?
       data[:ten_sp] = product_name_from_excel(data[:product_code]) if data[:ten_sp].to_s.strip.empty? && !data[:product_code].to_s.empty?
@@ -1965,10 +2307,11 @@ module MH_PK_Addon
       data[:face_normal] = face.normal.to_s
       data[:target_persistent_id] = target.persistent_id rescue nil
 
-      size = marker_size_inches(data[:size_mm])
-      transform = free_marker_transform(ents, face, face_tr, size)
+      layout = marker_layout(data, face, face_tr, world_tr)
+      marker_data = with_text_layout(data, layout)
+      transform = free_marker_transform(ents, face, face_tr, layout[:size])
       transform = unscaled_local_transform(transform, world_tr)
-      marker = create_marker_group(ents, transform, data)
+      marker = create_marker_group(ents, transform, marker_data)
       raise 'Khong tao duoc PK.' unless marker
 
       if data[:length_mode]
@@ -2015,6 +2358,22 @@ module MH_PK_Addon
       marker.set_attribute('MH_Thongke', 'last_modified', Time.now.strftime('%d/%m/%y %H:%M'))
       marker.set_attribute('ABF', 'setting-name', label)
       marker.set_attribute('ABF', 'statistical-name', label)
+      if text_marker?(marker)
+        ents = target_entities(marker)
+        raise 'Marker chu khong co entities hop le.' unless ents
+
+        old_entities = ents.to_a
+        ents.erase_entities(old_entities) unless old_entities.empty?
+        current_mm = marker.get_attribute('MH_PK_Addon', 'text_size_mm').to_f
+        current_mm = marker.get_attribute('MH_PK_Addon', 'text_nominal_size_mm').to_f if current_mm <= 0
+        current_mm = data[:size_mm].to_f if current_mm <= 0
+        current_mm = default_size_mm if current_mm <= 0
+        size = marker_size_inches(current_mm)
+        unless add_text_marker_edges(ents, label, size)
+          raise "Khong cap nhat duoc chu Edge cho PK: #{label}"
+        end
+        marker.set_attribute('MH_PK_Addon', 'text_size_mm', current_mm)
+      end
       trace_record_rename(marker, from_label, data)
       set_manual_label_override(marker, label)
       restore_manual_label_attrs(marker)
