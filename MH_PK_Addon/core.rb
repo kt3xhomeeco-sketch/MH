@@ -10,7 +10,7 @@ module MH_PK_Addon
   DEFAULT_FACE_MODE = 'nearest'.freeze
   ACCESSORY_DICT = 'MH_PK_Addon_Accessory'.freeze
   SHAPES = %w[square circle triangle text].freeze
-  TEXT_MARKER_Z_OFFSET_MM = 0.1
+  TEXT_MARKER_Z_OFFSET_MM = 0.0
   FACE_MODES = %w[nearest nearest_largest largest smallest].freeze
   FACE_MODE_LABELS = {
     'nearest' => 'nearest - mat gan camera',
@@ -399,7 +399,7 @@ module MH_PK_Addon
     return nil unless face
 
     origin = face.bounds.center
-    normal = face.normal
+    normal = face.normal.clone
     # Chon canh dai nhat sau khi tinh scale cua Group/Component ngoai.
     edge = face.edges.max_by do |candidate|
       vector = candidate.start.position.vector_to(candidate.end.position)
@@ -411,10 +411,52 @@ module MH_PK_Addon
     x_axis = edge ? edge.start.position.vector_to(edge.end.position) : normal.axes[0]
     x_axis = normal.axes[0] unless x_axis && x_axis.valid? && x_axis.length > 0
     x_axis.normalize!
-    x_axis.reverse! if x_axis.x < 0 || (x_axis.x == 0 && x_axis.y < 0)
+
+    camera = model.active_view.camera rescue nil
+    screen_up = nil
+    screen_right = nil
+    if camera
+      screen_up = camera.up.clone
+      screen_up.normalize! if screen_up.length > 0
+      screen_right = camera.direction.cross(screen_up)
+      screen_right.normalize! if screen_right.length > 0
+
+      center_world = origin.clone
+      center_world = center_world.transform(world_tr) if world_tr
+      to_eye = center_world.vector_to(camera.eye)
+      normal_world = normal.clone
+      normal_world = normal_world.transform(world_tr) if world_tr
+      normal_world.normalize! if normal_world.length > 0
+      normal.reverse! if normal_world.length > 0 && to_eye.length > 0 && normal_world.dot(to_eye) < 0
+    end
+
+    if screen_right && screen_right.length > 0
+      x_world = x_axis.clone
+      x_world = x_world.transform(world_tr) if world_tr
+      x_world.normalize! if x_world.length > 0
+      x_axis.reverse! if x_world.length > 0 && x_world.dot(screen_right) < 0
+    else
+      x_axis.reverse! if x_axis.x < 0 || (x_axis.x == 0 && x_axis.y < 0)
+    end
+
     y_axis = normal.cross(x_axis)
     y_axis = normal.axes[1] unless y_axis && y_axis.valid? && y_axis.length > 0
     y_axis.normalize!
+
+    # Giu local +Y cua font ve phia "tren man hinh" de text ngang khong bi up nguoc.
+    # Giu normal huong ve camera; neu can thi dao truc X roi tinh lai Y.
+    if screen_up && screen_up.length > 0
+      y_world = y_axis.clone
+      y_world = y_world.transform(world_tr) if world_tr
+      y_world.normalize! if y_world.length > 0
+      if y_world.length > 0 && y_world.dot(screen_up) < 0
+        x_axis.reverse!
+        y_axis = normal.cross(x_axis)
+        y_axis = normal.axes[1] unless y_axis && y_axis.valid? && y_axis.length > 0
+        y_axis.normalize!
+      end
+    end
+
     x_axis = y_axis.cross(normal)
     x_axis.normalize!
     Geom::Transformation.axes(origin, x_axis, y_axis, normal)
@@ -924,7 +966,7 @@ module MH_PK_Addon
     []
   end
 
-  def self.update_marker_size(marker, size_mm = default_size_mm)
+  def self.update_marker_size(marker, size_mm = default_size_mm, tag_name = default_tag_name)
     return false unless live_entity?(marker) && pk_marker?(marker)
 
     shape = marker_shape(marker)
@@ -935,6 +977,7 @@ module MH_PK_Addon
     nominal_size = marker_size_inches(size_mm)
     actual_size = nominal_size
     if shape == 'text'
+      orient_text_marker_to_camera(marker)
       max_width = marker.get_attribute('MH_PK_Addon', 'text_max_width_mm').to_f / 25.4
       max_height = marker.get_attribute('MH_PK_Addon', 'text_max_height_mm').to_f / 25.4
       actual_size = fit_text_size_inches(label, nominal_size, max_width, max_height)
@@ -946,6 +989,7 @@ module MH_PK_Addon
       marker.set_attribute('MH_PK_Addon', 'text_size_mm', actual_size * 25.4)
       marker.set_attribute('MH_PK_Addon', 'text_nominal_size_mm', size_mm.to_f)
     end
+    assign_marker_tag(marker, tag_name)
     marker.set_attribute('MH_Thongke', 'pk_shape', shape)
     marker.set_attribute('MH_Thongke', 'last_modified', Time.now.strftime('%d/%m/%y %H:%M'))
     true
@@ -954,10 +998,74 @@ module MH_PK_Addon
     false
   end
 
+  def self.orient_text_marker_to_camera(marker)
+    return marker unless live_entity?(marker)
+
+    camera = model.active_view.camera rescue nil
+    return marker unless camera
+
+    local_tr = marker.transformation
+    world_tr = entity_world_transform(marker)
+    parent_tr = world_tr * local_tr.inverse
+
+    origin_world = local_tr.origin.clone.transform(parent_tr)
+    to_eye = origin_world.vector_to(camera.eye)
+    world_z = Geom::Vector3d.new(0, 0, 1)
+    x_world0 = local_tr.xaxis.clone.transform(parent_tr)
+    y_world0 = local_tr.yaxis.clone.transform(parent_tr)
+    z_world0 = local_tr.zaxis.clone.transform(parent_tr)
+    x_world0.normalize! if x_world0.length > 0
+    y_world0.normalize! if y_world0.length > 0
+    z_world0.normalize! if z_world0.length > 0
+
+    vertical_x = x_world0.length > 0 && x_world0.dot(world_z).abs > 0.70
+    vertical_y = y_world0.length > 0 && y_world0.dot(world_z).abs > 0.70
+
+    screen_up = camera.up.clone
+    screen_up.normalize! if screen_up.length > 0
+    screen_right = camera.direction.cross(screen_up)
+    screen_right.normalize! if screen_right.length > 0
+    return marker if screen_up.length <= 0 || screen_right.length <= 0
+
+    # Chu dang doc theo truc Z cua model thi giu nguyen chieu doc cu.
+    # Chi lat mat doc ra phia camera neu normal dang quay vao trong.
+    if vertical_x || vertical_y
+      if z_world0.length > 0 && to_eye.length > 0 && z_world0.dot(to_eye) < 0
+        axis = vertical_x ? Geom::Vector3d.new(1, 0, 0) : Geom::Vector3d.new(0, 1, 0)
+        marker.transformation = local_tr * Geom::Transformation.rotation(Geom::Point3d.new(0, 0, 0), axis, Math::PI)
+      end
+      return marker
+    end
+
+    next_tr = local_tr
+    x_world = local_tr.xaxis.clone.transform(parent_tr)
+    x_world.normalize! if x_world.length > 0
+    if x_world.length > 0 && x_world.dot(screen_right) < 0
+      next_tr = next_tr * Geom::Transformation.rotation(
+        Geom::Point3d.new(0, 0, 0), Geom::Vector3d.new(0, 1, 0), Math::PI
+      )
+    end
+
+    y_world = local_tr.yaxis.clone.transform(parent_tr)
+    y_world.normalize! if y_world.length > 0
+    if y_world.length > 0 && y_world.dot(screen_up) < 0
+      next_tr = next_tr * Geom::Transformation.rotation(
+        Geom::Point3d.new(0, 0, 0), Geom::Vector3d.new(1, 0, 0), Math::PI
+      )
+    end
+
+    marker.transformation = next_tr unless next_tr == local_tr
+    marker
+  rescue => e
+    dbg("MH_PK_Addon orient text marker error: #{e.class}: #{e.message}") if respond_to?(:dbg)
+    marker
+  end
+
   def self.update_marker_sizes(size_mm = default_size_mm)
     mdl = nil
     count = 0
     total = 0
+    tag_name = default_tag_name
     with_mh_thongke_mini_suspended do
       mdl = model
       targets = marker_size_update_targets
@@ -966,11 +1074,11 @@ module MH_PK_Addon
       mdl.start_operation('MH PK Update Marker Size', true)
       targets.each do |marker|
         total += 1
-        count += 1 if update_marker_size(marker, size_mm)
+        count += 1 if update_marker_size(marker, size_mm, tag_name)
       end
       mdl.commit_operation
       refresh_abf_statistics
-      { count: count, total: total, size_mm: size_mm.to_f }
+      { count: count, total: total, size_mm: size_mm.to_f, tag_name: tag_name }
     end
   rescue => e
     model.abort_operation rescue nil
@@ -979,9 +1087,13 @@ module MH_PK_Addon
 
   def self.assign_marker_tag(entity, tag_name)
     name = tag_name.to_s.strip
-    return entity if name.empty? || !entity
+    return entity unless entity
 
-    tag = model.layers[name] || model.layers.add(name)
+    tag = if name.empty?
+            model.layers[0] rescue nil
+          else
+            model.layers[name] || model.layers.add(name)
+          end
     entity.layer = tag if tag
     entity.set_attribute('MH_PK_Addon', 'tag_name', name)
     entity

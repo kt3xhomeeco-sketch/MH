@@ -244,7 +244,8 @@ module MH_PK_Addon
       return
     when 'update_size'
       result = update_marker_sizes(default_size_mm)
-      main_dialog_result(dialog, "Đã update kích thước #{result[:count]}/#{result[:total]} marker PK theo size #{result[:size_mm]} mm.", true)
+      tag_text = result[:tag_name].to_s.strip.empty? ? 'Untagged' : result[:tag_name].to_s.strip
+      main_dialog_result(dialog, "Đã update kích thước #{result[:count]}/#{result[:total]} marker PK theo size #{result[:size_mm]} mm, tag #{tag_text}.", true)
       return
     end
 
