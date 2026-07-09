@@ -410,7 +410,7 @@ class MH::Panel::TaoVan
       (1..n).each do |i|
         t = i.to_f / (n + 1)
         point = Geom.linear_combination(1 - t, p1_offset, t, p2_offset)
-        add_box_at_point(point, vec_down, vec_up)
+        add_box_at_point(point, vec_down, vec_up, profile_rect)
       end
     end
   end
@@ -513,7 +513,7 @@ class MH::Panel::TaoVan
       if !@tinh_theo_khong_gian && @last_face && @last_tr
         face = copy_face_to_entities(@last_face, @last_tr, group.entities, bottom, top)
       else
-        face = group.entities.add_face(bottom)
+        face = create_profile_face(group.entities, bottom, @last_face, @last_tr)
       end
       if face
         vec = top[0] - bottom[0]
@@ -621,9 +621,16 @@ class MH::Panel::TaoVan
   end
   def copy_face_to_entities(source_face, source_tr, target_entities, bottom, top)
     original_vertices = source_face.outer_loop.vertices.map { |v| v.position.transform(source_tr) }
-    return target_entities.add_face(bottom) if original_vertices.empty? || bottom.empty?
+    return create_profile_face(target_entities, bottom, source_face, source_tr) if original_vertices.empty? || bottom.empty?
     offset_vec = bottom[0] - original_vertices[0]
-    return target_entities.add_face(bottom) unless MH::Panel.is_container?(@parent)
+    same_boundary = original_vertices.length == bottom.length &&
+                    original_vertices.each_with_index.all? { |pt, i| pt.offset(offset_vec).distance(bottom[i]) <= 0.001.mm }
+    unless same_boundary
+      return create_profile_face(target_entities, bottom, source_face, source_tr)
+    end
+    unless MH::Panel.is_container?(@parent)
+      return create_profile_face(target_entities, bottom, source_face, source_tr)
+    end
     temp_instance = target_entities.add_instance(@parent.definition, IDENTITY)
     temp_group = temp_instance.make_unique
     all_faces = temp_group.entities.grep(Sketchup::Face)
@@ -637,7 +644,29 @@ class MH::Panel::TaoVan
     temp_group.entities.grep(Sketchup::Edge).each { |e| e.erase! if e.valid? && e.faces.empty? }
     temp_group.transform!(Geom::Transformation.translation(offset_vec) * source_tr)
     result_face = temp_group.explode.find { |e| e.is_a?(Sketchup::Face) && e.valid? }
-    result_face || target_entities.add_face(bottom)
+    result_face || create_profile_face(target_entities, bottom, source_face, source_tr)
+  end
+  def create_profile_face(entities, bottom, source_face = @last_face, source_tr = @last_tr)
+    if defined?(MH::Geo::Offset) && MH::Geo::Offset.respond_to?(:create_face_preserving_curves)
+      face = MH::Geo::Offset.create_face_preserving_curves(entities, bottom, source_face, source_tr)
+      return face if face && face.valid?
+    end
+
+    entities.add_face(bottom)
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] create_profile_face error: #{e.class}: #{e.message}")
+    entities.add_face(bottom) rescue nil
+  end
+  def preserve_profile_curves(face, bottom, source_face = @last_face, source_tr = @last_tr)
+    return face unless face && face.valid?
+    return face unless source_face && source_face.valid?
+    return face unless defined?(MH::Geo::Offset) && MH::Geo::Offset.respond_to?(:preserve_offset_curves)
+
+    MH::Geo::Offset.preserve_offset_curves(source_face, face, bottom, source_tr)
+    face
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] preserve_profile_curves error: #{e.class}: #{e.message}")
+    face
   end
   def smooth_advanced_edges(ents, bottom_pts, source_face, source_tr)
     face_edges = source_face.edges
@@ -1257,9 +1286,10 @@ class MH::Panel::TaoVan
       anchor.offset(huong, distance)
     end
   end
-  def add_box_at_point(point, vec_down, vec_up)
+  def add_box_at_point(point, vec_down, vec_up, profile_rect = nil)
     vec_to_point = point - @p1
-    center_rect = @locked_rect.map { |pt| pt.offset(vec_to_point) }
+    source_rect = profile_rect || adjusted_panel_profile_rect
+    center_rect = source_rect.map { |pt| pt.offset(vec_to_point) }
     bottom = center_rect.map { |pt| pt.offset(vec_down) }
     top = center_rect.map { |pt| pt.offset(vec_up) }
     @all_box_points << { bottom: bottom, top: top }

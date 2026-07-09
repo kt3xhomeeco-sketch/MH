@@ -19,7 +19,11 @@ module MH
         end
 
         outer_points = face.outer_loop.vertices.map(&:position)
-        new_face = group.entities.add_face(outer_points)
+        new_face = if Offset.respond_to?(:create_face_preserving_curves)
+                     Offset.create_face_preserving_curves(group.entities, outer_points, face)
+                   else
+                     group.entities.add_face(outer_points)
+                   end
         unless new_face && new_face.valid?
           group.erase! if group.valid?
           return nil

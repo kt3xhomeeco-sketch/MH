@@ -482,6 +482,7 @@
       @button_config[:modified] = true if @button_config&.dig(:selected)
     rescue
     end
+    update_preview if respond_to?(:update_preview)
     if @sb_selected_item
       val = instance_variable_get(var)
       display = case item[:fmt]

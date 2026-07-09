@@ -24,7 +24,7 @@
     end
     return fallback_offset_face(face, dist) unless offset_points_valid?(face, pts)
 
-    new_face = ent.add_face(pts + [pts[0]])
+    new_face = create_face_preserving_curves(ent, pts, face)
     return new_face if new_face && new_face.valid?
 
     fallback_offset_face(face, dist)
@@ -33,7 +33,7 @@
     return nil unless dist.is_a?(Numeric) && dist != 0
     pts = offset_face_pts(face, -dist)
     return nil unless pts && pts.length > 2
-    ent.add_face(pts)
+    create_face_preserving_curves(ent, pts, face) || ent.add_face(pts)
   end
 
   def self.offset_points_valid?(face, pts)
@@ -55,6 +55,389 @@
   rescue => e
     MH::Shared.dbg("MH::Geo::Offset fallback error: #{e.class}: #{e.message}") if defined?(MH::Shared)
     nil
+  end
+  def self.create_face_preserving_curves(entities, points, source_face = nil, source_transform = nil, normal = nil)
+    return nil unless entities && points && points.length >= 3
+
+    loop_points = points.dup
+    loop_points.pop if loop_points.length > 1 && loop_points.first.distance(loop_points.last) < 0.001.mm
+    return nil if loop_points.length < 3
+
+    plane_normal = normal || curve_source_normal(source_face, source_transform)
+    plane_normal ||= best_fit_normal(loop_points)
+    return entities.add_face(loop_points) unless plane_normal && plane_normal.length > 0.001.mm
+
+    plane_normal = plane_normal.clone
+    plane_normal.normalize!
+    runs = detect_arc_like_runs(loop_points, plane_normal)
+    runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
+    return entities.add_face(loop_points) if runs.empty?
+
+    arc_data = runs.map { |start_index, edge_count| [start_index, fit_arc_from_points(loop_points, start_index, edge_count, plane_normal)] }
+                   .select { |_, data| data }
+    return entities.add_face(loop_points) if arc_data.empty?
+
+    arc_by_start = {}
+    arc_data.each { |start_index, data| arc_by_start[start_index] = data }
+    faces_before = entities.grep(Sketchup::Face).to_a
+    created = []
+    index = 0
+    count = loop_points.length
+    while index < count
+      arc = arc_by_start[index]
+      if arc
+        created.concat(entities.add_arc(arc[:center], arc[:xaxis], arc[:normal], arc[:radius], 0.0, arc[:sweep], arc[:edge_count]))
+        index += arc[:edge_count]
+      else
+        created << entities.add_line(loop_points[index], loop_points[(index + 1) % count])
+        index += 1
+      end
+    end
+    created.compact.each { |edge| edge.find_faces if edge.valid? }
+    new_face = (entities.grep(Sketchup::Face).to_a - faces_before).select(&:valid?).max_by(&:area)
+    unless new_face
+      created.compact.each { |edge| edge.erase! if edge.valid? }
+      return entities.add_face(loop_points)
+    end
+
+    new_face
+  rescue => e
+    MH::Shared.dbg("MH::Geo::Offset create arc face error: #{e.class}: #{e.message}") if defined?(MH::Shared)
+    entities.add_face(points) rescue nil
+  end
+  def self.curve_source_normal(source_face, source_transform)
+    return nil unless source_face && source_face.valid?
+
+    normal = source_face.normal
+    normal = normal.transform(source_transform) if source_transform
+    normal
+  rescue
+    nil
+  end
+  def self.best_fit_normal(points)
+    return nil unless points && points.length >= 3
+
+    origin = points.first
+    (1...(points.length - 1)).each do |index|
+      normal = origin.vector_to(points[index]).cross(origin.vector_to(points[index + 1]))
+      next unless normal.length > 0.001.mm
+
+      normal.normalize!
+      return normal
+    end
+    nil
+  rescue
+    nil
+  end
+  def self.source_curve_runs(source_face, point_count)
+    return [] unless source_face && source_face.valid?
+
+    loop_edges = source_face.outer_loop.edges
+    return [] unless loop_edges.length == point_count
+
+    runs = []
+    index = 0
+    while index < loop_edges.length
+      curve = loop_edges[index].curve
+      unless curve
+        index += 1
+        next
+      end
+
+      edge_count = 1
+      edge_count += 1 while (index + edge_count) < loop_edges.length && loop_edges[index + edge_count].curve == curve
+      runs << [index, edge_count] if edge_count >= 3
+      index += edge_count
+    end
+    runs
+  rescue
+    []
+  end
+  def self.detect_arc_like_runs(points, normal)
+    count = points.length
+    return [] if count < 4
+
+    lengths = (0...count).map { |index| points[index].distance(points[(index + 1) % count]) }
+    max_length = lengths.max || 0
+    return [] if max_length <= 0
+
+    turns = (0...count).map do |index|
+      previous_edge = points[(index - 1) % count].vector_to(points[index])
+      next_edge = points[index].vector_to(points[(index + 1) % count])
+      previous_edge.angle_between(next_edge)
+    end
+
+    runs = []
+    index = 0
+    while index < count
+      end_turn = turns[(index + 1) % count]
+      candidate = lengths[index] < max_length * 0.25 &&
+                  end_turn > 0.2.degrees &&
+                  end_turn < 20.degrees
+      unless candidate
+        index += 1
+        next
+      end
+
+      start_index = index
+      run_index = index
+      base_length = lengths[index]
+      while run_index < count
+        turn = turns[(run_index + 1) % count]
+        similar_length = (lengths[run_index] - base_length).abs <= [base_length * 0.35, 1.mm].max
+        ok = lengths[run_index] < max_length * 0.25 &&
+             similar_length &&
+             turn > 0.2.degrees &&
+             turn < 20.degrees
+        break unless ok
+
+        run_index += 1
+      end
+
+      edge_count = run_index - start_index
+      runs << [start_index, edge_count] if edge_count >= 3
+      index = [run_index, index + 1].max
+    end
+    expand_detected_arc_runs(points, normal, runs, lengths)
+  rescue
+    []
+  end
+  def self.expand_detected_arc_runs(points, normal, runs, lengths)
+    return [] unless runs && !runs.empty?
+
+    expanded = runs.map do |start_index, edge_count|
+      start_index = start_index.to_i
+      edge_count = edge_count.to_i
+      loop do
+        changed = false
+        if start_index.positive? &&
+           arc_extension_edge?(lengths, start_index - 1, start_index, edge_count) &&
+           fit_arc_from_points(points, start_index - 1, edge_count + 1, normal)
+          start_index -= 1
+          edge_count += 1
+          changed = true
+        end
+
+        right_edge = start_index + edge_count
+        if right_edge < points.length &&
+           arc_extension_edge?(lengths, right_edge, start_index, edge_count) &&
+           fit_arc_from_points(points, start_index, edge_count + 1, normal)
+          edge_count += 1
+          changed = true
+        end
+
+        break unless changed
+      end
+      [start_index, edge_count]
+    end
+
+    merge_arc_runs(expanded)
+  rescue
+    runs
+  end
+  def self.arc_extension_edge?(lengths, edge_index, start_index, edge_count)
+    return false unless lengths && edge_index >= 0 && edge_index < lengths.length
+
+    run_lengths = lengths[start_index, edge_count].to_a.select { |length| length && length > 0.001.mm }
+    return false if run_lengths.empty?
+
+    sorted = run_lengths.sort
+    base_length = sorted[sorted.length / 2]
+    candidate_length = lengths[edge_index]
+    return false unless candidate_length && candidate_length > 0.001.mm
+
+    candidate_length >= base_length * 0.4 &&
+      candidate_length <= [base_length * 1.75, 1.mm].max
+  rescue
+    false
+  end
+  def self.merge_arc_runs(runs)
+    sorted = runs.sort_by(&:first)
+    merged = []
+    sorted.each do |start_index, edge_count|
+      if merged.any? && start_index <= merged[-1][0] + merged[-1][1]
+        merged[-1][1] = [merged[-1][0] + merged[-1][1], start_index + edge_count].max - merged[-1][0]
+      else
+        merged << [start_index, edge_count]
+      end
+    end
+    merged
+  rescue
+    runs
+  end
+  def self.fit_arc_from_points(points, start_index, edge_count, normal)
+    count = points.length
+    start_point = points[start_index % count]
+    mid_point = points[(start_index + edge_count / 2) % count]
+    end_point = points[(start_index + edge_count) % count]
+    axis_u = start_point.vector_to(end_point)
+    return nil if axis_u.length <= 0.001.mm
+
+    axis_u.normalize!
+    axis_v = normal.cross(axis_u)
+    return nil if axis_v.length <= 0.001.mm
+
+    axis_v.normalize!
+    origin = start_point
+    project = lambda do |point|
+      vector = origin.vector_to(point)
+      [vector.dot(axis_u), vector.dot(axis_v)]
+    end
+    x1, y1 = project.call(start_point)
+    x2, y2 = project.call(mid_point)
+    x3, y3 = project.call(end_point)
+    denominator = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    return nil if denominator.abs < 1e-9
+
+    center_x = ((x1 * x1 + y1 * y1) * (y2 - y3) +
+                (x2 * x2 + y2 * y2) * (y3 - y1) +
+                (x3 * x3 + y3 * y3) * (y1 - y2)) / denominator
+    center_y = ((x1 * x1 + y1 * y1) * (x3 - x2) +
+                (x2 * x2 + y2 * y2) * (x1 - x3) +
+                (x3 * x3 + y3 * y3) * (x2 - x1)) / denominator
+    center = Geom::Point3d.new(
+      origin.x + axis_u.x * center_x + axis_v.x * center_y,
+      origin.y + axis_u.y * center_x + axis_v.y * center_y,
+      origin.z + axis_u.z * center_x + axis_v.z * center_y
+    )
+    radius = center.distance(start_point)
+    return nil if radius <= 0.001.mm
+
+    xaxis = center.vector_to(start_point)
+    return nil if xaxis.length <= 0.001.mm
+
+    xaxis.normalize!
+    yaxis = normal.cross(xaxis)
+    return nil if yaxis.length <= 0.001.mm
+
+    yaxis.normalize!
+    raw_end = angle_on_axes(end_point, center, xaxis, yaxis)
+    raw_mid = angle_on_axes(mid_point, center, xaxis, yaxis)
+    sweep = choose_fit_sweep(raw_end, raw_mid)
+    return nil if sweep.abs <= 0.001
+
+    max_error = 0.0
+    (0..edge_count).each do |offset|
+      error = (center.distance(points[(start_index + offset) % count]) - radius).abs
+      max_error = error if error > max_error
+    end
+    return nil if max_error > [0.5.mm, radius * 0.003].max
+
+    { center: center, xaxis: xaxis, normal: normal, radius: radius, sweep: sweep, edge_count: edge_count }
+  end
+  def self.choose_fit_sweep(raw_end, raw_mid)
+    candidates = []
+    [-1, 0, 1].each do |turn|
+      sweep = raw_end + 2.0 * Math::PI * turn
+      next if sweep.abs > 2.0 * Math::PI + 0.001
+
+      mids = [raw_mid, raw_mid + 2.0 * Math::PI, raw_mid - 2.0 * Math::PI]
+      inside = if sweep.positive?
+                 mids.any? { |angle| angle >= -0.001 && angle <= sweep + 0.001 }
+               else
+                 mids.any? { |angle| angle <= 0.001 && angle >= sweep - 0.001 }
+               end
+      candidates << sweep if inside
+    end
+    candidates.min_by(&:abs) || raw_end
+  end
+  def self.preserve_offset_curves(source_face, target_face, offset_points, source_transform = nil)
+    return target_face unless source_face && source_face.valid?
+    return target_face unless target_face && target_face.valid?
+    return target_face unless offset_points && offset_points.length >= 3
+
+    loop_edges = source_face.outer_loop.edges
+    return target_face unless loop_edges.any? { |edge| arc_curve?(edge.curve) }
+
+    points = offset_points.dup
+    points.pop if points.length > 1 && points.first.distance(points.last) < 0.001.mm
+    return target_face unless points.length == loop_edges.length
+
+    transform = source_transform || Geom::Transformation.new
+    parent = target_face.parent
+    entities = parent.respond_to?(:entities) ? parent.entities : parent
+    each_loop_arc_run(loop_edges) do |curve, start_index, edge_count|
+      add_matching_arc(entities, curve, transform, points, start_index, edge_count)
+    end
+    target_face
+  rescue => e
+    MH::Shared.dbg("MH::Geo::Offset preserve curves error: #{e.class}: #{e.message}") if defined?(MH::Shared)
+    target_face
+  end
+  def self.arc_curve?(curve)
+    curve && (curve.is_a?(Sketchup::ArcCurve) rescue false)
+  end
+  def self.each_loop_arc_run(loop_edges)
+    i = 0
+    while i < loop_edges.length
+      curve = loop_edges[i].curve
+      unless arc_curve?(curve)
+        i += 1
+        next
+      end
+      count = 1
+      count += 1 while (i + count) < loop_edges.length && loop_edges[i + count].curve == curve
+      yield curve, i, count
+      i += count
+    end
+  end
+  def self.add_matching_arc(entities, curve, transform, points, start_index, edge_count)
+    return unless edge_count > 1
+
+    n = points.length
+    center = curve.center.transform(transform)
+    normal = curve.normal.transform(transform)
+    return unless normal.length > 0.001.mm
+    normal.normalize!
+    xaxis = curve.xaxis.transform(transform)
+    return unless xaxis.length > 0.001.mm
+    xaxis.normalize!
+    yaxis = normal.cross(xaxis)
+    return unless yaxis.length > 0.001.mm
+    yaxis.normalize!
+
+    run_points = (0..edge_count).map { |offset| points[(start_index + offset) % n] }
+    radii = run_points.map { |point| point.distance(center) }.select { |radius| radius > 0.001.mm }
+    return if radii.empty?
+
+    radius = radii.sum / radii.length
+    start_angle = angle_on_axes(run_points.first, center, xaxis, yaxis)
+    end_angle = angle_on_axes(run_points.last, center, xaxis, yaxis)
+    end_angle = choose_arc_end_angle(start_angle, end_angle, run_points, center, xaxis, yaxis, curve)
+    entities.add_arc(center, xaxis, normal, radius, start_angle, end_angle, edge_count)
+  end
+  def self.angle_on_axes(point, center, xaxis, yaxis)
+    vector = center.vector_to(point)
+    Math.atan2(vector.dot(yaxis), vector.dot(xaxis))
+  end
+  def self.choose_arc_end_angle(start_angle, raw_end_angle, points, center, xaxis, yaxis, curve)
+    source_sweep = curve.end_angle.to_f - curve.start_angle.to_f
+    source_sweep -= 2 * Math::PI while source_sweep > Math::PI * 2
+    source_sweep += 2 * Math::PI while source_sweep < -Math::PI * 2
+    source_sweep = Math::PI * 2 if source_sweep.abs < 0.001 && (curve.circular? rescue false)
+    source_abs = source_sweep.abs
+
+    positive_end = raw_end_angle
+    positive_end += 2 * Math::PI while positive_end <= start_angle
+    negative_end = raw_end_angle
+    negative_end -= 2 * Math::PI while negative_end >= start_angle
+
+    candidates = [positive_end, negative_end]
+    candidates.min_by do |candidate_end|
+      sweep = candidate_end - start_angle
+      score = source_abs > 0.001 ? (sweep.abs - source_abs).abs : sweep.abs
+      points[1...-1].to_a.each do |point|
+        angle = angle_on_axes(point, center, xaxis, yaxis)
+        if sweep > 0
+          angle += 2 * Math::PI while angle < start_angle
+          score += 1000 unless angle <= candidate_end + 0.01
+        else
+          angle -= 2 * Math::PI while angle > start_angle
+          score += 1000 unless angle >= candidate_end - 0.01
+        end
+      end
+      score
+    end
   end
   def self.faces(face, dist)
     begin
