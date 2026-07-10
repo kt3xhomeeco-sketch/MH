@@ -420,7 +420,7 @@ class MH::Panel::CatVan
   def add_oriented_box(entities, center, u, v, normal, half_u, half_v, half_normal)
     group = entities.add_group
     points = [-1, 1].product([-1, 1], [-1, 1]).map { |a, b, c| center.offset(u, a * half_u).offset(v, b * half_v).offset(normal, c * half_normal) }
-    [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [1, 3, 7, 5], [3, 2, 6, 7], [2, 0, 4, 6]].each { |indices| group.entities.add_face(indices.map { |index| points[index] }) }
+    [[0, 1, 3, 2], [4, 6, 7, 5], [0, 4, 5, 1], [1, 5, 7, 3], [3, 7, 6, 2], [2, 6, 4, 0]].each { |indices| group.entities.add_face(indices.map { |index| points[index] }) }
     group
   end
 
