@@ -94,6 +94,7 @@ class MH::Panel::CatVan
 
   def onKeyDown(key, _repeat, _flags, view)
     return unless key == VK_TAB
+    return if @cut_mode == :points
 
     @axis_index = (@axis_index + 1) % AXES.length
     update_status
@@ -157,23 +158,34 @@ class MH::Panel::CatVan
   end
 
   def axis_bounds(bounds)
-    case axis[0]
+    axis_bounds_for(bounds, axis[2])
+  end
+
+  def axis_bounds_for(bounds, direction)
+    case axis_index_for(direction)
     when :x then [bounds.min.x, bounds.max.x]
     when :y then [bounds.min.y, bounds.max.y]
     else [bounds.min.z, bounds.max.z]
     end
   end
 
+  def axis_index_for(direction)
+    AXES.max_by { |_, _, candidate| direction.dot(candidate).abs }[0]
+  end
+
   def preview_corners
     return oriented_preview_corners if @cut_mode == :points
 
+    axis_preview_corners(axis[2], @cut_coordinate)
+  end
+
+  def axis_preview_corners(direction, value)
     bounds = target_bounds
-    return nil unless bounds
+    return nil unless bounds && direction && value
 
     min = bounds.min
     max = bounds.max
-    value = @cut_coordinate
-    case axis[0]
+    case axis_index_for(direction)
     when :x
       [Geom::Point3d.new(value, min.y, min.z), Geom::Point3d.new(value, max.y, min.z),
        Geom::Point3d.new(value, max.y, max.z), Geom::Point3d.new(value, min.y, max.z)]
@@ -254,16 +266,22 @@ class MH::Panel::CatVan
   def add_half_space(entities, bounds, first_half)
     return add_oriented_half_space(entities, bounds, first_half) if @cut_mode == :points
 
+    add_axis_half_space(entities, bounds, first_half, axis[2], @cut_coordinate)
+  end
+
+  def add_axis_half_space(entities, bounds, first_half, direction, coordinate)
+    return nil unless direction && coordinate
+
     margin = [bounds.width, bounds.height, bounds.depth].max + 100.mm
     min = bounds.min
     max = bounds.max
-    low, high = axis_bounds(bounds)
+    low, high = axis_bounds_for(bounds, direction)
     if first_half
-      high = @cut_coordinate
+      high = coordinate
     else
-      low = @cut_coordinate
+      low = coordinate
     end
-    case axis[0]
+    case axis_index_for(direction)
     when :x then min = Geom::Point3d.new(low, min.y - margin, min.z - margin); max = Geom::Point3d.new(high, max.y + margin, max.z + margin)
     when :y then min = Geom::Point3d.new(min.x - margin, low, min.z - margin); max = Geom::Point3d.new(max.x + margin, high, max.z + margin)
     else min = Geom::Point3d.new(min.x - margin, min.y - margin, low); max = Geom::Point3d.new(max.x + margin, max.y + margin, high)
@@ -297,7 +315,9 @@ class MH::Panel::CatVan
       view.invalidate
       return
     end
-    normal = @preview_normal || point_cut_normal(@point_one, @input.position)
+    # Use the active X/Y/Z reference at the moment of the second click.
+    # A cached preview normal may belong to the axis selected before Tab.
+    normal = point_cut_normal(@point_one, @input.position)
     return unless normal
     @plane_point = @point_one
     @plane_normal = normal
@@ -339,7 +359,10 @@ class MH::Panel::CatVan
     direction = start_point.vector_to(end_point)
     return nil if direction.length <= 0.1.mm
 
-    normal = direction.cross(@point_thickness || thickness_axis(target_bounds))
+    # Point mode rotates a vertical cutting plane around the first point.
+    # The line to the cursor stays on the plane while the plane remains
+    # parallel to the global Z axis, regardless of the panel shape.
+    normal = direction.cross(Geom::Vector3d.new(0, 0, 1))
     return nil if normal.length <= 0.001.mm
 
     normal.normalize!
@@ -502,7 +525,7 @@ class MH::Panel::CatVan
       prompt = if @cut_mode == :axis
                  "Cắt theo trục #{axis[1]}. Tab: X / Y / Z."
                else
-                 'Cắt theo 2 điểm. Click điểm thứ nhất.'
+                 'Cắt theo 2 điểm. Mặt cắt xoay qua điểm 1 và luôn song song trục Z.'
                end
       Sketchup.set_status_text("#{prompt} Ctrl: chọn thêm hoặc quét chọn.", SB_PROMPT)
     end
