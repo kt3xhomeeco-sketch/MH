@@ -700,7 +700,7 @@ class MH::Panel::TaoVan
     end
     # Copying a curved container face keeps any split arcs and stray chord edges.
     # Rebuild it from the profile even when the requested offset is zero.
-    if source_face.outer_loop.edges.any?(&:curve)
+    if curve_rebuild_required?(source_face, source_tr)
       return create_profile_face(target_entities, bottom, source_face, source_tr)
     end
     unless MH::Panel.is_container?(@parent)
@@ -720,6 +720,21 @@ class MH::Panel::TaoVan
     temp_group.transform!(Geom::Transformation.translation(offset_vec) * source_tr)
     result_face = temp_group.explode.find { |e| e.is_a?(Sketchup::Face) && e.valid? }
     result_face || create_profile_face(target_entities, bottom, source_face, source_tr)
+  end
+  def curve_rebuild_required?(face, transform)
+    loop = face.outer_loop
+    return true if loop.edges.any?(&:curve)
+    return false unless defined?(MH::Geo::Offset) && MH::Geo::Offset.respond_to?(:detect_arc_like_runs)
+
+    points = loop.vertices.map { |vertex| vertex.position.transform(transform || IDENTITY) }
+    normal = face.normal.transform(transform || IDENTITY)
+    return false unless normal.length > 0.001.mm
+
+    normal.normalize!
+    MH::Geo::Offset.detect_arc_like_runs(points, normal).any?
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] detect broken curve error: #{e.class}: #{e.message}")
+    false
   end
   def create_profile_face(entities, bottom, source_face = @last_face, source_tr = @last_tr)
     if defined?(MH::Geo::Offset) && MH::Geo::Offset.respond_to?(:create_face_preserving_curves)
