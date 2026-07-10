@@ -157,62 +157,145 @@ module Stretch
     end
 
     def move_curves(curves, world_delta)
-      moved = 0
-      curves.each do |bucket|
-        curve = bucket[:curve]
-        vertices = bucket[:vertices]
-        next unless curve && vertices && !vertices.empty?
+      prepared = curves.filter_map { |bucket| prepare_curve_move(bucket, world_delta) }
+      return 0 if prepared.empty?
 
-        local_delta = world_delta.transform(bucket[:parent_to_world].inverse)
-        active_curve = curve
-        active_vertices = vertices
+      preserved = full_curves_safe_to_transform(prepared)
+      moved = move_full_curve_edges(preserved)
+      prepared -= preserved
 
-        if partial_curve?(bucket)
-          replacement = convert_arc_curve_if_needed(bucket)
-          if replacement
-            active_curve = replacement[:curve]
-            active_vertices = replacement[:vertices]
-          end
+      # Every connected curve must be plain edges before a shared vertex moves.
+      # Otherwise SketchUp re-solves a neighboring ArcCurve before it is exploded.
+      prepared.select! { |entry| explode_prepared_curve(entry) }
+
+      moved += move_prepared_curve_vertices(prepared)
+      prepared.each { |entry| rebuild_isolated_curve(entry) }
+      moved
+    rescue => error
+      warn "MH Stretch curve rebuild failed: #{error.class}: #{error.message}"
+      0
+    end
+
+    def prepare_curve_move(bucket, world_delta)
+      curve = bucket[:curve]
+      vertices = bucket[:vertices]
+      return nil unless curve && vertices && !vertices.empty?
+
+      edges = curve.edges.dup
+
+      {
+        entities: bucket[:entities],
+        first_edge: edges.first,
+        edge_keys: edges.map { |edge| edge_key(edge) },
+        vertices: curve.vertices,
+        moving_keys: vertices.each_with_object({}) { |vertex, keys| keys[vertex_key(vertex)] = true },
+        local_delta: world_delta.transform(bucket[:parent_to_world].inverse),
+        full_move: vertices.length == curve.vertices.length
+      }
+    rescue
+      nil
+    end
+
+    def full_curves_safe_to_transform(prepared)
+      partial_vertex_keys = prepared.reject { |entry| entry[:full_move] }
+                                    .flat_map { |entry| entry[:vertices] }
+                                    .map { |vertex| vertex_key(vertex) }
+                                    .uniq
+      prepared.select do |entry|
+        entry[:full_move] && entry[:vertices].none? { |vertex| partial_vertex_keys.include?(vertex_key(vertex)) }
+      end
+    end
+
+    def move_full_curve_edges(prepared)
+      moved_vertex_keys = {}
+      prepared.group_by do |entry|
+        [entry[:entities].object_id, entry[:local_delta].to_a.map { |value| value.round(9) }]
+      end.each_value do |entries|
+        entities = entries.first[:entities]
+        edges = entries.flat_map { |entry| entry[:edge_keys] }
+        targets = entities.grep(Sketchup::Edge).select { |edge| edges.include?(edge_key(edge)) }
+        next if targets.empty?
+
+        entities.transform_entities(Geom::Transformation.translation(entries.first[:local_delta]), targets)
+        entries.each do |entry|
+          entry[:vertices].each { |vertex| moved_vertex_keys[vertex_key(vertex)] = true if vertex.valid? }
         end
+      end
+      moved_vertex_keys.length
+    rescue => error
+      warn "MH Stretch full curve move failed: #{error.class}: #{error.message}"
+      0
+    end
 
-        moved += move_curve_vertices(active_curve, active_vertices, local_delta)
+    def explode_prepared_curve(entry)
+      edge = entry[:first_edge]
+      return false unless edge && edge.valid?
+
+      edge.explode_curve
+      true
+    rescue => error
+      warn "MH Stretch curve explode failed: #{error.class}: #{error.message}"
+      false
+    end
+
+    def move_prepared_curve_vertices(prepared)
+      moved = 0
+      moved_vertex_keys = {}
+      prepared.each do |entry|
+        vertices = entry[:vertices].select do |vertex|
+          vertex.valid? && entry[:moving_keys][vertex_key(vertex)] && !moved_vertex_keys[vertex_key(vertex)]
+        end
+        next if vertices.empty?
+
+        entry[:entities].transform_entities(Geom::Transformation.translation(entry[:local_delta]), vertices)
+        vertices.each { |vertex| moved_vertex_keys[vertex_key(vertex)] = true }
+        moved += vertices.length
       end
       moved
     end
 
-    def partial_curve?(bucket)
-      bucket[:vertices].length < bucket[:all_vertices_count].to_i
+    def current_points(vertices)
+      vertices.filter_map { |vertex| vertex.position if vertex.valid? }
     end
 
-    def convert_arc_curve_if_needed(bucket)
-      curve = bucket[:curve]
-      return nil unless defined?(Sketchup::ArcCurve) && curve.is_a?(Sketchup::ArcCurve)
+    def rebuild_isolated_curve(entry)
+      return false if entry[:full_move]
+      return false unless curve_rebuildable?(entry)
 
-      old_vertices = curve.vertices
-      positions = old_vertices.map(&:position)
-      moving_indexes = bucket[:vertices].map { |vertex| old_vertices.index(vertex) }.compact
-      parent_entities = bucket[:entities]
-      curve.edges.first.explode_curve
-      edges = parent_entities.add_curve(positions)
-      new_curve = edges.first.curve
-      {
-        curve: new_curve,
-        vertices: moving_indexes.map { |index| new_curve.vertices[index] }.compact
-      }
+      points = current_points(entry[:vertices])
+      return false if points.length < 2
+
+      edges = entry[:entities].add_curve(points)
+      edges && !edges.empty?
     rescue => error
-      warn "MH Stretch arc curve conversion failed: #{error.class}: #{error.message}"
-      nil
+      warn "MH Stretch curve restore failed: #{error.class}: #{error.message}"
+      false
     end
 
-    def move_curve_vertices(curve, vertices, local_delta)
-      moving = curve.vertices.map do |vertex|
-        vertices.include?(vertex) ? vertex.position.offset(local_delta) : vertex.position
+    def curve_rebuildable?(entry)
+      edge_keys = entry[:edge_keys]
+      interior = entry[:vertices][1...-1] || []
+      interior.all? do |vertex|
+        vertex.valid? && vertex.edges.all? { |edge| edge_keys.include?(edge_key(edge)) }
       end
-      curve.move_vertices(moving)
-      vertices.length
-    rescue => error
-      warn "MH Stretch curve move failed: #{error.class}: #{error.message}"
-      0
+    rescue
+      false
+    end
+
+    def vertex_key(vertex)
+      return vertex.persistent_id if vertex.respond_to?(:persistent_id)
+
+      vertex.object_id
+    rescue
+      vertex.object_id
+    end
+
+    def edge_key(edge)
+      return edge.persistent_id if edge.respond_to?(:persistent_id)
+
+      edge.object_id
+    rescue
+      edge.object_id
     end
 
     def result(ok, changed, message)
