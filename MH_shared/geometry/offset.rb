@@ -69,8 +69,10 @@
 
     plane_normal = plane_normal.clone
     plane_normal.normalize!
+    loop_points = normalize_curve_loop_start(loop_points, plane_normal)
     runs = detect_arc_like_runs(loop_points, plane_normal)
     runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
+    runs = merge_arc_runs_across_connector_lines(loop_points, plane_normal, runs)
     return entities.add_face(loop_points) if runs.empty?
 
     loop_points, runs = heal_arc_runs_to_adjacent_lines(loop_points, plane_normal, runs)
@@ -119,8 +121,10 @@
 
     plane_normal = plane_normal.clone
     plane_normal.normalize!
+    loop_points = normalize_curve_loop_start(loop_points, plane_normal)
     runs = detect_arc_like_runs(loop_points, plane_normal)
     runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
+    runs = merge_arc_runs_across_connector_lines(loop_points, plane_normal, runs)
     return loop_points if runs.empty?
 
     healed_points, = heal_arc_runs_to_adjacent_lines(loop_points, plane_normal, runs)
@@ -225,6 +229,69 @@
     expand_detected_arc_runs(points, normal, runs, lengths, turns)
   rescue
     []
+  end
+  def self.normalize_curve_loop_start(points, normal)
+    runs = detect_arc_like_runs(points, normal)
+    return points unless runs.length > 1
+
+    first_start, first_count = runs.first
+    last_start, last_count = runs.last
+    return points unless first_start.zero? && last_start + last_count == points.length
+
+    # A curve crossing the loop's arbitrary first point is seen as two runs.
+    # Start at the following straight edge so the curve remains contiguous.
+    start_index = first_count
+    return points unless start_index.positive? && start_index < points.length
+    return points unless runs[1][0] > start_index
+
+    points.rotate(start_index)
+  rescue
+    points
+  end
+  def self.merge_arc_runs_across_connector_lines(points, normal, runs)
+    return runs unless runs && runs.length > 1
+
+    merged = runs.sort_by(&:first)
+    loop do
+      changed = false
+      result = []
+      index = 0
+      while index < merged.length
+        start_index, edge_count = merged[index]
+        next_run = merged[index + 1]
+        if next_run && arc_runs_share_circle?(points, normal, start_index, edge_count, next_run[0], next_run[1])
+          result << [start_index, next_run[0] + next_run[1] - start_index]
+          index += 2
+          changed = true
+        else
+          result << [start_index, edge_count]
+          index += 1
+        end
+      end
+      merged = result
+      break unless changed
+    end
+    merged
+  rescue
+    runs
+  end
+  def self.arc_runs_share_circle?(points, normal, start_index, edge_count, next_start, next_count)
+    connector_edges = next_start - (start_index + edge_count)
+    return false unless connector_edges.between?(1, 2)
+
+    first = fit_arc_from_points(points, start_index, edge_count, normal)
+    second = fit_arc_from_points(points, next_start, next_count, normal)
+    return false unless first && second
+
+    tolerance = [0.5.mm, [first[:radius], second[:radius]].min * 0.003].max
+    return false if first[:center].distance(second[:center]) > tolerance
+    return false if (first[:radius] - second[:radius]).abs > tolerance
+
+    combined_count = next_start + next_count - start_index
+    combined = fit_arc_from_points(points, start_index, combined_count, normal)
+    combined && combined[:sweep].abs < 2.0 * Math::PI - 0.001
+  rescue
+    false
   end
   def self.expand_detected_arc_runs(points, normal, runs, lengths, turns = nil)
     return [] unless runs && !runs.empty?

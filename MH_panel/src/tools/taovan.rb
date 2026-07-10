@@ -634,6 +634,11 @@ class MH::Panel::TaoVan
     unless same_boundary
       return create_profile_face(target_entities, bottom, source_face, source_tr)
     end
+    # Copying a curved container face keeps any split arcs and stray chord edges.
+    # Rebuild it from the profile even when the requested offset is zero.
+    if source_face.outer_loop.edges.any?(&:curve)
+      return create_profile_face(target_entities, bottom, source_face, source_tr)
+    end
     unless MH::Panel.is_container?(@parent)
       return create_profile_face(target_entities, bottom, source_face, source_tr)
     end
