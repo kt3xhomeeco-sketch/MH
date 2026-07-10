@@ -79,7 +79,9 @@
     plane_normal = plane_normal.clone
     plane_normal.normalize!
     loop_points = normalize_curve_loop_start(loop_points, plane_normal)
-    runs = detect_arc_like_runs(loop_points, plane_normal)
+    loop_points = normalize_source_arc_loop_start(loop_points, plane_normal, source_face, source_transform)
+    runs = source_arc_geometry_runs(loop_points, plane_normal, source_face, source_transform)
+    runs = detect_arc_like_runs(loop_points, plane_normal) if runs.empty?
     runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
     runs = merge_arc_runs_across_connector_lines(loop_points, plane_normal, runs)
     return entities.add_face(loop_points) if runs.empty?
@@ -131,7 +133,9 @@
     plane_normal = plane_normal.clone
     plane_normal.normalize!
     loop_points = normalize_curve_loop_start(loop_points, plane_normal)
-    runs = detect_arc_like_runs(loop_points, plane_normal)
+    loop_points = normalize_source_arc_loop_start(loop_points, plane_normal, source_face, nil)
+    runs = source_arc_geometry_runs(loop_points, plane_normal, source_face, nil)
+    runs = detect_arc_like_runs(loop_points, plane_normal) if runs.empty?
     runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
     runs = merge_arc_runs_across_connector_lines(loop_points, plane_normal, runs)
     return loop_points if runs.empty?
@@ -256,6 +260,66 @@
     points.rotate(start_index)
   rescue
     points
+  end
+  def self.normalize_source_arc_loop_start(points, normal, source_face, source_transform = nil)
+    masks = source_arc_edge_masks(points, normal, source_face, source_transform)
+    return points if masks.empty?
+
+    arc_edges = Array.new(points.length, false)
+    masks.each { |mask| mask.each_with_index { |on_arc, index| arc_edges[index] ||= on_arc } }
+    line_index = arc_edges.index(false)
+    line_index ? points.rotate(line_index) : points
+  rescue
+    points
+  end
+  def self.source_arc_geometry_runs(points, normal, source_face, source_transform = nil)
+    masks = source_arc_edge_masks(points, normal, source_face, source_transform)
+    runs = []
+    masks.each do |mask|
+      index = 0
+      while index < mask.length
+        unless mask[index]
+          index += 1
+          next
+        end
+
+        start_index = index
+        index += 1 while index < mask.length && mask[index]
+        edge_count = index - start_index
+        runs << [start_index, edge_count] if edge_count >= 3
+      end
+    end
+    merge_arc_runs(runs)
+  rescue
+    []
+  end
+  def self.source_arc_edge_masks(points, normal, source_face, source_transform = nil)
+    return [] unless points && points.length >= 4 && source_face && source_face.valid?
+
+    transform = source_transform || IDENTITY
+    curves = source_face.outer_loop.edges.map(&:curve).compact.uniq.grep(Sketchup::ArcCurve)
+    curves.filter_map do |curve|
+      center = curve.center.transform(transform)
+      plane_shift = center.vector_to(points.first).dot(normal)
+      center = center.offset(normal, plane_shift)
+      distances = points.map { |point| center.distance(point) }
+      radius = distances.max_by do |candidate|
+        tolerance = [0.5.mm, candidate * 0.003].max
+        distances.count { |value| (value - candidate).abs <= tolerance }
+      end
+      next unless radius && radius > 0.001.mm
+
+      tolerance = [0.5.mm, radius * 0.003].max
+      max_edge = [radius * 0.25, 25.mm].max
+      points.each_with_index.map do |point, index|
+        following = points[(index + 1) % points.length]
+        (center.distance(point) - radius).abs <= tolerance &&
+          (center.distance(following) - radius).abs <= tolerance &&
+          point.distance(following) <= max_edge
+      end
+    end
+  rescue
+    []
   end
   def self.merge_arc_runs_across_connector_lines(points, normal, runs)
     return runs unless runs && runs.length > 1

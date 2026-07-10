@@ -82,6 +82,10 @@ module MH
         load_app_file('MH_panel', 'src', 'main.rb') unless defined?(MH::Panel::TaoCanh)
         MH::Panel.activate_tao_canh if defined?(MH::Panel)
       end
+      Menu.add(app: 'Panel', key: 'cat_van', label: 'Cắt Ván') do
+        load_app_file('MH_panel', 'src', 'main.rb') unless defined?(MH::Panel::CatVan)
+        MH::Panel.activate_cat_van if defined?(MH::Panel)
+      end
 
       Menu.add(app: 'Rename', key: 'rename_selected', label: 'Rename Selected') do
         load_app_file('MH_Rename', 'main.rb') unless defined?(MH::Rename)

@@ -33,6 +33,7 @@ module MH
       ].each { |name| require_relative "core/#{name}" }
       require_relative 'tools/taovan'
       require_relative 'tools/taocanh'
+      require_relative 'tools/catvan'
     end
 
     def reload
@@ -52,6 +53,10 @@ module MH
 
     def activate_tao_canh
       Sketchup.active_model.select_tool(MH::Panel::TaoCanh.new)
+    end
+
+    def activate_cat_van
+      Sketchup.active_model.select_tool(MH::Panel::CatVan.new)
     end
 
     def open_settings(tab = 'cai_dat')

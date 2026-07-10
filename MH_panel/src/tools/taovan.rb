@@ -425,6 +425,8 @@ class MH::Panel::TaoVan
     offset_points = MH::Geo::Offset.offset_pts(points, @normal, distance)
     return points unless offset_points && offset_points.length >= 3
 
+    offset_points = snap_offset_arc_points(offset_points, points, distance)
+
     unless MH::Geo::Offset.planar_loop_valid?(offset_points, @normal)
       # A concave/inward offset can cross an arc's center. At that point the
       # curved boundary is no longer valid, so use the straight-edge offset.
@@ -440,6 +442,61 @@ class MH::Panel::TaoVan
   rescue => e
     MH::Panel.dbg("[MH::Panel::TaoVan] offset_profile_points error: #{e.class}: #{e.message}")
     points
+  end
+  def snap_offset_arc_points(offset_points, source_points, distance)
+    return offset_points unless @last_face && @last_face.valid? && @last_tr
+
+    snapped = offset_points.map(&:clone)
+    transform = @last_tr || IDENTITY
+    loop_vertices = @last_face.outer_loop.vertices
+    loop_points = loop_vertices.map { |vertex| vertex.position.transform(transform) }
+    curves = @last_face.outer_loop.edges.map(&:curve).compact.uniq.grep(Sketchup::ArcCurve)
+    curves.each do |curve|
+      center = curve.center.transform(transform)
+      world_vertices = curve.vertices.map { |vertex| vertex.position.transform(transform) }
+      reference = world_vertices.first
+      source_radius = center.distance(reference)
+      target_radius = source_radius + distance
+      next if target_radius <= 0.001.mm
+
+      world_vertices.each do |point|
+        index = if source_points.length == loop_vertices.length
+                  loop_vertices.index { |vertex| vertex.position.transform(transform).distance(point) <= 0.001.mm }
+                end
+        matched_loop_index = !index.nil?
+        index ||= source_points.each_with_index.min_by { |candidate, _| candidate.distance(point) }&.last
+        next unless index && (matched_loop_index || source_points[index].distance(point) <= 0.1.mm)
+
+        radial = center.vector_to(point)
+        next if radial.length <= 0.001.mm
+
+        radial.normalize!
+        snapped[index] = center.offset(radial, target_radius)
+      end
+    end
+
+    # A source can already contain a chord replacing one segment of an arc.
+    # Detect the full circular run from its points so the next panel repairs it.
+    MH::Geo::Offset.detect_arc_like_runs(source_points, @normal).each do |start_index, edge_count|
+      arc = MH::Geo::Offset.fit_arc_from_points(source_points, start_index, edge_count, @normal)
+      next unless arc
+
+      target_radius = arc[:radius] + distance
+      next if target_radius <= 0.001.mm
+
+      (0..edge_count).each do |offset|
+        index = (start_index + offset) % source_points.length
+        radial = arc[:center].vector_to(source_points[index])
+        next if radial.length <= 0.001.mm
+
+        radial.normalize!
+        snapped[index] = arc[:center].offset(radial, target_radius)
+      end
+    end
+    snapped
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] snap offset arc error: #{e.class}: #{e.message}")
+    offset_points
   end
   def setback_profile_points(points, distance)
     setback_edge = setback_edge_for_profile(points)
