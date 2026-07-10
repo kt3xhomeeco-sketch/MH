@@ -1,3 +1,9 @@
+if defined?(MH::Geo::Offset) &&
+   defined?(MH::Panel::Offset) &&
+   MH::Panel::Offset.equal?(MH::Geo::Offset)
+  # MH::Panel::Offset is an alias to the shared implementation; do not reopen it
+  # with the legacy panel copy or it will overwrite MH::Geo::Offset methods.
+else
 module MH::Panel::Offset
   def self.offset_face_pts(face, offset)
     verts = face.outer_loop.vertices.map { |v| v.position }
@@ -975,4 +981,5 @@ module MH::Panel::Offset
                         o.z + v_x.z * x + v_y.z * y)
     end
   end
+end
 end

@@ -423,7 +423,13 @@ class MH::Panel::TaoVan
   def offset_profile_points(points, distance)
     return points unless points && points.length >= 3 && @normal
     offset_points = MH::Geo::Offset.offset_pts(points, @normal, distance)
-    offset_points && offset_points.length >= 3 ? offset_points : points
+    return points unless offset_points && offset_points.length >= 3
+
+    if MH::Geo::Offset.respond_to?(:heal_curve_points)
+      MH::Geo::Offset.heal_curve_points(offset_points, @normal, @last_face)
+    else
+      offset_points
+    end
   rescue => e
     MH::Panel.dbg("[MH::Panel::TaoVan] offset_profile_points error: #{e.class}: #{e.message}")
     points

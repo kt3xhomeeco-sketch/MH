@@ -73,6 +73,7 @@
     runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
     return entities.add_face(loop_points) if runs.empty?
 
+    loop_points, runs = heal_arc_runs_to_adjacent_lines(loop_points, plane_normal, runs)
     arc_data = runs.map { |start_index, edge_count| [start_index, fit_arc_from_points(loop_points, start_index, edge_count, plane_normal)] }
                    .select { |_, data| data }
     return entities.add_face(loop_points) if arc_data.empty?
@@ -104,6 +105,29 @@
   rescue => e
     MH::Shared.dbg("MH::Geo::Offset create arc face error: #{e.class}: #{e.message}") if defined?(MH::Shared)
     entities.add_face(points) rescue nil
+  end
+  def self.heal_curve_points(points, normal, source_face = nil)
+    return points unless points && points.length >= 3
+
+    loop_points = points.map(&:clone)
+    loop_points.pop if loop_points.length > 1 && loop_points.first.distance(loop_points.last) < 0.001.mm
+    return points if loop_points.length < 3
+
+    plane_normal = normal || curve_source_normal(source_face, nil)
+    plane_normal ||= best_fit_normal(loop_points)
+    return loop_points unless plane_normal && plane_normal.length > 0.001.mm
+
+    plane_normal = plane_normal.clone
+    plane_normal.normalize!
+    runs = detect_arc_like_runs(loop_points, plane_normal)
+    runs = source_curve_runs(source_face, loop_points.length) if runs.empty?
+    return loop_points if runs.empty?
+
+    healed_points, = heal_arc_runs_to_adjacent_lines(loop_points, plane_normal, runs)
+    healed_points
+  rescue => e
+    MH::Shared.dbg("MH::Geo::Offset heal curve points error: #{e.class}: #{e.message}") if defined?(MH::Shared)
+    points
   end
   def self.curve_source_normal(source_face, source_transform)
     return nil unless source_face && source_face.valid?
@@ -198,11 +222,11 @@
       runs << [start_index, edge_count] if edge_count >= 3
       index = [run_index, index + 1].max
     end
-    expand_detected_arc_runs(points, normal, runs, lengths)
+    expand_detected_arc_runs(points, normal, runs, lengths, turns)
   rescue
     []
   end
-  def self.expand_detected_arc_runs(points, normal, runs, lengths)
+  def self.expand_detected_arc_runs(points, normal, runs, lengths, turns = nil)
     return [] unless runs && !runs.empty?
 
     expanded = runs.map do |start_index, edge_count|
@@ -212,6 +236,7 @@
         changed = false
         if start_index.positive? &&
            arc_extension_edge?(lengths, start_index - 1, start_index, edge_count) &&
+           arc_extension_turn?(turns, start_index) &&
            fit_arc_from_points(points, start_index - 1, edge_count + 1, normal)
           start_index -= 1
           edge_count += 1
@@ -221,6 +246,7 @@
         right_edge = start_index + edge_count
         if right_edge < points.length &&
            arc_extension_edge?(lengths, right_edge, start_index, edge_count) &&
+           arc_extension_turn?(turns, right_edge) &&
            fit_arc_from_points(points, start_index, edge_count + 1, normal)
           edge_count += 1
           changed = true
@@ -247,7 +273,15 @@
     return false unless candidate_length && candidate_length > 0.001.mm
 
     candidate_length >= base_length * 0.4 &&
-      candidate_length <= [base_length * 1.75, 1.mm].max
+      candidate_length <= [base_length * 4.0, 1.mm].max
+  rescue
+    false
+  end
+  def self.arc_extension_turn?(turns, vertex_index)
+    return true unless turns && vertex_index && vertex_index >= 0 && vertex_index < turns.length
+
+    turn = turns[vertex_index]
+    turn && turn > 0.2.degrees && turn < 20.degrees
   rescue
     false
   end
@@ -264,6 +298,221 @@
     merged
   rescue
     runs
+  end
+  def self.heal_arc_runs_to_adjacent_lines(points, normal, runs)
+    return [points, runs] unless points && runs && !runs.empty?
+
+    healed_points = points.map(&:clone)
+    healed_runs = runs.map do |start_index, edge_count|
+      start_index = start_index.to_i
+      edge_count = edge_count.to_i
+      start_index, edge_count = trim_arc_run_right_to_line(healed_points, normal, start_index, edge_count)
+      start_index, edge_count = heal_arc_run_right(healed_points, normal, start_index, edge_count)
+      start_index, edge_count = trim_arc_run_left_wrap_to_line(healed_points, normal, start_index, edge_count)
+      start_index, edge_count = heal_arc_run_left(healed_points, normal, start_index, edge_count)
+      [start_index, edge_count]
+    end
+    [healed_points, merge_arc_runs(healed_runs)]
+  rescue
+    [points, runs]
+  end
+  def self.trim_arc_run_right_to_line(points, normal, start_index, edge_count)
+    point_count = points.length
+    end_vertex = start_index + edge_count
+    return [start_index, edge_count] if end_vertex + 1 >= point_count
+
+    base_length = median_arc_edge_length(points, start_index, edge_count)
+    return [start_index, edge_count] unless base_length && base_length > 0.001.mm
+
+    arc = fit_arc_from_points(points, start_index, edge_count, normal)
+    return [start_index, edge_count] unless arc
+
+    search_last = [end_vertex + 6, point_count - 2].min
+    candidate_edge = nil
+    (end_vertex + 1..search_last).each do |edge_index|
+      edge_length = points[edge_index].distance(points[edge_index + 1])
+      next unless edge_length > [base_length * 4.0, 50.mm].min
+
+      intersection = circle_line_intersection_near(
+        arc[:center],
+        arc[:radius],
+        points[edge_index],
+        points[edge_index + 1],
+        points[edge_index]
+      )
+      next unless intersection
+      next if intersection.distance(points[end_vertex]) > [base_length * 4.0, 120.mm].max
+
+      candidate_edge = [edge_index, intersection]
+      break
+    end
+    return [start_index, edge_count] unless candidate_edge
+
+    edge_index, intersection = candidate_edge
+    test_points = points.dup
+    insert_index = end_vertex + 1
+    test_points[insert_index] = intersection
+    test_points.slice!(insert_index + 1, edge_index - insert_index) if edge_index >= insert_index + 1
+    return [start_index, edge_count] unless fit_arc_from_points(test_points, start_index, edge_count + 1, normal)
+
+    points[insert_index] = intersection
+    points.slice!(insert_index + 1, edge_index - insert_index) if edge_index >= insert_index + 1
+    [start_index, edge_count + 1]
+  rescue
+    [start_index, edge_count]
+  end
+  def self.trim_arc_run_left_wrap_to_line(points, normal, start_index, edge_count)
+    return [start_index, edge_count] unless start_index == 0
+
+    point_count = points.length
+    return [start_index, edge_count] if point_count < edge_count + 3
+
+    base_length = median_arc_edge_length(points, start_index, edge_count)
+    return [start_index, edge_count] unless base_length && base_length > 0.001.mm
+
+    arc = fit_arc_from_points(points, start_index, edge_count, normal)
+    return [start_index, edge_count] unless arc
+
+    search_first = [point_count - 7, edge_count + 1].max
+    candidate_edge = nil
+    (search_first..(point_count - 2)).to_a.reverse_each do |edge_index|
+      edge_length = points[edge_index].distance(points[edge_index + 1])
+      next unless edge_length > [base_length * 4.0, 50.mm].min
+
+      intersection = circle_line_intersection_near(
+        arc[:center],
+        arc[:radius],
+        points[edge_index],
+        points[edge_index + 1],
+        points[edge_index + 1]
+      )
+      next unless intersection
+      next if intersection.distance(points[start_index]) > [base_length * 4.0, 120.mm].max
+
+      candidate_edge = [edge_index, intersection]
+      break
+    end
+    return [start_index, edge_count] unless candidate_edge
+
+    edge_index, intersection = candidate_edge
+    test_points = points.dup
+    test_points[0] = intersection
+    test_points.slice!(edge_index + 1, point_count - edge_index - 1)
+    return [start_index, edge_count] unless fit_arc_from_points(test_points, start_index, edge_count, normal)
+
+    points[0] = intersection
+    points.slice!(edge_index + 1, point_count - edge_index - 1)
+    [start_index, edge_count]
+  rescue
+    [start_index, edge_count]
+  end
+  def self.median_arc_edge_length(points, start_index, edge_count)
+    lengths = []
+    edge_count.times do |offset|
+      index = start_index + offset
+      break if index + 1 >= points.length
+
+      length = points[index].distance(points[index + 1])
+      lengths << length if length > 0.001.mm
+    end
+    return nil if lengths.empty?
+
+    sorted = lengths.sort
+    sorted[sorted.length / 2]
+  rescue
+    nil
+  end
+  def self.heal_arc_run_right(points, normal, start_index, edge_count)
+    count = points.length
+    right_edge = start_index + edge_count
+    return [start_index, edge_count] unless right_edge + 1 < count
+
+    lengths = (0...count).map { |index| points[index].distance(points[(index + 1) % count]) }
+    turns = (0...count).map do |index|
+      points[(index - 1) % count].vector_to(points[index]).angle_between(points[index].vector_to(points[(index + 1) % count]))
+    end
+    return [start_index, edge_count] unless arc_extension_edge?(lengths, right_edge, start_index, edge_count)
+    return [start_index, edge_count] unless arc_extension_turn?(turns, right_edge)
+
+    arc = fit_arc_from_points(points, start_index, edge_count, normal)
+    return [start_index, edge_count] unless arc
+
+    line_start = points[(right_edge + 1) % count]
+    line_end = points[(right_edge + 2) % count]
+    intersection = circle_line_intersection_near(arc[:center], arc[:radius], line_start, line_end, line_start)
+    return [start_index, edge_count] unless intersection
+
+    test_points = points.dup
+    test_points[(right_edge + 1) % count] = intersection
+    return [start_index, edge_count] unless fit_arc_from_points(test_points, start_index, edge_count + 1, normal)
+
+    points[(right_edge + 1) % count] = intersection
+    [start_index, edge_count + 1]
+  rescue
+    [start_index, edge_count]
+  end
+  def self.heal_arc_run_left(points, normal, start_index, edge_count)
+    return [start_index, edge_count] unless start_index >= 2
+
+    count = points.length
+    left_edge = start_index - 1
+    lengths = (0...count).map { |index| points[index].distance(points[(index + 1) % count]) }
+    turns = (0...count).map do |index|
+      points[(index - 1) % count].vector_to(points[index]).angle_between(points[index].vector_to(points[(index + 1) % count]))
+    end
+    return [start_index, edge_count] unless arc_extension_edge?(lengths, left_edge, start_index, edge_count)
+    return [start_index, edge_count] unless arc_extension_turn?(turns, start_index)
+
+    arc = fit_arc_from_points(points, start_index, edge_count, normal)
+    return [start_index, edge_count] unless arc
+
+    line_start = points[(left_edge - 1) % count]
+    line_end = points[left_edge % count]
+    intersection = circle_line_intersection_near(arc[:center], arc[:radius], line_start, line_end, line_end)
+    return [start_index, edge_count] unless intersection
+
+    test_points = points.dup
+    test_points[left_edge % count] = intersection
+    return [start_index, edge_count] unless fit_arc_from_points(test_points, left_edge, edge_count + 1, normal)
+
+    points[left_edge % count] = intersection
+    [left_edge, edge_count + 1]
+  rescue
+    [start_index, edge_count]
+  end
+  def self.circle_line_intersection_near(center, radius, line_start, line_end, near_point)
+    direction = line_start.vector_to(line_end)
+    return nil if direction.length <= 0.001.mm
+
+    offset = center.vector_to(line_start)
+    a = direction.dot(direction)
+    b = 2.0 * offset.dot(direction)
+    c = offset.dot(offset) - radius * radius
+    discriminant = b * b - 4.0 * a * c
+    if discriminant < -1e-9
+      t = -b / (2.0 * a)
+      closest = Geom::Point3d.new(
+        line_start.x + direction.x * t,
+        line_start.y + direction.y * t,
+        line_start.z + direction.z * t
+      )
+      return closest if (center.distance(closest) - radius).abs <= [1.mm, radius * 0.005].max
+
+      return nil
+    end
+
+    discriminant = 0.0 if discriminant.negative?
+    sqrt = Math.sqrt(discriminant)
+    candidates = [(-b - sqrt) / (2.0 * a), (-b + sqrt) / (2.0 * a)].map do |t|
+      Geom::Point3d.new(
+        line_start.x + direction.x * t,
+        line_start.y + direction.y * t,
+        line_start.z + direction.z * t
+      )
+    end
+    candidates.min_by { |point| point.distance(near_point) }
+  rescue
+    nil
   end
   def self.fit_arc_from_points(points, start_index, edge_count, normal)
     count = points.length
