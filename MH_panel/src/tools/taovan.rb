@@ -425,6 +425,13 @@ class MH::Panel::TaoVan
     offset_points = MH::Geo::Offset.offset_pts(points, @normal, distance)
     return points unless offset_points && offset_points.length >= 3
 
+    unless MH::Geo::Offset.planar_loop_valid?(offset_points, @normal)
+      # A concave/inward offset can cross an arc's center. At that point the
+      # curved boundary is no longer valid, so use the straight-edge offset.
+      fallback = MH::Geo::Offset.peo_offset_pts(points, @normal, -distance)
+      offset_points = fallback if MH::Geo::Offset.planar_loop_valid?(fallback, @normal)
+    end
+
     if MH::Geo::Offset.respond_to?(:heal_curve_points)
       MH::Geo::Offset.heal_curve_points(offset_points, @normal, @last_face)
     else

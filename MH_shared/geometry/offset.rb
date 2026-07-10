@@ -48,6 +48,15 @@
 
     !peo_polygon_self_intersects_2d?(pts, origin, xaxis, yaxis)
   end
+  def self.planar_loop_valid?(points, normal)
+    return false unless points && points.length >= 3 && normal && normal.length > 0.001.mm
+
+    origin, xaxis, yaxis = peo_face_2d_basis(points, normal)
+    area = peo_signed_area_2d(points, origin, xaxis, yaxis).abs
+    area > 1e-10 && !peo_polygon_self_intersects_2d?(points, origin, xaxis, yaxis)
+  rescue
+    false
+  end
 
   def self.fallback_offset_face(face, dist)
     result = faces(face, dist)
