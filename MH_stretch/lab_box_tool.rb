@@ -197,7 +197,7 @@ module MH::Stretch
     def onKeyDown(key, _repeat, _flags, view)
       case key
       when 9
-        cycle_axis
+        toggle_plane_mode
       when 27
         cancel_or_exit(view)
         return
@@ -512,6 +512,35 @@ module MH::Stretch
       @creation_preview = nil
       Sketchup.status_text =
         @offset_planes_enabled ? 'MH Stretch | Offset plane: bật' : 'MH Stretch | Offset plane: tắt'
+      Sketchup.active_model.active_view.invalidate
+    end
+
+    def toggle_plane_mode
+      if @offset_planes_enabled
+        @offset_planes_enabled = false
+        @show_default_plane = true
+        status = 'MH Stretch | Plane giữa: bật'
+      else
+        @offset_planes_enabled = true
+        @show_default_plane = false
+        status = "MH Stretch | Offset plane: #{offset_plane_label}"
+      end
+
+      Sketchup.write_default(PREF_SECTION, PREF_OFFSET_PLANES, @offset_planes_enabled)
+      Sketchup.write_default(PREF_SECTION, PREF_DEFAULT_PLANE, @show_default_plane)
+
+      if @offset_planes_enabled
+        @planes.clear_defaults!
+        @planes.clear_hidden_defaults!
+        ensure_active_axis_plane if @active_axis
+      else
+        @planes.clear_offset_planes!
+        @planes.clear_hidden_defaults!
+        ensure_active_axis_plane if @active_axis
+      end
+
+      @creation_preview = nil
+      Sketchup.status_text = status
       Sketchup.active_model.active_view.invalidate
     end
 
