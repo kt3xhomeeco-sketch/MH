@@ -76,11 +76,62 @@ module Stretch
         plane_pos: plane_pos,
         clearance: clearance
       )
+      edge_snapshot = snapshot_target_edges(buckets)
       world_delta = PlaneVertexSelector.world_delta(axis, amount.to_f)
       moved = move_origin_containers(buckets[:origin_containers], world_delta)
       moved += move_containers(buckets[:containers], world_delta)
       moved += move_curves(buckets[:curves], world_delta)
-      moved + move_vertex_buckets(buckets[:vertex_buckets], world_delta)
+      moved += move_vertex_buckets(buckets[:vertex_buckets], world_delta)
+      remove_new_coplanar_seams(edge_snapshot)
+      moved
+    end
+
+    def snapshot_target_edges(buckets)
+      scopes = []
+      buckets[:curves].each { |bucket| scopes << bucket[:entities] }
+      buckets[:vertex_buckets].each { |bucket| scopes << bucket[:entities] }
+      buckets[:origin_containers].each do |bucket|
+        scopes << PlaneVertexSelector.child_entities(bucket[:entity])
+      end
+
+      scopes.compact.uniq.each_with_object({}) do |entities, snapshot|
+        snapshot[entities.object_id] = {
+          entities: entities,
+          edge_keys: entities.grep(Sketchup::Edge).each_with_object({}) do |edge, keys|
+            keys[edge_key(edge)] = true
+          end
+        }
+      end
+    end
+
+    def remove_new_coplanar_seams(snapshot)
+      snapshot.each_value do |entry|
+        entities = entry[:entities]
+        old_keys = entry[:edge_keys]
+        seams = entities.grep(Sketchup::Edge).select do |edge|
+          !old_keys[edge_key(edge)] && removable_coplanar_seam?(edge)
+        end
+        entities.erase_entities(seams) unless seams.empty?
+      end
+    rescue => error
+      warn "MH Stretch seam cleanup failed: #{error.class}: #{error.message}"
+      0
+    end
+
+    def removable_coplanar_seam?(edge)
+      return false unless edge.valid? && edge.curve.nil? && edge.faces.length == 2
+      return false if edge.soft? || edge.smooth? || edge.hidden?
+
+      first, second = edge.faces
+      return false unless first.normal.samedirection?(second.normal)
+      return false unless second.vertices.first.position.distance_to_plane(first.plane).abs <= 0.01.mm
+      return false unless first.material == second.material
+      return false unless first.back_material == second.back_material
+      return false unless first.layer == second.layer
+
+      true
+    rescue
+      false
     end
 
     def normalize_planes(planes)
