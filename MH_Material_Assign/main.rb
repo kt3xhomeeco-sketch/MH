@@ -17,17 +17,6 @@ module MH
     ATTR_LAST_EXCEL_PATH = 'LastExcelPath'
     DEFAULT_LAST_EXCEL_PREFIX = 'LastExcelPathByModel:'
     DEBUG = false  # true = verbose logging ra Ruby Console (CHẬM khi vẽ HUD liên tục)
-    FINISH_GROUP_PREFIXES = [
-      ['VERKTSOI', 'VERKTSOI'],
-      ['VERSOI', 'VERSOI'],
-      ['VERKT', 'VERKT'],
-      ['VENE', 'VER'],
-      ['VER', 'VER'],
-      ['LK', 'LK'],
-      ['MS', 'MS'],
-      ['KL', 'KL']
-    ].freeze
-
     # Alias cho tên cột header - mỗi key là tên nội bộ, value là danh sách tên chấp nhận (case-insensitive)
     COLUMN_ALIASES = {
       'Ma_SP'         => ['Ma_SP', 'Mã SP', 'Ma SP', 'MaSP', 'Mã sản phẩm', 'Ma san pham', 'Product Code', 'SP'],
@@ -66,9 +55,6 @@ module MH
       end
     end
     
-    @invalid_materials ||= []    # Danh sách vật liệu không hợp lệ theo độ dày (legacy blacklist)
-    @valid_materials ||= []      # Danh sách vật liệu hợp lệ theo độ dày (whitelist)
-    @missing_materials ||= []    # Cache lưu các vật liệu không hợp lệ gặp phải khi chạy gán
     @last_assign_success ||= 0
     @last_assign_failed ||= 0
     @show_assign_counts ||= false
@@ -79,7 +65,7 @@ module MH
     class << self
       attr_accessor :excel_data, :product_codes, :module_names, 
                     :thickness_mappings, :header_columns, :detail_aliases, :tag_material_map,
-                    :column_aliases, :invalid_materials, :valid_materials, :missing_materials, :max_length_limit,
+                    :column_aliases, :max_length_limit,
                     :last_assign_success, :last_assign_failed, :show_assign_counts, :assign_counts_token,
                     :surface_face_rules
     end
@@ -131,59 +117,6 @@ module MH
       end
       
       # Load tất cả config từ CONFIG.xlsx
-      def self.config_cell_text(value)
-        text = value.nil? ? "" : value.to_s.strip
-        text = text.gsub(/\.0$/, '') if text =~ /^\d+\.0$/
-        text
-      end
-
-      def self.config_header_key(value)
-        MH::Text.fold(config_cell_text(value)).gsub(/[^a-z0-9]+/, '')
-      end
-
-      def self.invalid_material_header?(value)
-        ['mavatlieu', 'material', 'materialcode', 'mavl', 'vl'].include?(config_header_key(value))
-      end
-
-      def self.invalid_thickness_header?(value)
-        ['doday', 'day', 'thickness'].include?(config_header_key(value))
-      end
-
-      def self.read_material_spec_sheet(workbook, sheet_name)
-        begin
-          values = Array(workbook[sheet_name])
-          return [] if values.empty?
-
-          first_row = values[0] || []
-          has_header = invalid_material_header?(first_row[0]) || invalid_thickness_header?(first_row[1])
-          start_index = has_header ? 1 : 0
-          rows = []
-
-          (start_index...values.length).each do |row_num|
-            row_vals = values[row_num] || []
-            mat = config_cell_text(row_vals[0])
-            thick = config_cell_text(row_vals[1])
-            next if mat.empty?
-
-            rows << { material: mat, thickness: thick }
-          end
-
-          puts "[MH::MaterialApp] Read #{rows.length} #{sheet_name} rows" if DEBUG
-          rows
-        rescue => e
-          puts "[MH::MaterialApp] Error reading #{sheet_name}: #{e.message}" if DEBUG
-          []
-        end
-      end
-
-      def self.read_invalid_materials_sheet(workbook)
-        read_material_spec_sheet(workbook, 'InvalidMaterials')
-      end
-
-      def self.read_valid_materials_sheet(workbook)
-        read_material_spec_sheet(workbook, 'ValidMaterials')
-      end
-
       def self.load_all
         # Primary: load config từ MH_Registry connector
         if defined?(MH::RegistryApp::Connector)
@@ -287,16 +220,10 @@ module MH
             end
           end
           
-          # Load valid/invalid material specs
-          MH::MaterialApp.valid_materials = read_valid_materials_sheet(workbook)
-          MH::MaterialApp.invalid_materials = read_invalid_materials_sheet(workbook)
-          puts "[MH::MaterialApp] Loaded #{MH::MaterialApp.valid_materials.length} valid materials" if DEBUG
-          puts "[MH::MaterialApp] Loaded #{MH::MaterialApp.invalid_materials.length} invalid materials" if DEBUG
-          
           total = MH::MaterialApp.product_codes.length + MH::MaterialApp.module_names.length + 
                   MH::MaterialApp.thickness_mappings.length + MH::MaterialApp.header_columns.length +
                   MH::MaterialApp.detail_aliases.length + MH::MaterialApp.tag_material_map.length +
-                  MH::MaterialApp.column_aliases.values.flatten.length + MH::MaterialApp.valid_materials.length + MH::MaterialApp.invalid_materials.length
+                  MH::MaterialApp.column_aliases.values.flatten.length
           MH::MaterialApp.dbg("[MH::MaterialApp] Total configs loaded from CONFIG.xlsx: #{total}")
           
           true
@@ -892,19 +819,11 @@ module MH
     module MaterialCodeBuilder
       # Quy đổi độ dày theo bảng mapping
       def self.map_thickness(actual_thickness, fallback_to_actual: false)
-        actual = actual_thickness.to_f
-        MH::MaterialApp.thickness_mappings.each do |mapping|
-          if actual >= mapping[:min] && actual <= mapping[:max]
-            return mapping[:value]
-          end
-        end
-
-        if fallback_to_actual
-          return actual.round(1).to_s.gsub(/\.0$/, '')
-        end
-
-        # Nếu không có mapping, trả về nil -> không add material
-        nil
+        MH::MaterialCode.map_thickness(
+          actual_thickness,
+          mappings: MH::MaterialApp.thickness_mappings,
+          fallback_to_actual: fallback_to_actual
+        )
       end
       
       # Lấy kích thước 3 chiều thực của instance [min, mid, max]
@@ -1024,11 +943,7 @@ module MH
       end
 
       def self.split_material_codes(material_code)
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-          return MH::MaterialCode.split(material_code)
-        end
-
-        material_code.to_s.split(/\s*&\s*/).map(&:strip).reject(&:empty?)
+        MH::MaterialCode.split(material_code)
       end
 
       def self.multi_material_code?(material_code)
@@ -1036,138 +951,22 @@ module MH
       end
 
       def self.material_name_from_code(material_code, thickness, fallback_to_actual: false)
-        material_code = normalize_logical_material_code(material_code)
-
-        return nil if material_code.empty?
-        
-        # Kiểm tra nếu là MH_xxx -> extract phần xxx làm tên vật liệu
-        if material_code =~ /^MH_(.+)$/i
-          simple_name = $1  # Lấy phần sau MH_
-          puts "[MH::MaterialApp] MH_ code detected: #{material_code} -> #{simple_name}" if DEBUG
-          return simple_name
-        end
-
-        # Do day tao ma luon lay truc tiep tu do day thanh pham da chon
-        # (HUD/DC thickness option) roi qua ma_thickness.
-        # LK/VER/MS/KL chi la nhom/phu de validate/fallback, KHONG tru-cong
-        # vao do day o day.
-        # Input: MDFCA.AC.MS.333PL + thickness 17 -> Output: MDFCA.17.AC.MS.333PL
-        thickness_code = map_thickness(thickness, fallback_to_actual: fallback_to_actual)
-        
-        # Nếu độ dày ngoài khoảng mapping -> Không gán vật liệu (return nil)
-        if thickness_code.nil?
-          puts "[MH::MaterialApp] Thickness #{thickness}mm outside mapping -> returning nil (do not assign)" if DEBUG
-          return nil
-        end
-        
-        # Đảm bảo thickness_code là số nguyên (không có .0)
-        thickness_code = thickness_code.to_s.gsub(/\.0$/, '')
-
-        valid_code, valid_thickness = valid_material_code_and_thickness(material_code, thickness_code)
-        unless valid_code.to_s.empty?
-          material_code = valid_code
-          thickness_code = valid_thickness
-        end
-
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:with_thickness)
-          result = MH::MaterialCode.with_thickness(material_code, thickness_code)
-          unless result.to_s.empty?
-            puts "[MH::MaterialApp] Material code: #{material_code} + #{thickness}mm -> #{result}" if DEBUG
-            return result
-          end
-        end
-
-        parts = material_code.split('.')
-        
-        if parts.length >= 2
-          # Chèn độ dày vào vị trí thứ 2 (sau phần đầu tiên)
-          new_parts = [parts[0], thickness_code] + parts[1..-1]
-          result = new_parts.join('.')
-          puts "[MH::MaterialApp] Material code: #{material_code} + #{thickness}mm -> #{result}" if DEBUG
-          return result
-        else
-          # Nếu chỉ có 1 phần, thêm độ dày vào cuối
-          return "#{material_code}.#{thickness_code}"
-        end
-      end
-
-      # "Vật liệu hợp lệ" ưu tiên mã được khai trực tiếp. Mã con có
-      # FINISH_GROUP được phép kế thừa rule của cha cùng FINISH_GROUP gần nhất:
-      # PLY.AC.MS.MS502MM -> PLY.AC.MS, PLY.AC.LK.4555A -> PLY.AC.LK.
-      # Không tự biến MS502MM thành MS.MS502MM; cấu trúc cha/con phải do Excel ghi.
-      # Mã thường như PLY.VANDA không được rớt về PLY, vì sẽ mất suffix vật liệu.
-      #
-      # Luu y: ma_valid.thickness chi la ghi chu do day thuc te cho nguoi nhin,
-      # KHONG tham gia he thong. ma_thickness da quyet dinh 8 -> 6, 11 -> 9...
-      def self.valid_material_code_and_thickness(material_code, target_thickness)
-        rows = Array(MH::MaterialApp.valid_materials)
-        return ['', ''] if rows.empty?
-
-        parts = material_code.to_s.split('.').map(&:strip).reject(&:empty?)
-        return ['', ''] if parts.empty?
-
-        original_code = parts.join('.')
-        candidates = [original_code]
-        source_group = finish_group_for_material_code(original_code)
-        unless source_group.to_s.empty?
-          (parts.length - 1).downto(2) do |length|
-            candidate = parts.first(length).join('.')
-            candidates << candidate if finish_group_for_material_code(candidate).to_s.casecmp(source_group).zero?
-          end
-        end
-
-        target_key = normalize_thickness_token(target_thickness)
-
-        candidates.uniq.each do |candidate|
-          hit = rows.find do |entry|
-            code = (entry[:material] || entry['material']).to_s.strip
-            code.casecmp(candidate).zero?
-          end
-          next unless hit
-
-          code = (hit[:material] || hit['material']).to_s.strip
-          # Neu ma con muon rule cua ma cha thi van giu ma con.
-          # Vi du: PLY.AC.LK.4555A hop le theo PLY.AC.LK,
-          # ket qua van phai la PLY.19.AC.LK.4555A.
-          valid_code = candidate.casecmp(original_code).zero? ? code : original_code
-          return [valid_code, target_key]
-        end
-
-        ['', '']
-      rescue
-        ['', '']
+        result = MH::MaterialCode.material_name(
+          material_code,
+          thickness,
+          mappings: MH::MaterialApp.thickness_mappings,
+          fallback_to_actual: fallback_to_actual
+        )
+        puts "[MH::MaterialApp] Material code: #{material_code} + #{thickness}mm -> #{result}" if DEBUG && result
+        result
       end
 
       def self.finish_group_for_material_code(material_code)
-        parts = normalize_logical_material_code(material_code).upcase.split('.').reject(&:empty?)
-        MH::MaterialApp::FINISH_GROUP_PREFIXES.each do |token_prefix, group_name|
-          token = token_prefix.to_s.upcase
-          return group_name if parts.any? { |part| part == token || part.start_with?(token) }
-        end
-        ''
-      rescue
-        ''
+        MH::MaterialCode.finish_group(material_code)
       end
 
       def self.normalize_logical_material_code(value)
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:display)
-          return MH::MaterialCode.display(value)
-        end
-
-        code = value.to_s.strip.gsub(/\s+/, '')
-        return '' if code.empty?
-        # Mã vật liệu là dữ liệu nguồn. Chỉ làm sạch khoảng trắng/dấu chấm rỗng,
-        # tuyệt đối không tự chèn MS/KL/LK làm thay đổi mã trong Excel.
-        code.split('.').map(&:strip).reject(&:empty?).join('.')
-      rescue
-        value.to_s.strip
-      end
-
-      def self.normalize_thickness_token(value)
-        number = value.to_s.strip.tr(',', '.').to_f
-        (number - number.round).abs < 0.0001 ? number.round.to_s : number.to_s
-      rescue
-        value.to_s.strip
+        MH::MaterialCode.display(value)
       end
 
       # Kiểm tra có phải MH_xxx không
@@ -1411,12 +1210,10 @@ module MH
           'finish_suffix_overrides' => 'LK:.1M-BCT,.2M-BCT'
         }
       ].freeze
-      SURFACE_FACE_SUFFIX_PATTERN = /(?:\.1M(?:-BCT)?|\.2M(?:-BCT)?)\z/i.freeze
       STATS_KEYS = [
         :success,
         :skip_no_product,
         :skip_no_match,
-        :skip_invalid_material,
         :skip_no_thickness,
         :skip_second_edge,
         :skip_exceed_length,
@@ -1473,191 +1270,24 @@ module MH
       end
 
       def self.same_material_code?(left, right)
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:same?)
-          return MH::MaterialCode.same?(left, right)
-        end
-
-        normalize_material_code(left) == normalize_material_code(right)
+        MH::MaterialCode.same?(left, right)
       end
 
       def self.normalize_material_code(value)
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:normalize)
-          return MH::MaterialCode.normalize(value)
-        end
-
-        value.to_s.strip.upcase.gsub(/\s+/, '')
-      end
-
-      def self.material_family_parts(value)
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:without_thickness)
-          return MH::MaterialCode.without_thickness(value)
-                                 .sub(SURFACE_FACE_SUFFIX_PATTERN, '')
-                                 .split('.')
-                                 .reject(&:empty?)
-        end
-
-        normalize_material_code(MaterialCodeBuilder.normalize_logical_material_code(value))
-          .sub(SURFACE_FACE_SUFFIX_PATTERN, '')
-          .split('.')
-          .reject(&:empty?)
-          .tap do |parts|
-            parts.delete_at(1) if parts.length > 1 && parts[1] =~ /\A\d+(?:\.\d+)?\z/
-          end
-      end
-
-      def self.material_family_match?(invalid_material, candidate_material)
-        invalid_parts = material_family_parts(invalid_material)
-        candidate_parts = material_family_parts(candidate_material)
-        return false if invalid_parts.empty? || candidate_parts.empty?
-
-        invalid_finish_group = finish_group_for_material_code(invalid_material)
-        candidate_finish_group = finish_group_for_material_code(candidate_material)
-        return false if invalid_finish_group != candidate_finish_group
-        return invalid_parts == candidate_parts unless invalid_finish_group
-        return false unless invalid_parts.length <= candidate_parts.length
-
-        invalid_parts.each_with_index.all? { |part, index| part == candidate_parts[index] }
-      end
-
-      def self.invalid_material_code_match?(invalid_material, raw_material_code, assigned_material_name)
-        same_material_code?(invalid_material, raw_material_code) ||
-          same_material_code?(invalid_material, assigned_material_name) ||
-          material_family_match?(invalid_material, raw_material_code) ||
-          material_family_match?(invalid_material, assigned_material_name)
-      end
-
-      def self.finish_group_token_map
-        MH::MaterialApp::FINISH_GROUP_PREFIXES.map { |token_prefix, group_name| [group_name, token_prefix] }
+        MH::MaterialCode.normalize(value)
       end
 
       def self.finish_group_for_material_code(material_code)
-        parts = material_family_parts(material_code)
-        return nil if parts.empty?
-
-        finish_group_token_map.each do |group_name, token_prefix|
-          return group_name if parts.any? { |part| part.start_with?(token_prefix) }
-        end
-        nil
+        group = MH::MaterialCode.finish_group(material_code)
+        group.empty? ? nil : group
       end
 
       def self.surface_face_variant_code?(material_code)
-        material_code.to_s.strip =~ SURFACE_FACE_SUFFIX_PATTERN
+        MH::MaterialCode.surface_variant?(material_code)
       end
 
       def self.base_surface_face_code(material_code)
-        material_code.to_s.strip.sub(SURFACE_FACE_SUFFIX_PATTERN, '')
-      end
-
-      def self.parent_material_codes(raw_material_code)
-        code = base_surface_face_code(raw_material_code)
-        return [] if code.empty? || code =~ /^MH_/i
-
-        parts = code.split('.').map(&:strip).reject(&:empty?)
-        return [] if parts.length <= 2
-
-        candidates = []
-        (parts.length - 1).downto(2) do |length|
-          candidates << parts.first(length).join('.')
-        end
-        candidates
-      end
-
-      def self.material_available?(model, material_name)
-        return true if model.materials[material_name]
-
-        file_path = File.join(MH::MaterialApp::MATERIAL_FOLDER, "#{material_name}.skm") rescue nil
-        file_path && File.exist?(file_path)
-      end
-
-      def self.valid_parent_material_name(model, raw_material_code, thickness, parsed, instance, stats = nil, assigned_material_name = nil)
-        source_finish_group = finish_group_for_material_code(raw_material_code)
-        return nil if source_finish_group.to_s.strip.empty?
-        allow_same_finish_group = surface_face_variant_code?(raw_material_code) || surface_face_variant_code?(assigned_material_name)
-
-        parent_material_codes(raw_material_code).each do |parent_code|
-          parent_finish_group = finish_group_for_material_code(parent_code)
-          next if parent_finish_group == source_finish_group && !allow_same_finish_group
-          next if parent_finish_group != source_finish_group
-
-          parent_name = MaterialCodeBuilder.material_name_from_code(parent_code, thickness)
-          next unless parent_name
-
-          parent_name = apply_surface_face_suffix(parent_name, instance, thickness, parsed)
-          thickness_mapped = MaterialCodeBuilder.map_thickness(thickness) || ""
-          thickness_str = thickness_mapped.to_s.gsub(/\.0$/, '')
-          next unless material_allowed_by_spec?(parent_code, parent_name, thickness_str, thickness)
-          next unless material_available?(model, parent_name)
-
-          add_skip_detail(stats, "Fallback: #{instance_label(instance)} #{raw_material_code} -> #{parent_code}") if stats
-          return parent_name
-        end
-
-        nil
-      end
-
-      def self.normalize_thickness_value(value)
-        text = value.to_s.strip.downcase.gsub(',', '.')
-        text = text.sub(/mm\z/, '').strip
-        if text =~ /\A-?\d+(?:\.\d+)?\z/
-          number = text.to_f
-          text = if (number - number.round).abs < 0.0001
-                   number.round.to_s
-                 else
-                   format('%.3f', number).sub(/0+$/, '').sub(/\.$/, '')
-                 end
-        end
-        text
-      end
-
-      def self.invalid_thickness_match?(invalid_thickness, thickness_code, actual_thickness = nil)
-        invalid_value = normalize_thickness_value(invalid_thickness)
-        return true if invalid_value.empty?
-
-        candidates = [thickness_code]
-        if actual_thickness
-          actual = actual_thickness.to_f
-          candidates << actual
-          candidates << format('%.1f', actual)
-          candidates << actual.round if (actual - actual.round).abs < 0.05
-        end
-
-        candidates.map { |value| normalize_thickness_value(value) }.include?(invalid_value)
-      end
-
-      def self.invalid_material_entry?(invalid_entry, raw_material_code, assigned_material_name, thickness_code, actual_thickness = nil)
-        invalid_material = invalid_entry[:material].to_s.strip
-        return false if invalid_material.empty?
-        return false unless invalid_thickness_match?(invalid_entry[:thickness], thickness_code, actual_thickness)
-
-        invalid_material_code_match?(invalid_material, raw_material_code, assigned_material_name)
-      end
-
-      def self.valid_materials_defined?
-        MH::MaterialApp.valid_materials && !MH::MaterialApp.valid_materials.empty?
-      end
-
-      def self.valid_material_entry?(valid_entry, raw_material_code, assigned_material_name, thickness_code, actual_thickness = nil)
-        valid_material = valid_entry[:material].to_s.strip
-        return false if valid_material.empty?
-
-        invalid_material_code_match?(valid_material, raw_material_code, assigned_material_name)
-      end
-
-      def self.material_allowed_by_spec?(raw_material_code, assigned_material_name, thickness_code, actual_thickness = nil)
-        if valid_materials_defined?
-          relevant_valid_entries = MH::MaterialApp.valid_materials.select do |entry|
-            valid_material = entry[:material].to_s.strip
-            !valid_material.empty? && invalid_material_code_match?(valid_material, raw_material_code, assigned_material_name)
-          end
-
-          return relevant_valid_entries.any? do |entry|
-            valid_material_entry?(entry, raw_material_code, assigned_material_name, thickness_code, actual_thickness)
-          end unless relevant_valid_entries.empty?
-        end
-
-        !MH::MaterialApp.invalid_materials.any? do |entry|
-          invalid_material_entry?(entry, raw_material_code, assigned_material_name, thickness_code, actual_thickness)
-        end
+        MH::MaterialCode.strip_surface_variant(material_code)
       end
 
       def self.instance_label(instance)
@@ -1703,7 +1333,7 @@ module MH
       end
 
       def self.strip_face_suffix(material_name)
-        material_name.to_s.sub(SURFACE_FACE_SUFFIX_PATTERN, '')
+        MH::MaterialCode.strip_surface_variant(material_name)
       end
 
       def self.two_side_detail?(instance, parsed = nil, rule = nil)
@@ -1906,63 +1536,13 @@ module MH
         raw_codes.each_with_object([]) do |raw_code, options|
           material_name = material_name_for_multi_code(raw_code, thickness)
           next unless material_name
-          thickness_code = MaterialCodeBuilder.map_thickness(thickness) ||
-                           (nominal_fallback_allowed_for_code?(raw_code) ? fallback_nominal_thickness(thickness) : nil)
-          thickness_str = thickness_code.to_s.gsub(/\.0$/, '')
-
-          unless material_allowed_by_spec?(raw_code, material_name, thickness_str, thickness)
-            MH::MaterialApp.missing_materials << material_name unless MH::MaterialApp.missing_materials.include?(material_name)
-            next
-          end
 
           options << { code: raw_code, material_name: material_name }
         end
       end
 
-      def self.fallback_nominal_thickness(thickness)
-        actual = thickness.to_f
-        rounded = actual.round
-        return nil unless actual > 0 && (actual - rounded).abs < 0.05
-
-        rounded.to_s
-      end
-
-      def self.valid_nominal_thickness_for_code?(raw_code, thickness_code)
-        return false unless valid_materials_defined?
-
-        MH::MaterialApp.valid_materials.any? do |entry|
-          valid_material = entry[:material].to_s.strip
-          !valid_material.empty? && invalid_material_code_match?(valid_material, raw_code, raw_code)
-        end
-      end
-
-      def self.nominal_fallback_allowed_for_code?(raw_code)
-        code = raw_code.to_s.strip
-        return false if code.empty?
-        return true if code =~ /^MH_/i
-
-        !code.include?('.')
-      end
-
       def self.material_name_for_multi_code(raw_code, thickness)
-        material_name = MaterialCodeBuilder.material_name_from_code(raw_code, thickness)
-        return material_name if material_name
-        return nil unless nominal_fallback_allowed_for_code?(raw_code)
-
-        thickness_code = fallback_nominal_thickness(thickness)
-        return nil unless thickness_code
-        return nil unless valid_nominal_thickness_for_code?(raw_code, thickness_code)
-
-        code = raw_code.to_s.strip
-        return nil if code.empty?
-        return $1 if code =~ /^MH_(.+)$/i
-
-        parts = code.split('.')
-        if parts.length >= 2
-          ([parts[0], thickness_code] + parts[1..-1]).join('.')
-        else
-          "#{code}.#{thickness_code}"
-        end
+        MaterialCodeBuilder.material_name_from_code(raw_code, thickness)
       end
 
       def self.multi_material_options_for_targets(raw_codes, targets)
@@ -2105,8 +1685,8 @@ module MH
           multi_material_target_groups(instance, parsed, excel_row).each do |group|
             group[:targets].each { |target| clear_material_from_instance(target) }
           end
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} khong co VL hop le trong #{raw_codes.join(' & ')}")
-          return :skip_invalid_material
+          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua map do day cho #{raw_codes.join(' & ')}")
+          return :skip_no_thickness
         end
 
         cache = stats_hash(stats, :multi_material_choice_cache)
@@ -2159,7 +1739,7 @@ module MH
         end
 
         if assigned.zero?
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua chon VL hop le")
+          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua chon vat lieu")
           return :skip_error
         end
 
@@ -2184,8 +1764,8 @@ module MH
         options = multi_material_options(raw_codes, thickness)
         if options.empty?
           grouped_targets.values.flatten.each { |target| clear_material_from_instance(target) }
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} khong co VL hop le trong #{raw_codes.join(' & ')}")
-          return :skip_invalid_material
+          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua map do day cho #{raw_codes.join(' & ')}")
+          return :skip_no_thickness
         end
 
         option_codes = options.map { |option| option[:code] }
@@ -2230,7 +1810,7 @@ module MH
         end
 
         if assigned.zero?
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua chon VL hop le")
+          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua chon vat lieu")
           return :skip_error
         end
 
@@ -2302,29 +1882,6 @@ module MH
 
         material_name = apply_surface_face_suffix(material_name, instance, thickness, parsed)
         
-        # Kiểm tra vật liệu không có độ dày hợp lệ
-        thickness_mapped = MaterialCodeBuilder.map_thickness(thickness) ||
-                           (nominal_fallback_allowed_for_code?(raw_mat) ? fallback_nominal_thickness(thickness) : "") ||
-                           ""
-        thickness_str = thickness_mapped.to_s.gsub(/\.0$/, '')
-        
-        needs_fallback = !material_allowed_by_spec?(raw_mat, material_name, thickness_str, thickness)
-
-        if needs_fallback
-          fallback_material_name = valid_parent_material_name(model, raw_mat, thickness, parsed, instance, stats, material_name)
-
-          if fallback_material_name
-            puts "[MH::MaterialApp] Fallback invalid material '#{material_name}' -> '#{fallback_material_name}' for '#{name}'" if DEBUG
-            material_name = fallback_material_name
-          else
-            missing_code = material_name
-            MH::MaterialApp.missing_materials << missing_code unless MH::MaterialApp.missing_materials.include?(missing_code)
-            puts "[MH::MaterialApp] Skip: Material spec not allowed '#{missing_code}' for '#{name}'" if DEBUG
-            add_skip_detail(stats, "Khong gan: #{instance_label(instance)} no spec #{missing_code}")
-            return :skip_invalid_material
-          end
-        end
-        
         puts "[MH::MaterialApp] Ma_vat_lieu: '#{excel_row['Ma_vat_lieu']}' -> material: '#{material_name}'" if DEBUG
         
         # Load vật liệu từ folder hoặc tạo mới
@@ -2367,7 +1924,6 @@ module MH
         
         model.start_operation("Assign Materials to Selection", true)
         
-        MH::MaterialApp.missing_materials = []
         stats = blank_stats
         stats[:details] = []
 
@@ -2392,11 +1948,7 @@ module MH
         
         model.commit_operation
         
-        if show_alert && MH::MaterialApp.missing_materials.any?
-          UI.messagebox("⚠️ CẢNH BÁO: Các vật liệu sau không hợp lệ độ dày (đã bị bỏ qua):\n\n- " + MH::MaterialApp.missing_materials.join("\n- "))
-        end
-        
-        MH::MaterialApp.notify("✅ Gán VL: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
+        MH::MaterialApp.notify("✅ Gán VL: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
         stats
       end
 
@@ -2421,7 +1973,6 @@ module MH
         
         model.start_operation("Assign Materials to All", true)
         
-        MH::MaterialApp.missing_materials = []
         stats = blank_stats
         stats[:details] = []
         stats[:processed] = targets.length
@@ -2438,11 +1989,7 @@ module MH
         
         model.commit_operation
         
-        if show_alert && MH::MaterialApp.missing_materials.any?
-          UI.messagebox("⚠️ CẢNH BÁO: Các vật liệu sau không hợp lệ độ dày (đã bị bỏ qua):\n\n- " + MH::MaterialApp.missing_materials.join("\n- "))
-        end
-        
-        MH::MaterialApp.notify("✅ Gán toàn bộ: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_invalid_material] + stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
+        MH::MaterialApp.notify("✅ Gán toàn bộ: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
         stats
       end
     end
@@ -3165,7 +2712,6 @@ module MH
           else
             stats.fetch(:skip_no_product, 0).to_i +
               stats.fetch(:skip_no_match, 0).to_i +
-              stats.fetch(:skip_invalid_material, 0).to_i +
               stats.fetch(:skip_no_thickness, 0).to_i +
               stats.fetch(:skip_second_edge, 0).to_i +
               stats.fetch(:skip_exceed_length, 0).to_i +
@@ -3202,7 +2748,7 @@ module MH
         end
 
         fail_name = stats[:skip_no_product] + stats[:skip_no_match]
-        fail_thickness = stats[:skip_invalid_material] + stats[:skip_no_thickness]
+        fail_thickness = stats[:skip_no_thickness]
         "#{prefix}: #{stats[:success]} | Fail: #{fail_name} | Day: #{fail_thickness} | Canh 15-1200: #{stats[:skip_second_edge]} | Dai: #{stats[:skip_exceed_length]}"
       end
 

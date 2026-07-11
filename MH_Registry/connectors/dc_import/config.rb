@@ -25,15 +25,6 @@ module MH
 
         PANEL_THICKNESS_KEY = 'ba4ulq2qnw'
         BACK_THICKNESS_KEY = 'ikqikbwfw7'
-        DEFAULT_THICKNESS_MAP = [
-          { 'min' => 7.5, 'max' => 8.5, 'value' => '8' },
-          { 'min' => 10.5, 'max' => 11.5, 'value' => '11' },
-          { 'min' => 16.5, 'max' => 17.9, 'value' => '17' },
-          { 'min' => 18.0, 'max' => 18.9, 'value' => '18' },
-          { 'min' => 19.0, 'max' => 19.9, 'value' => '19' },
-          { 'min' => 20.0, 'max' => 20.9, 'value' => '20' },
-          { 'min' => 24.0, 'max' => 25.9, 'value' => '25' }
-        ].freeze
         DEFAULT_PROFILE = {
           'profile_id' => 'MDFCA_AC_BACK8',
           'profile_name' => 'MDFCA.AC | Hau 8',
@@ -75,7 +66,7 @@ module MH
             'back_thickness_mm' => ''
           }
         ].freeze
-        @thickness_map = DEFAULT_THICKNESS_MAP.map(&:dup)
+        @thickness_map = []
 
         @thickness_options_by_type = {}
         @thickness_options_library_by_type = {}
@@ -261,19 +252,14 @@ module MH
         end
 
         def lightweight_material_name_from_code(material_code, actual_thickness)
-          code = material_code.to_s.strip
-          return '' if code.empty?
-          return code.sub(/^MH_/i, '') if code =~ /^MH_/i
-
-          thickness_code = map_thickness(actual_thickness)
-          parts = code.split('.').map(&:strip).reject(&:empty?)
-          if parts.length >= 2
-            ([parts[0], thickness_code] + parts[1..-1]).join('.')
-          else
-            "#{code}.#{thickness_code}"
-          end
+          MH::MaterialCode.material_name(
+            material_code,
+            actual_thickness,
+            mappings: @thickness_map,
+            fallback_to_actual: true
+          ).to_s
         rescue
-          code
+          material_code.to_s
         end
 
         def parse_thickness_map(data)
@@ -285,7 +271,7 @@ module MH
             next if min_v.empty? || max_v.empty? || val.empty?
             { 'min' => min_v.to_f, 'max' => max_v.to_f, 'value' => val.gsub(/\.0$/, '') }
           end
-          parsed.empty? ? DEFAULT_THICKNESS_MAP.map(&:dup) : parsed
+          parsed
         end
 
         def parse_global_material_codes(data)

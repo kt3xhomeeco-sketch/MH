@@ -194,11 +194,7 @@ module MH
               row_value(row, :hw_name, 'hw_name'),
               row_value(row, 'Ma_vat_lieu', :Ma_vat_lieu, 'Mã vật liệu')
             ].flat_map do |value|
-              if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-                MH::MaterialCode.split(value)
-              else
-                value.to_s.split(/\s*&\s*/)
-              end
+              MH::MaterialCode.split(value)
             end
             codes.any? { |candidate| material_code_key(candidate) == wanted }
           end

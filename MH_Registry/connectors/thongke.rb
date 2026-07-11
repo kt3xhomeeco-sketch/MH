@@ -381,19 +381,11 @@ module MH
         end
 
         def self.split_material_codes(value)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-            return MH::MaterialCode.split(value)
-          end
-
-          value.to_s.split(/\s*&\s*/).map(&:strip).reject(&:empty?)
+          MH::MaterialCode.split(value)
         end
 
         def self.material_base_code(material_name)
-          parts = material_name.to_s.split('.').map(&:strip).reject(&:empty?)
-          return '' if parts.empty?
-          return parts[0] if parts.length < 3
-
-          ([parts[0]] + parts[2..-1]).join('.')
+          MH::MaterialCode.without_thickness(material_name)
         end
 
         def self.base_material_names(material_name)
@@ -403,23 +395,7 @@ module MH
         end
 
         def self.material_code_without_thickness(value)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:without_thickness)
-            return MH::MaterialCode.without_thickness(value)
-          end
-
-          parts = value.to_s.split('.').map(&:strip).reject(&:empty?)
-          return '' if parts.empty?
-          return parts.first if parts.length == 1
-
-          if numeric_thickness_token?(parts[1])
-            ([parts.first] + parts[2..-1]).join('.')
-          else
-            parts.join('.')
-          end
-        end
-
-        def self.numeric_thickness_token?(value)
-          value.to_s.strip =~ /\A\d+(?:[,.]\d+)?\z/
+          MH::MaterialCode.without_thickness(value)
         end
 
         def self.normalize_product_code(code)

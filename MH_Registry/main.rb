@@ -985,11 +985,7 @@ module MH
     end
 
     def split_material_codes(value)
-      if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-        return MH::MaterialCode.split(value)
-      end
-
-      value.to_s.split(/\s*&\s*/).map(&:strip).reject(&:empty?)
+      MH::MaterialCode.split(value)
     end
 
     def normalize_excel_header(value)
@@ -1170,19 +1166,7 @@ module MH
     end
 
     def registry_material_code_without_thickness(value)
-      if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:without_thickness)
-        return MH::MaterialCode.without_thickness(value)
-      end
-
-      parts = value.to_s.split('.').map(&:strip).reject(&:empty?)
-      return '' if parts.empty?
-      return parts.first if parts.length == 1
-
-      if parts[1].to_s =~ /\A\d+(?:[,.]\d+)?\z/
-        ([parts.first] + parts[2..-1]).join('.')
-      else
-        parts.join('.')
-      end
+      MH::MaterialCode.without_thickness(value)
     end
 
     def bootstrap_data

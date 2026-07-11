@@ -74,25 +74,6 @@ module MH
           end
           MH::MaterialApp.tag_material_map = tmap
 
-          # valid_materials: whitelist theo ma vat lieu. Cac cot thickness/actual_thickness
-          # trong ma_valid chi la ghi chu cho UI/Excel, khong tham gia validate.
-          valid = (config_data['ma_valid'] || []).filter_map do |r|
-            mat = r['material'].to_s.strip
-            thk = r['thickness'].to_s.strip
-            next if mat.empty?
-            { material: mat, thickness: thk }
-          end
-          MH::MaterialApp.valid_materials = valid
-
-          # invalid_materials: legacy blacklist, chỉ có tác dụng khi valid_materials trống.
-          inv = (config_data['ma_invalid'] || []).filter_map do |r|
-            mat = r['material'].to_s.strip
-            thk = r['thickness'].to_s.strip
-            next if mat.empty?
-            { material: mat, thickness: thk }
-          end
-          MH::MaterialApp.invalid_materials = inv
-
           # surface face rules (.1M/.2M cho Laminate/Veneer...)
           sfr = (config_data['ma_surface_face_rules'] || []).filter_map do |r|
             tokens = r['surface_tokens'].to_s.strip
@@ -461,80 +442,30 @@ module MH
         private
 
         def self.material_name_for_thickness(raw_code, thickness_mm)
-          if defined?(MH::MaterialApp::MaterialAssigner) &&
-             MH::MaterialApp::MaterialAssigner.respond_to?(:material_name_for_multi_code)
-            name = MH::MaterialApp::MaterialAssigner.material_name_for_multi_code(raw_code, thickness_mm.to_f)
-            return name if name
-          end
-
-          if defined?(MH::MaterialApp::MaterialCodeBuilder) &&
-             MH::MaterialApp::MaterialCodeBuilder.respond_to?(:material_name_from_code)
-            return MH::MaterialApp::MaterialCodeBuilder.material_name_from_code(raw_code, thickness_mm.to_f)
-          end
-
-          nil
+          mappings = MH::MaterialApp.thickness_mappings if defined?(MH::MaterialApp)
+          MH::MaterialCode.material_name(raw_code, thickness_mm.to_f, mappings: mappings)
         end
 
         def self.material_thickness_code(material_name, raw_code, thickness_mm)
           name_parts = material_name.to_s.split('.')
           raw_parts = raw_code.to_s.split('.')
           return name_parts[1].to_s if raw_parts.length >= 2 && name_parts.length >= 2
-          if defined?(MH::MaterialApp::MaterialCodeBuilder) &&
-             MH::MaterialApp::MaterialCodeBuilder.respond_to?(:map_thickness)
-            mapped = MH::MaterialApp::MaterialCodeBuilder.map_thickness(thickness_mm.to_f)
-            return mapped.to_s.gsub(/\.0$/, '') unless mapped.to_s.empty?
-          end
+          mappings = MH::MaterialApp.thickness_mappings if defined?(MH::MaterialApp)
+          mapped = MH::MaterialCode.map_thickness(thickness_mm.to_f, mappings: mappings, fallback_to_actual: true)
+          return mapped.to_s unless mapped.to_s.empty?
           thickness_mm.to_f.round(1).to_s.gsub(/\.0$/, '')
         end
 
         def self.split_material_codes(value)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-            return MH::MaterialCode.split(value)
-          end
-
-          value.to_s.split(/\s*&\s*/).map(&:strip).reject(&:empty?)
+          MH::MaterialCode.split(value)
         end
 
         def self.material_code_without_thickness(value)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:without_thickness)
-            return MH::MaterialCode.without_thickness(value)
-          end
-
-          value = normalize_logical_material_code(value)
-          parts = value.to_s.split('.').map(&:strip).reject(&:empty?)
-          return '' if parts.empty?
-          return parts.first if parts.length == 1
-
-          if parts[1].to_s =~ /\A\d+(?:[,.]\d+)?\z/
-            remove_count = 1
-            if parts[2].to_s =~ /\A\d+\z/
-              decimal_thickness = "#{parts[1]}.#{parts[2]}".to_f
-              mapped = if defined?(MH::MaterialApp::MaterialCodeBuilder) &&
-                          MH::MaterialApp::MaterialCodeBuilder.respond_to?(:map_thickness)
-                         MH::MaterialApp::MaterialCodeBuilder.map_thickness(decimal_thickness)
-                       end
-              remove_count = 2 unless mapped.to_s.empty?
-            end
-            ([parts.first] + parts[(1 + remove_count)..-1].to_a).join('.')
-          else
-            parts.join('.')
-          end
+          MH::MaterialCode.without_thickness(value)
         end
 
         def self.normalize_logical_material_code(value)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:display)
-            return MH::MaterialCode.display(value)
-          end
-
-          if defined?(MH::MaterialApp::MaterialCodeBuilder) &&
-             MH::MaterialApp::MaterialCodeBuilder.respond_to?(:normalize_logical_material_code)
-            return MH::MaterialApp::MaterialCodeBuilder.normalize_logical_material_code(value)
-          end
-
-          code = value.to_s.strip.gsub(/\s+/, '')
-          code.split('.').map(&:strip).reject(&:empty?).join('.')
-        rescue
-          value.to_s.strip
+          MH::MaterialCode.display(value)
         end
 
         def self.load_from_json(json_path)

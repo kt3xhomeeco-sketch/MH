@@ -191,6 +191,88 @@ module MH
       parts.join(sep)
     end
 
+    # ------------------------------------------------------------------------
+    # Public material-name helpers.  These methods are deliberately kept in
+    # MH_shared so every MH_* app resolves the same Excel code in the same way.
+
+    def map_thickness(actual_thickness, mappings: nil, fallback_to_actual: false)
+      actual = actual_thickness.to_s.strip.tr(',', '.').to_f
+      mappings = default_thickness_mappings if mappings.nil?
+
+      Array(mappings).each do |mapping|
+        row = stringify_keys(mapping || {})
+        min = row['min'].to_s.strip.tr(',', '.').to_f
+        max = row['max'].to_s.strip.tr(',', '.').to_f
+        value = row['value'].to_s.strip
+        next if value.empty?
+
+        return normalize_thickness_token(value) if actual >= min && actual <= max
+      end
+
+      fallback_to_actual ? normalize_thickness_token(actual) : nil
+    rescue
+      fallback_to_actual ? normalize_thickness_token(actual_thickness) : nil
+    end
+
+    # Builds the SketchUp material name from the logical Excel code and the
+    # measured OBJ thickness.  MH_xxx is a tag/material shortcut, not a
+    # structured material code.
+    def material_name(value, actual_thickness, mappings: nil, fallback_to_actual: false)
+      logical_code = without_thickness(value)
+      return nil if logical_code.empty?
+      return logical_code.sub(/\AMH_/i, '') if logical_code =~ /\AMH_/i
+
+      thickness = map_thickness(actual_thickness, mappings: mappings, fallback_to_actual: fallback_to_actual)
+      return nil if thickness.to_s.empty?
+
+      with_thickness(logical_code, thickness)
+    end
+
+    # Returns the material family without its thickness token and optional
+    # face suffix.  The group is config-driven, so VER/VERKT/VERSOI/VERKTSOI
+    # all resolve to the Registry's Veneer group.
+    def family_parts(value)
+      strip_surface_variant(without_thickness(value)).split(segment_separator).reject(&:empty?)
+    end
+
+    def finish_group(value)
+      parsed = parse(value)
+      surface_group_for_token(parsed[:layers]['be_mat']).to_s
+    end
+
+    def surface_variant?(value)
+      !surface_variant_from_finish(value).to_s.empty?
+    end
+
+    def strip_surface_variant(value)
+      finish_base_without_surface_variant(value)
+    end
+
+    # Parent candidates are ordered nearest parent first. Declared
+    # parent_codes from Registry are used as priority entries.
+    def parent_candidates(value)
+      code = strip_surface_variant(without_thickness(value))
+      return [] if code.empty? || code =~ /\AMH_/i
+
+      parts = code.split(segment_separator).reject(&:empty?)
+      return [] if parts.length <= 2
+
+      candidates = parent_prefixes(parts)
+      parsed = parse(code)
+      surface_token = parsed[:layers]['be_mat'].to_s
+      group = finish_group(code)
+      if !surface_token.empty? && !group.empty? && comparable_text(surface_token) != comparable_text(group)
+        grouped_parts = parts.map { |part| comparable_text(part) == comparable_text(surface_token) ? group : part }
+        candidates.concat(parent_prefixes(grouped_parts))
+      end
+      candidates.uniq!
+      configured = configured_parent_codes
+      return candidates if configured.empty?
+
+      preferred, remaining = candidates.partition { |candidate| configured.include?(candidate) }
+      preferred + remaining
+    end
+
     def display(value)
       normalize(value)
     end
@@ -205,6 +287,21 @@ module MH
 
     def gloss(value)
       parse(value)[:do_bong].to_s
+    end
+
+    def segment_separator
+      separator = rules['segment_separator'].to_s
+      separator.empty? ? '.' : separator
+    end
+
+    def configured_parent_codes
+      Array(rules['parent_codes']).map { |code| without_thickness(code) }.reject(&:empty?).uniq
+    rescue
+      []
+    end
+
+    def parent_prefixes(parts)
+      (parts.length - 1).downto(2).map { |length| parts.first(length).join(segment_separator) }
     end
 
     def compose_code(parsed, include_thickness: true, include_finish: true)
@@ -376,6 +473,24 @@ module MH
       finish
     end
 
+    def default_thickness_mappings
+      return MH::Registry.thickness_mappings if defined?(MH::Registry) && MH::Registry.respond_to?(:thickness_mappings)
+
+      Array(rules['thickness_mappings'])
+    rescue
+      []
+    end
+
+    def normalize_thickness_token(value)
+      text = value.to_s.strip.tr(',', '.')
+      return '' if text.empty?
+
+      number = text.to_f
+      (number - number.round).abs < 0.0001 ? number.round.to_s : number.to_s
+    rescue
+      value.to_s.strip
+    end
+
     def expand_implicit_paint_surface(segments)
       parts = Array(segments).map(&:to_s)
       return parts if parts.empty?
@@ -408,7 +523,9 @@ module MH
       token = comparable_text(value)
       return false if token.empty?
 
-      mapped_values_for_layer('be_mat').include?(token)
+      # A configured group member (MS/LK/VERSOI...) is already an explicit
+      # surface token.  Do not infer and insert SON before its finish code.
+      !surface_group_for_token(value).to_s.empty? || mapped_values_for_layer('be_mat').include?(token)
     end
 
     def mapped_values_for_layer(layer_key)

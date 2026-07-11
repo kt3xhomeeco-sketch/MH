@@ -148,6 +148,98 @@ module MH
       id.empty? ? name : "__#{id}. #{name}"
     end
 
+    # Builder used by the MH Rename dialog.  It preserves the dialog's
+    # free-form-template behaviour while keeping all parsing and separator
+    # rules in Ruby.  The browser sends only editing intent; it never owns the
+    # final name calculation.
+    def dialog_build_name(base:, sub_prefix: nil, prefix: nil, modul: nil, suffix: nil,
+                          prefixes: nil, modules: nil, suffixes: nil)
+      source = base.to_s
+      sub = sub_prefix.to_s
+      requested_prefix = prefix.to_s
+      requested_modul = modul.to_s
+      requested_suffix = suffix.to_s
+      return '' if source.empty? && sub.empty? && requested_prefix.empty? && requested_modul.empty? && requested_suffix.empty?
+
+      sep_sub = separators['sep_sub_prefix'].to_s
+      sep_sub = DEFAULT_SEPARATORS['sep_sub_prefix'] if sep_sub.empty?
+      sep_prefix = module_separator
+      sep_part = part_separator
+      configured_prefixes = Array(prefixes || self.prefixes(active: true)).map(&:to_s).reject(&:empty?)
+      configured_modules = Array(modules || self.modules(active: true)).map(&:to_s).reject(&:empty?)
+      configured_suffixes = Array(suffixes || grammar[:suffixes]).map(&:to_s).reject(&:empty?)
+
+      remainder = source.dup
+      detected_prefix = ''
+      prefix_separator = ''
+      found_configured_prefix = false
+
+      configured_prefixes.each do |candidate|
+        next unless remainder.length >= candidate.length
+        next unless remainder[0, candidate.length].casecmp(candidate).zero?
+
+        detected_prefix = remainder[0, candidate.length]
+        remainder = remainder[candidate.length..-1].to_s
+        separator_match = remainder.match(/\A[.\-_\s]*/)
+        if separator_match
+          prefix_separator = separator_match[0].to_s
+          remainder = remainder[prefix_separator.length..-1].to_s
+        end
+        found_configured_prefix = true
+        break
+      end
+
+      unless found_configured_prefix
+        match = remainder.match(/\A([A-Za-z]+\d+(?:\.[A-Za-z0-9]+)*)([.\-_\s]*)/)
+        if match
+          detected_prefix = match[1].to_s
+          prefix_separator = match[2].to_s
+          remainder = remainder[match[0].length..-1].to_s
+        end
+      end
+
+      detected_modul = ''
+      without_modul = remainder
+      unless remainder.empty?
+        configured_modules.each do |candidate|
+          lower = remainder.downcase
+          candidate_lower = candidate.downcase
+          if lower.start_with?("#{candidate_lower}_") || lower.start_with?("#{candidate_lower}.")
+            detected_modul = remainder[0, candidate.length]
+            without_modul = remainder[(candidate.length + 1)..-1].to_s
+            break
+          end
+          next unless lower.start_with?(candidate_lower)
+
+          tail = remainder[candidate.length..-1].to_s
+          if tail.empty? || tail.start_with?('_') || tail.start_with?('.')
+            detected_modul = remainder[0, candidate.length]
+            without_modul = (tail.start_with?('_') || tail.start_with?('.')) ? tail[1..-1].to_s : tail
+            break
+          end
+        end
+      end
+
+      without_suffix = without_modul
+      unless requested_suffix.empty? || without_modul.empty?
+        configured_suffixes.each do |candidate|
+          next unless without_modul.downcase.end_with?(candidate.downcase)
+
+          without_suffix = without_modul[0...-candidate.length]
+          break
+        end
+      end
+
+      final_prefix = requested_prefix.empty? ? detected_prefix : requested_prefix
+      active_modul = requested_modul.empty? ? detected_modul : requested_modul
+      sub_part = sub.empty? ? '' : "#{sub}#{sep_sub}"
+      has_after = !active_modul.empty? || !without_suffix.empty? || !requested_suffix.empty?
+      prefix_part = final_prefix.empty? ? '' : "#{final_prefix}#{has_after ? (prefix_separator.empty? ? sep_prefix : prefix_separator) : ''}"
+      modul_part = active_modul.empty? ? '' : "#{active_modul}#{sep_part}"
+
+      "#{sub_part}#{prefix_part}#{modul_part}#{without_suffix}#{requested_suffix}"
+    end
+
     def scan_products(text)
       text.to_s.scan(capture_regex).flatten.map { |code| code.to_s.upcase }.uniq
     rescue

@@ -3,7 +3,6 @@
   'use strict';
 
   var state = { global: {}, project: {}, config: {} };
-  var maValidThicknessColumnCount = 3;
   var mcrTestColumns = null;
   var mcrTestBranches = null;
   var mcrTestDrag = null;
@@ -22,8 +21,6 @@
     ma_thickness:       { scope: 'config', key: 'ma_thickness',       cols: [['min','Min','num'],['max','Max','num'],['value','Giá trị']] },
     ma_detail_aliases:  { scope: 'config', key: 'ma_detail_aliases',  cols: [['pattern','Pattern'],['target','Target']] },
     ma_tag_materials:   { scope: 'config', key: 'ma_tag_materials',   cols: [['tag_name','Tag'],['material_name','Material']] },
-    ma_valid:           { scope: 'config', key: 'ma_valid',           cols: [['material','Material'],['thickness','Ghi nhớ độ dày'],['actual_thickness','Thực tế']] },
-    ma_invalid:         { scope: 'config', key: 'ma_invalid',         cols: [['material','Material'],['thickness','Độ dày']] },
     ma_column_aliases:  { scope: 'config', key: 'ma_column_aliases',  cols: [['internal_name','Tên nội bộ'],['alias','Alias']] },
     // Render bằng giao diện thẻ (renderSurfaceFaceRules), không dùng grid cols.
     ma_surface_face_rules: { scope: 'config', key: 'ma_surface_face_rules' },
@@ -460,10 +457,6 @@
       renderMaterialMappingBoard();
       return;
     }
-    if (name === 'ma_valid') {
-      renderValidMaterialsTable();
-      return;
-    }
     if (!def) return;
     var wrap = $('tbl_' + name);
     if (!wrap) return;
@@ -673,7 +666,6 @@
     if (name === 'ma_surface_face_rules') return collectSurfaceFaceRules();
     if (name === 'dc_manual_materials') return collectManualMaterialsPicker();
     if (name === 'ma_vat_lieu_global') return collectMaterialMappingBoard();
-    if (name === 'ma_valid') return collectValidMaterialsTable();
     var def = TABLES[name];
     var wrap = $('tbl_' + name);
     if (!def || !wrap) {
@@ -4128,141 +4120,6 @@
     });
   }
 
-  function groupedValidMaterialRows(rows) {
-    var groups = [];
-    var byMaterial = {};
-    (rows || []).forEach(function (row) {
-      var material = String(row.material || '').trim();
-      var thickness = String(row.thickness == null ? '' : row.thickness).trim();
-      var actualThickness = String(row.actual_thickness == null ? '' : row.actual_thickness).trim();
-      if (!material) return;
-      var key = material.toUpperCase();
-      if (!byMaterial[key]) {
-        byMaterial[key] = { material: material, thicknesses: [] };
-        groups.push(byMaterial[key]);
-      }
-      if (thickness || actualThickness) {
-        byMaterial[key].thicknesses.push({
-          thickness: thickness,
-          actual_thickness: actualThickness
-        });
-      }
-    });
-    return groups;
-  }
-
-  function renderValidMaterialsTable() {
-    var wrap = $('tbl_ma_valid');
-    if (!wrap) return;
-    var groups = groupedValidMaterialRows(state.config.ma_valid || []);
-    var maxThicknesses = groups.reduce(function (max, row) {
-      return Math.max(max, row.thicknesses.length);
-    }, 0);
-    maValidThicknessColumnCount = Math.max(maValidThicknessColumnCount, maxThicknesses, 3);
-
-    wrap.innerHTML = '';
-    var table = el('table', { class: 'ma-valid-table' });
-    var topHead = el('tr');
-    topHead.appendChild(el('th', { text: 'Vật liệu', rowspan: '2', class: 'ma-valid-material-head' }));
-    for (var i = 0; i < maValidThicknessColumnCount; i++) {
-      topHead.appendChild(el('th', {
-        text: String(i + 1),
-        colspan: '2',
-        class: 'ma-valid-thickness-head'
-      }));
-    }
-    topHead.appendChild(el('th', { text: '', rowspan: '2', class: 'ma-valid-actions-head' }));
-    table.appendChild(topHead);
-
-    var subHead = el('tr');
-    for (var j = 0; j < maValidThicknessColumnCount; j++) {
-      subHead.appendChild(el('th', { text: '--', class: 'ma-valid-thickness-subhead actual' }));
-      subHead.appendChild(el('th', { text: 'Ghi', class: 'ma-valid-thickness-subhead' }));
-    }
-    table.appendChild(subHead);
-
-    groups.forEach(function (group) {
-      table.appendChild(buildValidMaterialRow(group));
-    });
-    wrap.appendChild(table);
-    if (!groups.length) wrap.appendChild(el('div', { class: 'empty', text: 'Chưa có vật liệu hợp lệ — bấm “+ dòng”.' }));
-  }
-
-  function buildValidMaterialRow(group) {
-    group = group || { material: '', thicknesses: [] };
-    var tr = el('tr', { class: 'ma-valid-row' });
-    tr.appendChild(el('td', {}, [
-      el('input', {
-        'data-col': 'material',
-        value: group.material || '',
-        placeholder: 'Mã vật liệu'
-      })
-    ]));
-    for (var i = 0; i < maValidThicknessColumnCount; i++) {
-      var slot = group.thicknesses[i] || {};
-      if (typeof slot === 'string') slot = { thickness: slot, actual_thickness: '' };
-      tr.appendChild(el('td', {}, [
-        el('input', {
-          'data-actual-thickness-index': String(i),
-          value: slot.actual_thickness || '',
-          placeholder: 'thực tế'
-        })
-      ]));
-      tr.appendChild(el('td', {}, [
-        el('input', {
-          'data-thickness-index': String(i),
-          value: slot.thickness || '',
-          placeholder: 'ghi'
-        })
-      ]));
-    }
-    var actions = el('td', { class: 'actions' });
-    var del = el('button', { class: 'btn del', title: 'Xoá vật liệu', text: '✕' });
-    del.addEventListener('click', function () {
-      tr.remove();
-      if (!$('tbl_ma_valid').querySelector('.ma-valid-row')) {
-        $('tbl_ma_valid').appendChild(el('div', { class: 'empty', text: 'Chưa có vật liệu hợp lệ — bấm “+ dòng”.' }));
-      }
-    });
-    actions.appendChild(del);
-    tr.appendChild(actions);
-    return tr;
-  }
-
-  function collectValidMaterialsTable() {
-    var wrap = $('tbl_ma_valid');
-    if (!wrap) return state.config.ma_valid || [];
-    var out = [];
-    var rows = wrap.querySelectorAll('.ma-valid-row');
-    for (var i = 0; i < rows.length; i++) {
-      var materialInput = rows[i].querySelector('input[data-col="material"]');
-      var material = materialInput ? materialInput.value.trim() : '';
-      if (!material) continue;
-      var thicknessInputs = rows[i].querySelectorAll('input[data-thickness-index]');
-      var actualThicknessInputs = rows[i].querySelectorAll('input[data-actual-thickness-index]');
-      for (var j = 0; j < thicknessInputs.length; j++) {
-        var thickness = thicknessInputs[j].value.trim();
-        var actualThicknessInput = actualThicknessInputs[j];
-        var actualThickness = actualThicknessInput ? actualThicknessInput.value.trim() : '';
-        if (thickness || actualThickness) {
-          out.push({
-            material: material,
-            thickness: thickness,
-            actual_thickness: actualThickness
-          });
-        }
-      }
-    }
-    return out;
-  }
-
-  function addValidMaterialThicknessColumn() {
-    state.config.ma_valid = collectValidMaterialsTable();
-    maValidThicknessColumnCount += 1;
-    renderValidMaterialsTable();
-    status('Đã thêm cặp cột ghi/thực tế ' + maValidThicknessColumnCount + '. Bấm Lưu để ghi Config.xlsx.', 'ok');
-  }
-
   function wireThicknessLibrarySearch() {
     var input = $('dcThicknessLibrarySearch');
     if (!input || input.__mhThicknessLibrarySearchWired) return;
@@ -4490,23 +4347,6 @@
       renderMaterialMappingBoard();
       var mappingInputs = $('tbl_ma_vat_lieu_global').querySelectorAll('input[data-col="gia_tri"]');
       if (mappingInputs.length) mappingInputs[mappingInputs.length - 1].focus();
-      return;
-    }
-    if (name === 'ma_valid') {
-      var validWrap = $('tbl_ma_valid');
-      if (!validWrap) return;
-      var validTable = validWrap.querySelector('.ma-valid-table');
-      if (!validTable) {
-        state.config.ma_valid = [];
-        renderValidMaterialsTable();
-        validTable = validWrap.querySelector('.ma-valid-table');
-      }
-      var validEmpty = validWrap.querySelector('.empty');
-      if (validEmpty) validEmpty.remove();
-      validTable.appendChild(buildValidMaterialRow({ material: '', thicknesses: [] }));
-      var validRows = validTable.querySelectorAll('.ma-valid-row');
-      var newMaterialInput = validRows[validRows.length - 1].querySelector('input[data-col="material"]');
-      if (newMaterialInput) newMaterialInput.focus();
       return;
     }
     var def = TABLES[name];
@@ -4759,8 +4599,6 @@
       state.config.ma_thickness = d.ma_thickness || [];
       state.config.ma_detail_aliases = d.ma_detail_aliases || [];
       state.config.ma_tag_materials = d.ma_tag_materials || [];
-      state.config.ma_valid = d.ma_valid || [];
-      state.config.ma_invalid = d.ma_invalid || [];
       state.config.ma_column_aliases = d.ma_column_aliases || [];
       state.config.ma_surface_face_rules = d.ma_surface_face_rules || [];
       state.config.superimp_import_list = d.superimp_import_list || [];
@@ -4779,8 +4617,6 @@
       renderTable('ma_thickness');
       renderTable('ma_detail_aliases');
       renderTable('ma_tag_materials');
-      renderTable('ma_valid');
-      renderTable('ma_invalid');
       renderTable('ma_column_aliases');
       renderTable('ma_surface_face_rules');
       updateNamePreview();
@@ -4876,8 +4712,6 @@
       ma_thickness: collectTable('ma_thickness'),
       ma_detail_aliases: collectTable('ma_detail_aliases'),
       ma_tag_materials: collectTable('ma_tag_materials'),
-      ma_valid: collectTable('ma_valid'),
-      ma_invalid: collectTable('ma_invalid'),
       ma_column_aliases: collectTable('ma_column_aliases'),
       ma_surface_face_rules: collectTable('ma_surface_face_rules'),
       dc_material_profiles: configData.dc_material_profiles || [],
@@ -5209,7 +5043,6 @@
     on('btnReloadMaterialProfiles', 'click', autoGenThicknessTypes);
     on('btnAddThicknessTypeLib', 'click', function () { addThicknessType('library'); });
     on('btnAddThicknessOptionLib', 'click', function () { addThicknessOption('library'); });
-    on('btnAddMaValidThicknessColumn', 'click', addValidMaterialThicknessColumn);
     on('btnAddMaterialCodeLayer', 'click', addMcrTestCell);
     on('btnAddProductCodeCell', 'click', addProductCodeCell);
     var pcrBuilder = $('pcr_builder');

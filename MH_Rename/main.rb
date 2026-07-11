@@ -234,6 +234,40 @@ module MH
         unique_part: unique_part }
     end
 
+    # The dialog submits editable inputs, not final names.  Both its preview
+    # callback and Apply use this one Ruby path so NameGrammar remains the
+    # source of truth.
+    def self.dialog_rename_rows(payload)
+      data = payload.is_a?(Hash) ? payload : {}
+      options = data['options'].is_a?(Hash) ? data['options'] : {}
+      numbering = options['numbering'] == true || options['numbering'].to_s == 'true'
+      start_text = options['start_number'].to_s
+      start_number = Integer(start_text, 10) rescue nil
+      width = start_text.length
+
+      Array(data['rows']).each_with_index.filter_map do |row, index|
+        next unless row.is_a?(Hash)
+
+        name = MH::NameGrammar.dialog_build_name(
+          base: row['base'].to_s,
+          sub_prefix: options['sub_prefix'],
+          prefix: options['prefix'],
+          modul: options['modul'],
+          suffix: options['suffix'],
+          prefixes: prefix_suggestions,
+          modules: modul_suggestions,
+          suffixes: suffix_suggestions
+        )
+        if numbering && start_number
+          number = (start_number + index).to_s
+          name += number.rjust(width, '0')
+        end
+        next if name.empty?
+
+        { 'id' => row['id'].to_i, 'name' => name }
+      end
+    end
+
     # Find entities in model by IDs quickly using a Hash lookup
     def self.entities_by_id(model)
       map = {}
@@ -919,9 +953,9 @@ module MH
     # =========================================================================
     def self.register_callbacks(model, selection)
       # ---- apply_rename ----
-      # JS sends { rows: [{id, name}] } — already computed final names, bound by entityID
+      # JS sends editing intent; final names are always built in Ruby.
       @dialog.add_action_callback('apply_rename') do |_, param|
-        rows   = JSON.parse(param)['rows'] || []
+        rows   = dialog_rename_rows(JSON.parse(param))
         model  = Sketchup.active_model
         
         # Build map một lần, không duyệt lại
@@ -943,6 +977,18 @@ module MH
       rescue => e
         model.abort_operation rescue nil
         MH::Rename.dbg "apply_rename: #{e.message}"
+      end
+
+      # ---- preview_rename ----
+      # Debounced from the browser so typing remains responsive.  The returned
+      # rows use the exact same builder as Apply.
+      @dialog.add_action_callback('preview_rename') do |_, param|
+        request = JSON.parse(param)
+        request_id = request['request_id'].to_i
+        rows = dialog_rename_rows(request)
+        @dialog.execute_script("applyRubyPreview(#{request_id}, #{rows.to_json});") if @dialog&.visible?
+      rescue => e
+        MH::Rename.dbg "preview_rename: #{e.message}"
       end
 
       # ---- clear_prefixes (Strip all prefixes from selected objects) ----
@@ -1403,85 +1449,8 @@ module MH
         document.addEventListener('click', e=>{ if(!e.target.closest('.pms-c')) closeAllDd(); });
 
         // ── PREVIEW ENGINE ────────────────────────────────────────────────
-        // buildName: resolve final name for one entity (base already has token replaced)
-        function buildName(base, spfx, pfx, mod, sfx){
-          if(!base && !spfx && !pfx && !mod && !sfx) return '';
-          const sepSpfx = SEPS.sep_sub_prefix || '-';
-          const sepPfx  = SEPS.sep_prefix || '_';
-          const sepSfx  = SEPS.sep_suffix || '_';
-          
-          let noPfx = base||'';
-          let detPfx = '';
-          let pfxSep = '';
-
-          let foundConfig = false;
-          const bl = noPfx.toLowerCase();
-          for(const p of PFXS) {
-            if(bl.startsWith(p.toLowerCase())){ 
-              detPfx = noPfx.slice(0, p.length);
-              noPfx = noPfx.slice(p.length);
-              const sm = noPfx.match(/^[.\\-_\\s]*/);
-              if(sm) { pfxSep = sm[0]; noPfx = noPfx.slice(sm[0].length); }
-              foundConfig = true;
-              break; 
-            }
-          }
-          
-          if(!foundConfig) {
-            // regex khắt khe hơn: bắt buộc có số \d+
-            const match = noPfx.match(/^([A-Za-z]+\d+(?:\.[A-Za-z0-9]+)*)([.\-_\s]*)/);
-            if(match && match[1]) {
-              detPfx = match[1];
-              pfxSep = match[2];
-              noPfx = noPfx.slice(match[0].length);
-            }
-          }
-
-          // detect/strip old modul
-          let noMod=noPfx, detMod='';
-          if(noPfx){
-            const nl=noPfx.toLowerCase();
-            for(const m of MODS){
-              if(nl.startsWith(m.toLowerCase()+'_') || nl.startsWith(m.toLowerCase()+'.')){ 
-                detMod=noPfx.slice(0,m.length); noMod=noPfx.slice(m.length+1); break; 
-              }
-              if(nl.startsWith(m.toLowerCase())){
-                const rest=noPfx.slice(m.length);
-                if(rest===''||rest.startsWith('_')||rest.startsWith('.')){ 
-                  detMod=noPfx.slice(0,m.length); 
-                  noMod=(rest.startsWith('_')||rest.startsWith('.'))?rest.slice(1):rest; 
-                  break; 
-                }
-              }
-            }
-          }
-
-          // strip old known suffix if adding new one
-          let noSfx=noMod;
-          if(sfx && noMod){ const nl=noMod.toLowerCase(); for(const s of SFXS) if(nl.endsWith(s.toLowerCase())){ noSfx=noMod.slice(0,-s.length); break; } }
-          
-          let finalPfx = (pfx !== undefined && pfx !== null && pfx !== '') ? pfx : detPfx;
-          const activeMod = (mod !== undefined && mod !== null && mod !== '') ? mod : detMod;
-
-          // Sub-prefix: T2S5A-SP01
-          let subPart = '';
-          if (spfx) {
-            subPart = spfx + sepSpfx;
-          }
-
-          // Prefix separator: chỉ thêm khi có phần sau
-          let pfxPart = '';
-          if (finalPfx !== '') {
-            const hasAfter = activeMod || noSfx || sfx;
-            pfxPart = finalPfx + (hasAfter ? (pfxSep || sepPfx) : '');
-          }
-
-          // Modul separator
-          const modPart = activeMod ? (activeMod + sepSfx) : '';
-
-          return subPart + pfxPart + modPart + noSfx + (sfx||'');
-        }
-
+        // Ruby MH::NameGrammar builds the final name for both preview and
+        // Apply. JavaScript sends only editable intent after a debounce.
         // resolve base string for one entity given current template
         function resolveBase(eid, tmpl){
           const od = objectsData.find(o=>o.id===eid);
@@ -1496,52 +1465,54 @@ module MH
           return tmpl;
         }
 
-        let prevTmr=null;
-        function schedPreview(){ if(prevTmr)clearTimeout(prevTmr); prevTmr=setTimeout(doPreview,30); }
-
-        function doPreview(){
+        let prevTmr=null, previewRequestId=0;
+        function dialogRenamePayload(useEditedRow){
           const tmpl=v('new_name'), spfx=v('sub_prefix'), pfx=v('prefix'), mod=v('modul'), sfx=v('suffix');
           const addN=document.getElementById('add_num').checked, sn=v('start_num');
-          const bar=document.getElementById('pbar');
-          // top bar: use first visible entity for demo
-          const firstRow = document.querySelector('#rows .grow:not([style*="display:none"])');
-          const firstEid = firstRow?parseInt(firstRow.getAttribute('data-id')):null;
-          let demo = firstEid!==null ? resolveBase(firstEid,tmpl) : (tmpl.replace(TOKEN,'…'));
-          let built = buildName(demo,spfx,pfx,mod,sfx);
-          if(addN&&sn) built+=sn;
-          bar.textContent = built?('→ '+built):'[empty]';
-          bar.className   = built?'pbar':'pbar empty';
-          // per-row badges
           const rows = [...document.querySelectorAll('#rows .grow')].filter(r=>r.style.display!=='none');
-          rows.forEach((row,i)=>{
+          const payloadRows=rows.map(row=>{
             const eid  = parseInt(row.getAttribute('data-id'));
-            const base = resolveBase(eid,tmpl);
-            let fn     = buildName(base,spfx,pfx,mod,sfx);
-            if(addN&&sn) fn += String(parseInt(sn)+i).padStart(sn.length,'0');
-            const badge = row.querySelector('.pbadge');
-            if(badge) badge.textContent = fn?('→ '+fn):'';
+            let base=resolveBase(eid,tmpl);
+            if(useEditedRow && tmpl===''){
+              const inp=row.querySelector('.obj-name');
+              base=inp?(inp.getAttribute('data-saved')||inp.value||''):'';
+            }
+            return {id:eid,base:base};
+          });
+          return {rows:payloadRows,options:{sub_prefix:spfx,prefix:pfx,modul:mod,suffix:sfx,numbering:addN,start_number:sn}};
+        }
+
+        function schedPreview(){ if(prevTmr)clearTimeout(prevTmr); prevTmr=setTimeout(doPreview,120); }
+
+        function doPreview(){
+          const payload=dialogRenamePayload(false);
+          const requestId=++previewRequestId;
+          payload.request_id=requestId;
+          const bar=document.getElementById('pbar');
+          bar.textContent=payload.rows.length?'→ …':'[empty]';
+          bar.className=payload.rows.length?'pbar':'pbar empty';
+          sketchup.preview_rename(JSON.stringify(payload));
+        }
+
+        function applyRubyPreview(requestId, rows){
+          if(requestId!==previewRequestId) return;
+          const byId=new Map((rows||[]).map(row=>[row.id,row.name]));
+          const first=(rows||[])[0];
+          const bar=document.getElementById('pbar');
+          bar.textContent=first&&first.name?('→ '+first.name):'[empty]';
+          bar.className=first&&first.name?'pbar':'pbar empty';
+          document.querySelectorAll('#rows .grow').forEach(row=>{
+            const badge=row.querySelector('.pbadge');
+            if(badge){
+              const name=byId.get(parseInt(row.getAttribute('data-id')))||'';
+              badge.textContent=name?('→ '+name):'';
+            }
           });
         }
 
         function applyNow() {
-          const tmpl=v('new_name'), spfx=v('sub_prefix'), pfx=v('prefix'), mod=v('modul'), sfx=v('suffix');
-          const addN=document.getElementById('add_num').checked, sn=v('start_num');
-          const visRows=[...document.querySelectorAll('#rows .grow')].filter(r=>r.style.display!=='none');
-          const rows=[];
-          visRows.forEach((row,i)=>{
-            const eid  = parseInt(row.getAttribute('data-id'));
-            let base;
-            if(tmpl.includes(TOKEN)||tmpl!==''){
-              base = resolveBase(eid,tmpl);
-            } else {
-              const inp=row.querySelector('.obj-name');
-              base=inp?(inp.getAttribute('data-saved')||inp.value||''):'';
-            }
-            let fn = buildName(base,spfx,pfx,mod,sfx);
-            if(addN&&sn) fn+=String(parseInt(sn)+i).padStart(sn.length,'0');
-            if(fn) rows.push({id:eid,name:fn});
-          });
-          if(rows.length) sketchup.apply_rename(JSON.stringify({rows}));
+          const payload=dialogRenamePayload(true);
+          if(payload.rows.length) sketchup.apply_rename(JSON.stringify(payload));
         }
 
         function v(id){ return document.getElementById(id).value; }

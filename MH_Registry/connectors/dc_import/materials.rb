@@ -385,11 +385,7 @@ module MH
         end
 
         def material_code_parts(raw_code)
-          if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:split)
-            return MH::MaterialCode.split(raw_code)
-          end
-
-          raw_code.to_s.split(/\s*&\s*/).map(&:strip).reject(&:empty?)
+          MH::MaterialCode.split(raw_code)
         end
 
         def material_assign_connector

@@ -315,8 +315,6 @@ module MH
         'ma_thickness' => [['min', 'max', 'value']],
         'ma_detail_aliases' => [['pattern', 'target']],
         'ma_tag_materials' => [['tag_name', 'material_name']],
-        'ma_valid' => [['material', 'thickness', 'actual_thickness']],
-        'ma_invalid' => [['material', 'thickness']],
         'ma_column_aliases' => [['internal_name', 'alias']],
         'ma_surface_face_rules' => default_surface_face_rule_rows,
         'dc_thickness_options_project' => save_thickness_options_rows([]),
@@ -389,8 +387,6 @@ module MH
         ma_thickness = load_rows(all, 'ma_thickness', %w[min max value])
         ma_detail_aliases = load_rows(all, 'ma_detail_aliases', %w[pattern target])
         ma_tag_materials = load_rows(all, 'ma_tag_materials', %w[tag_name material_name])
-        ma_valid = load_rows(all, 'ma_valid', %w[material thickness actual_thickness])
-        ma_invalid = load_rows(all, 'ma_invalid', %w[material thickness])
         ma_column_aliases = load_rows(all, 'ma_column_aliases', %w[internal_name alias])
         ma_surface_face_rules =
           if all['ma_surface_face_rules']
@@ -446,8 +442,6 @@ module MH
         'ma_thickness' => (ma_thickness || []),
         'ma_detail_aliases' => (ma_detail_aliases || []),
         'ma_tag_materials' => (ma_tag_materials || []),
-        'ma_valid' => (ma_valid || []),
-        'ma_invalid' => (ma_invalid || []),
         'ma_column_aliases' => (ma_column_aliases || []),
         'ma_surface_face_rules' => (ma_surface_face_rules || []),
         'dc_material_profiles' => (dc_material_profiles || []),
@@ -521,8 +515,6 @@ module MH
         'ma_thickness' => save_rows(data['ma_thickness'], %w[min max value]),
         'ma_detail_aliases' => save_rows(data['ma_detail_aliases'], %w[pattern target]),
         'ma_tag_materials' => save_rows(data['ma_tag_materials'], %w[tag_name material_name]),
-        'ma_valid' => save_rows(data['ma_valid'], %w[material thickness actual_thickness]),
-        'ma_invalid' => save_rows(data['ma_invalid'], %w[material thickness]),
         'ma_column_aliases' => save_rows(data['ma_column_aliases'], %w[internal_name alias]),
         'ma_surface_face_rules' => save_rows(data['ma_surface_face_rules'], surface_face_rule_columns),
         'panel_defaults' => save_rows(data['panel_defaults'], %w[tool key value]),
