@@ -8,7 +8,10 @@ module MH::Stretch
     vendor/vector_font
     mh_engine_backup/plane_vertex_selector
     mh_engine_backup/stretch_operation
+    mh_engine_backup/between_planes_selector
+    mh_engine_backup/between_planes_operation
     lab_ui_adapter
+    lab_between_planes_adapter
     lab_dimensions
     lab_hit_test
     lab_overlay

@@ -36,6 +36,8 @@ module MH::Stretch
       @target_source_point = nil
       @target_point = nil
       @target_operation = nil
+      @ctrl_snap_active = false
+      @target_reference_ip = nil
       @last_unique_selection_key = nil
       @show_plane_grips =
         Sketchup.read_default(PREF_SECTION, PREF_PLANE_GRIPS, true) != false
@@ -78,9 +80,10 @@ module MH::Stretch
       cancel_or_exit(view)
     end
 
-    def onMouseMove(_flags, x, y, view)
+    def onMouseMove(flags, x, y, view)
       update_hover_target(x, y, view) if selection_empty? && !@drag && !@target_mode
       refresh_bounds
+      update_ctrl_snap_preview(flags, x, y, view)
       if BoxModel.empty_bounds?(@bb)
         @state.set_hover(nil)
         @creation_preview = nil
@@ -288,7 +291,7 @@ module MH::Stretch
       @ip.draw(view) if @ip.valid?
       @drag_ip.draw(view) if grip_dragging? && @drag_ip.valid?
       draw_target(view)
-      @target_ip.draw(view) if @target_mode && @target_ip.valid?
+      @target_ip.draw(view) if (@target_mode || @ctrl_snap_active) && @target_ip.valid?
     end
 
     def getExtents
@@ -516,23 +519,28 @@ module MH::Stretch
     end
 
     def toggle_plane_mode
-      if @offset_planes_enabled
-        @offset_planes_enabled = false
-        @show_default_plane = true
-        status = 'MH Stretch | Plane giữa: bật'
-      else
+      if !@offset_planes_enabled
         @offset_planes_enabled = true
         @show_default_plane = false
-        status = "MH Stretch | Offset plane: #{offset_plane_label}"
+        @offset_plane_count = 1
+        status = "MH Stretch | Plane theo offset, 1 mặt: #{Sketchup.format_length(@offset_plane_distance)}"
+      elsif @offset_plane_count == 1
+        @offset_plane_count = 2
+        status = "MH Stretch | Plane theo offset, 2 mặt: #{Sketchup.format_length(@offset_plane_distance)}"
+      else
+        @offset_planes_enabled = false
+        @show_default_plane = true
+        status = 'MH Stretch | Plane mặc định ở giữa'
       end
 
       Sketchup.write_default(PREF_SECTION, PREF_OFFSET_PLANES, @offset_planes_enabled)
       Sketchup.write_default(PREF_SECTION, PREF_DEFAULT_PLANE, @show_default_plane)
+      Sketchup.write_default(PREF_SECTION, PREF_OFFSET_COUNT, @offset_plane_count)
 
       if @offset_planes_enabled
         @planes.clear_defaults!
         @planes.clear_hidden_defaults!
-        ensure_active_axis_plane if @active_axis
+        sync_offset_planes if @active_axis
       else
         @planes.clear_offset_planes!
         @planes.clear_hidden_defaults!
@@ -665,8 +673,18 @@ module MH::Stretch
         return
       end
 
-      @target_ip.pick(view, x, y)
-      picked = @target_ip.valid? ? @target_ip.position : nil
+      @target_ip.clear
+      reference_point =
+        if handle_hit
+          grip_reference_point(handle_hit[:axis], handle_hit[:side])
+        else
+          grip_reference_point
+        end
+      pick_target_input_point(view, x, y, reference_point)
+      picked =
+        if @target_ip.valid? && strong_input_point?(@target_ip)
+          @target_ip.position
+        end
       source =
         if handle_hit
           match = BoxModel.face_handles(@bb).find do |key, _point|
@@ -678,7 +696,7 @@ module MH::Stretch
         end
 
       unless source
-        Sketchup.status_text = 'MH Stretch | Ctrl+click một điểm hợp lệ để chọn điểm kéo.'
+        Sketchup.status_text = 'MH Stretch | Ctrl+click vertex/edge để bắt điểm kéo.'
         return
       end
 
@@ -695,17 +713,32 @@ module MH::Stretch
           else
             :plus
           end
-        end
+      end
       switch_axis(axis, side)
-      plane = active_plane_for(axis)
-      cuts = UiAdapter.bbox_handle_cut_planes(axis, side, @planes.planes)
-      @target_operation = {
+      between_region = BetweenPlanesAdapter.region_for_grip(
         axis: axis,
-        side: side,
-        plane_id: plane && plane[:id],
-        cuts: cuts,
-        box_grip: plane.nil? && cuts.empty?
-      }
+        grip_point: source,
+        planes: @planes.planes
+      )
+      @target_operation =
+        if between_region
+          {
+            mode: :between_planes,
+            axis: axis,
+            side: side,
+            between_region: between_region
+          }
+        else
+          plane = active_plane_for(axis)
+          cuts = UiAdapter.bbox_handle_cut_planes(axis, side, @planes.planes)
+          {
+            axis: axis,
+            side: side,
+            plane_id: plane && plane[:id],
+            cuts: cuts,
+            box_grip: plane.nil? && cuts.empty?
+          }
+        end
       @target_source_point = source.clone
       @target_point = picked && outside_axis_side(picked, axis) ? target_point_from_world_point(picked, source, axis) : nil
       @target_mode = true
@@ -729,7 +762,7 @@ module MH::Stretch
     def update_target_preview(x, y, view)
       return unless @target_operation && @target_source_point
 
-      @target_ip.pick(view, x, y)
+      pick_target_input_point(view, x, y, @target_source_point)
       @target_point = target_point_from_mouse(
         x,
         y,
@@ -775,12 +808,79 @@ module MH::Stretch
       @target_source_point = nil
       @target_point = nil
       @target_operation = nil
+      @ctrl_snap_active = false
+      @target_reference_ip = nil
       @target_ip.clear
       @preview_segments = []
     end
 
+    def update_ctrl_snap_preview(flags, x, y, view)
+      active = ctrl_down?(flags) && !@drag && !@target_mode && !BoxModel.empty_bounds?(@bb)
+      unless active
+        if @ctrl_snap_active
+          @ctrl_snap_active = false
+          @target_ip.clear unless @target_mode
+          view.tooltip = nil unless @target_mode
+        end
+        return
+      end
+
+      @ctrl_snap_active = true
+      @target_ip.clear
+      pick_target_input_point(view, x, y, snap_reference_point(view, x, y))
+      if @target_ip.valid? && strong_input_point?(@target_ip)
+        view.tooltip = @target_ip.tooltip
+        Sketchup.status_text = 'MH Stretch | Ctrl snap: đã bắt điểm, click để chọn điểm kéo.'
+      else
+        view.tooltip = 'Giữ Ctrl và đưa chuột vào vertex/edge để bắt điểm.'
+        Sketchup.status_text = 'MH Stretch | Ctrl snap: tìm vertex/edge.'
+      end
+    rescue
+      @target_ip.clear
+    end
+
+    def pick_target_input_point(view, x, y, reference_point = nil)
+      if reference_point
+        @target_reference_ip = Sketchup::InputPoint.new(reference_point)
+        @target_ip.pick(view, x, y, @target_reference_ip)
+      else
+        @target_reference_ip = nil
+        @target_ip.pick(view, x, y)
+      end
+    rescue ArgumentError
+      @target_reference_ip = nil
+      @target_ip.pick(view, x, y)
+    rescue
+      @target_ip.clear
+    end
+
+    def snap_reference_point(view, x, y)
+      handle = HitTest.new(
+        view,
+        @bb,
+        @planes.planes,
+        @show_plane_grips
+      ).hit_handle(x, y)
+      return grip_reference_point(handle[:axis], handle[:side]) if handle
+
+      grip_reference_point
+    rescue
+      grip_reference_point
+    end
+
+    def grip_reference_point(axis = @active_axis, side = @active_side)
+      return nil unless axis && @bb && !BoxModel.empty_bounds?(@bb)
+
+      handle = BoxModel.face_handles(@bb).find do |key, _point|
+        key[:axis] == axis && key[:side] == (side || :plus)
+      end
+      handle && handle.last
+    rescue
+      nil
+    end
+
     def target_point_from_mouse(x, y, view, source, axis)
-      if @target_ip.valid?
+      if usable_target_input_point?(view, x, y)
         return target_point_from_world_point(@target_ip.position, source, axis)
       end
 
@@ -791,6 +891,15 @@ module MH::Stretch
       closest && closest[1]
     rescue
       nil
+    end
+
+    def usable_target_input_point?(view, x, y)
+      return false unless @target_ip && @target_ip.valid?
+      return false unless strong_input_point?(@target_ip)
+
+      input_point_screen_close?(@target_ip, view, x, y)
+    rescue
+      false
     end
 
     def target_point_from_world_point(point, source, axis)
@@ -1181,6 +1290,14 @@ module MH::Stretch
     end
 
     def preview_operation(operation, amount)
+      if operation && operation[:mode] == :between_planes
+        return BetweenPlanesAdapter.preview(
+          Sketchup.active_model,
+          operation[:between_region],
+          amount
+        )
+      end
+
       plane = operation && @planes.by_id(operation[:id] || operation[:plane_id])
       planes = operation_stretch_planes(operation, plane)
       return [] if planes.empty?
@@ -1204,6 +1321,17 @@ module MH::Stretch
     end
 
     def commit_operation(operation, amount)
+      if operation && operation[:mode] == :between_planes
+        @pending_redraw_components =
+          @dc_redraw_enabled ? UiAdapter.dynamic_components_for_redraw(Sketchup.active_model) : []
+        return BetweenPlanesAdapter.commit(
+          Sketchup.active_model,
+          operation[:between_region],
+          amount,
+          make_unique: false
+        )
+      end
+
       plane =
         if operation
           @planes.by_id(operation[:id] || operation[:plane_id]) || operation[:plane]
