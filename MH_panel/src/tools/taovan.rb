@@ -478,13 +478,18 @@ class MH::Panel::TaoVan
     # A source can already contain a chord replacing one segment of an arc.
     # Detect the full circular run from its points so the next panel repairs it.
     MH::Geo::Offset.detect_arc_like_runs(source_points, @normal).each do |start_index, edge_count|
-      arc = MH::Geo::Offset.fit_arc_from_points(source_points, start_index, edge_count, @normal)
+      arc = if edge_count >= source_points.length
+              MH::Geo::Offset.fit_circle_from_points(source_points, @normal)
+            else
+              MH::Geo::Offset.fit_arc_from_points(source_points, start_index, edge_count, @normal)
+            end
       next unless arc
 
       target_radius = arc[:radius] + distance
       next if target_radius <= 0.001.mm
 
-      (0..edge_count).each do |offset|
+      offsets = edge_count >= source_points.length ? (0...edge_count) : (0..edge_count)
+      offsets.each do |offset|
         index = (start_index + offset) % source_points.length
         radial = arc[:center].vector_to(source_points[index])
         next if radial.length <= 0.001.mm

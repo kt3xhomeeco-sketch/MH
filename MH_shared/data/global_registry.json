@@ -1326,7 +1326,282 @@
         "source": "dictionary",
         "type": "text",
         "values": [
-
+          {
+            "shortcut": null,
+            "value": "Cánh Dưới"
+          },
+          {
+            "shortcut": null,
+            "value": "Cánh Lật"
+          },
+          {
+            "shortcut": 2,
+            "value": "Cánh Phải"
+          },
+          {
+            "shortcut": 1,
+            "value": "Cánh Trái"
+          },
+          {
+            "shortcut": null,
+            "value": "Cánh Trên"
+          },
+          {
+            "shortcut": 5,
+            "value": "Chặn Cánh"
+          },
+          {
+            "shortcut": null,
+            "value": "CNC Họa Tiết"
+          },
+          {
+            "shortcut": null,
+            "value": "CNK"
+          },
+          {
+            "shortcut": null,
+            "value": "Đầu Giường"
+          },
+          {
+            "shortcut": null,
+            "value": "Đáy"
+          },
+          {
+            "shortcut": null,
+            "value": "Đáy Hộc"
+          },
+          {
+            "shortcut": null,
+            "value": "Đáy Hộc NK"
+          },
+          {
+            "shortcut": null,
+            "value": "Đợt Cố Định"
+          },
+          {
+            "shortcut": null,
+            "value": "Đợt Di Động"
+          },
+          {
+            "shortcut": null,
+            "value": "Đuôi Giường"
+          },
+          {
+            "shortcut": 11,
+            "value": "Dưỡng"
+          },
+          {
+            "shortcut": null,
+            "value": "Dưỡng Uốn"
+          },
+          {
+            "shortcut": 6,
+            "value": "Giằng"
+          },
+          {
+            "shortcut": null,
+            "value": "Giằng Bệ Chân"
+          },
+          {
+            "shortcut": null,
+            "value": "Giằng Sau"
+          },
+          {
+            "shortcut": null,
+            "value": "Giằng Trước"
+          },
+          {
+            "shortcut": null,
+            "value": "Gương bỉ dày 5mm"
+          },
+          {
+            "shortcut": 44,
+            "value": "Hậu"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc - Đáy"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc - Thành Phải"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc - Thành Sau"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc - Thành Trái"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc - Thành Trước"
+          },
+          {
+            "shortcut": null,
+            "value": "Hộc NK"
+          },
+          {
+            "shortcut": null,
+            "value": "Hông Giữa"
+          },
+          {
+            "shortcut": null,
+            "value": "Hông Lộ"
+          },
+          {
+            "shortcut": null,
+            "value": "Hông Phải"
+          },
+          {
+            "shortcut": null,
+            "value": "Hông Trái"
+          },
+          {
+            "shortcut": null,
+            "value": "Len Chân"
+          },
+          {
+            "shortcut": null,
+            "value": "Len Chân Trước"
+          },
+          {
+            "shortcut": null,
+            "value": "Mặt Bàn"
+          },
+          {
+            "shortcut": null,
+            "value": "Mặt Bệ Chân"
+          },
+          {
+            "shortcut": 123,
+            "value": "Mặt Len Chân"
+          },
+          {
+            "shortcut": 3,
+            "value": "Mặt NK"
+          },
+          {
+            "shortcut": null,
+            "value": "Nan"
+          },
+          {
+            "shortcut": null,
+            "value": "Nền Tấm Fix"
+          },
+          {
+            "shortcut": null,
+            "value": "Nẹp"
+          },
+          {
+            "shortcut": 4,
+            "value": "Nẹp Bù"
+          },
+          {
+            "shortcut": 12,
+            "value": "Nẹp Tăng Dày"
+          },
+          {
+            "shortcut": null,
+            "value": "Nóc"
+          },
+          {
+            "shortcut": null,
+            "value": "Nóc Hộc"
+          },
+          {
+            "shortcut": null,
+            "value": "Phào Nóc"
+          },
+          {
+            "shortcut": 111,
+            "value": "Tấm Fix"
+          },
+          {
+            "shortcut": null,
+            "value": "Tấm inox"
+          },
+          {
+            "shortcut": null,
+            "value": "Tấm Mặt"
+          },
+          {
+            "shortcut": null,
+            "value": "Tấm Nền"
+          },
+          {
+            "shortcut": null,
+            "value": "Tấm Uốn"
+          },
+          {
+            "shortcut": null,
+            "value": "Tấm Uốn Cong"
+          },
+          {
+            "shortcut": null,
+            "value": "Tạo Dày Hông Phải"
+          },
+          {
+            "shortcut": null,
+            "value": "Tạo Dày Hông Trái"
+          },
+          {
+            "shortcut": null,
+            "value": "Tay Nắm"
+          },
+          {
+            "shortcut": null,
+            "value": "Thanh Bản Lề"
+          },
+          {
+            "shortcut": null,
+            "value": "Vách"
+          },
+          {
+            "shortcut": null,
+            "value": "Vai Giường"
+          },
+          {
+            "shortcut": null,
+            "value": "Viền Cánh"
+          },
+          {
+            "shortcut": null,
+            "value": "Viền Mặt Bàn"
+          },
+          {
+            "shortcut": 123,
+            "value": "Xương"
+          },
+          {
+            "shortcut": null,
+            "value": "Xương Nẹp"
+          },
+          {
+            "shortcut": null,
+            "value": "Khuôn Cửa"
+          },
+          {
+            "shortcut": 4,
+            "value": "Hông"
+          },
+          {
+            "shortcut": null,
+            "value": "Hậu Lộ"
+          },
+          {
+            "shortcut": 111,
+            "value": "Gương"
+          },
+          {
+            "shortcut": 222,
+            "value": "Kính"
+          },
+          {
+            "shortcut": 333,
+            "value": "Inox"
+          }
         ],
         "virtual": true
       }

@@ -301,7 +301,9 @@
     }
     if (!col) return null;
     return normalizeProductCodeValueEntries(Array.prototype.map.call(col.querySelectorAll('.mcr-test-value-card'), function (item) {
-      var value = item.querySelector('[data-mcr-test-value]');
+      // Product-code cards use data-pcr-value. The old selector silently
+      // returned an empty list and save_config then erased suffix in Excel/JSON.
+      var value = item.querySelector('[data-pcr-value], [data-suffix-value], [data-mcr-test-value]');
       var shortcut = item.querySelector('[data-suffix-shortcut]');
       return {
         value: value ? value.value : '',

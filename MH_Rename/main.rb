@@ -86,10 +86,42 @@ module MH
               end
             end
 
-            dbg "[MH_Rename] Config loaded from MH_Registry"
-            return
+            if @suffix_suggestions.empty? && @shortcut_map.empty?
+              dbg "[MH_Rename] MH_Registry returned empty suffix data, falling back to shared Registry API"
+            else
+              dbg "[MH_Rename] Config loaded from MH_Registry"
+              return
+            end
           rescue => e
             dbg "[MH_Rename] MH_Registry load failed: #{e.message}, falling back to Excel"
+          end
+        end
+
+        # --- Fallback: shared Registry API (không cần MH_Registry UI đã load) ---
+        if defined?(MH::Registry)
+          begin
+            prefix_rows = MH::Registry.prefix_suggestions
+            suffix_rows = MH::Registry.suffix_suggestions
+            modul_rows  = MH::Registry.modul_suggestions
+
+            @prefix_suggestions = prefix_rows unless prefix_rows.empty?
+            @modul_suggestions  = modul_rows  unless modul_rows.empty?
+
+            @suffix_suggestions = []
+            suffix_rows.each do |s|
+              val = s.is_a?(Hash) ? s['value'].to_s : s.to_s
+              sc  = s.is_a?(Hash) ? s['shortcut'] : nil
+              next if val.empty?
+              @suffix_suggestions << val
+              @shortcut_map[sc.to_s] = val if sc && sc.to_s.strip != '' && sc.to_i > 0
+            end
+
+            unless @suffix_suggestions.empty?
+              dbg "[MH_Rename] Config loaded from MH::Registry API"
+              return
+            end
+          rescue => e
+            dbg "[MH_Rename] MH::Registry API load failed: #{e.message}, falling back to Excel"
           end
         end
 
@@ -515,11 +547,12 @@ module MH
       DIGIT_TIMEOUT = 0.7  # giây - thời gian chờ giữa các lần nhấn số
 
       def initialize
-        @shortcut_map = MH::Rename.shortcut_map
+        @shortcut_map = {}
         @prefix_list = MH::Rename.prefix_suggestions
         @buffer = ""
         @buffer_timer = nil
         @last_applied = nil
+        refresh_shortcuts
       end
 
       def activate
@@ -527,6 +560,7 @@ module MH
         @selection = @model.selection
         @buffer = ""
         @last_applied = nil
+        refresh_shortcuts
         update_status
         @model.active_view.invalidate
       end
@@ -591,6 +625,7 @@ module MH
         code = @buffer
         @buffer = ""
         
+        refresh_shortcuts if @shortcut_map.empty?
         suffix = @shortcut_map[code]
         if suffix
           apply_suffix(suffix, code)
@@ -616,32 +651,66 @@ module MH
         @model.active_view.invalidate
       end
       def update_status
+        refresh_shortcuts if @shortcut_map.empty?
         map_str = @shortcut_map.sort_by { |k, _| k.to_i }.map { |k, v| "#{k}:#{v}" }.join(", ")
-        Sketchup.status_text = "Rename Shortcut: Click chọn, nhấn số để đổi tên. { #{map_str} }"
+        hint = map_str.empty? ? "chưa có shortcut suffix trong Registry/Config" : "{ #{map_str} }"
+        Sketchup.status_text = "Rename Shortcut: Click chọn, nhấn số để đổi tên. #{hint}"
       end
 
       def draw(view)
+        refresh_shortcuts if @shortcut_map.empty?
         y = 40
+        hud_text(view, 20, y, "Rename Shortcut", size: 13, bold: true)
+        y += 22
         
         # Hiện buffer nếu đang nhập
         if !@buffer.empty?
-          view.draw_text([20, y, 0], "Đang nhập: #{@buffer}_ ...", color: "Black", size: 13, bold: true)
+          hud_text(view, 20, y, "Đang nhập: #{@buffer}_ ...", size: 13, bold: true)
           y += 22
         end
         
         # Hiện kết quả vừa áp dụng
         if @last_applied
-          view.draw_text([20, y, 0], @last_applied, color: "Black", size: 12)
+          hud_text(view, 20, y, @last_applied, size: 12)
           y += 22
         end
         
         y += 5
+
+        if @shortcut_map.empty?
+          hud_text(view, 20, y, "Chưa có dữ liệu shortcut suffix.", size: 11)
+          y += 18
+          hud_text(view, 20, y, "Mở MH Registry hoặc kiểm tra Config.xlsx.", size: 10)
+          return
+        end
         
         # Danh sách shortcut
         @shortcut_map.sort_by { |k, _| k.to_i }.each do |k, v|
-          view.draw_text([20, y, 0], "  #{k}  =>  #{v}", color: "Black")
+          hud_text(view, 20, y, "  #{k}  =>  #{v}", size: 10)
           y += 18
         end
+      end
+
+      def refresh_shortcuts
+        MH::Rename.auto_load_suggestions if MH::Rename.shortcut_map.nil? || MH::Rename.shortcut_map.empty?
+        @shortcut_map = (MH::Rename.shortcut_map || {}).dup
+      rescue => e
+        @shortcut_map = {}
+        MH::Rename.dbg "RenameShortcutTool refresh shortcuts error: #{e.message}"
+      end
+
+      def hud_text(view, x, y, text, size: nil, bold: nil)
+        if defined?(MH::OverlayEngine) && MH::OverlayEngine.respond_to?(:text)
+          MH::OverlayEngine.text(view, x, y, text, color: "Black", size: size, bold: bold)
+        else
+          opts = {}
+          opts[:color] = "Black"
+          opts[:size] = size if size
+          opts[:bold] = bold unless bold.nil?
+          view.draw_text([x, y, 0], text.to_s, opts)
+        end
+      rescue => e
+        MH::Rename.dbg "RenameShortcutTool HUD error: #{e.message}"
       end
 
       def onSetCursor

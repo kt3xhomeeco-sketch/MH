@@ -93,6 +93,7 @@ module MH
       payload = read_registry_json(config_json_path)
       data = payload['data'].is_a?(Hash) ? payload['data'] : payload
       scrub_removed_config_keys(data)
+      synchronize_suffix_sources!(data)
       apply_project_settings!(data)
       MH::NameGrammar.configure(data) if defined?(MH::NameGrammar)
       data
@@ -176,6 +177,25 @@ module MH
         sc = shortcut.to_s.strip
         { 'value' => value, 'shortcut' => sc.empty? ? nil : sc.to_i }
       end.compact.uniq { |row| row['value'] }
+    end
+
+    # Keep the legacy top-level suffix list and the virtual suffix layer in
+    # product_code_rules identical. Both are still consumed by MH apps.
+    def synchronize_suffix_sources!(data)
+      return data unless data.is_a?(Hash)
+
+      suffix = normalize_suffix_rule_entries(config_hash_value(data, 'suffix'))
+      rules = config_hash_value(data, 'product_code_rules')
+      layers = rules.is_a?(Hash) ? Array(config_hash_value(rules, 'layers')) : []
+      layer = layers.find do |row|
+        row.is_a?(Hash) && config_hash_value(row, 'key').to_s == 'suffix'
+      end
+      layer_suffix = normalize_suffix_rule_entries(config_hash_value(layer, 'values')) if layer
+
+      suffix = layer_suffix if suffix.empty? && layer_suffix && !layer_suffix.empty?
+      data['suffix'] = suffix
+      layer['values'] = json_clone(suffix) if layer
+      data
     end
 
     def default_product_code_rules_from_config(data)
@@ -458,6 +478,7 @@ module MH
 
     def save_config(data)
       scrub_removed_config_keys(data)
+      synchronize_suffix_sources!(data)
       sync_registry_rules_from_config!(data)
       ensure_superimp_library_data!(data)
       persist_project_settings!(data)

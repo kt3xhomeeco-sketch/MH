@@ -87,7 +87,14 @@
     return entities.add_face(loop_points) if runs.empty?
 
     loop_points, runs = heal_arc_runs_to_adjacent_lines(loop_points, plane_normal, runs)
-    arc_data = runs.map { |start_index, edge_count| [start_index, fit_arc_from_points(loop_points, start_index, edge_count, plane_normal)] }
+    arc_data = runs.map do |start_index, edge_count|
+      data = if edge_count >= loop_points.length
+               fit_circle_from_points(loop_points, plane_normal)
+             else
+               fit_arc_from_points(loop_points, start_index, edge_count, plane_normal)
+             end
+      [start_index, data]
+    end
                    .select { |_, data| data }
     return entities.add_face(loop_points) if arc_data.empty?
 
@@ -100,7 +107,19 @@
     while index < count
       arc = arc_by_start[index]
       if arc
-        created.concat(entities.add_arc(arc[:center], arc[:xaxis], arc[:normal], arc[:radius], 0.0, arc[:sweep], arc[:edge_count]))
+        if arc[:circular]
+          created.concat(entities.add_circle(arc[:center], arc[:normal], arc[:radius], arc[:edge_count]))
+        else
+          arc_normal = arc[:normal]
+          sweep = arc[:sweep]
+          if sweep.negative?
+            # SketchUp splits negative sweeps into separate one-edge curves.
+            # Reversing the plane normal preserves the geometry as one arc.
+            arc_normal = arc_normal.reverse
+            sweep = -sweep
+          end
+          created.concat(entities.add_arc(arc[:center], arc[:xaxis], arc_normal, arc[:radius], 0.0, sweep, arc[:edge_count]))
+        end
         index += arc[:edge_count]
       else
         created << entities.add_line(loop_points[index], loop_points[(index + 1) % count])
@@ -197,6 +216,10 @@
   def self.detect_arc_like_runs(points, normal)
     count = points.length
     return [] if count < 4
+
+    # A circle can be stored as a single CircleCurve or as standalone chord
+    # edges. It has no long straight edge to distinguish it from an arc run.
+    return [[0, count]] if fit_circle_from_points(points, normal)
 
     lengths = (0...count).map { |index| points[index].distance(points[(index + 1) % count]) }
     max_length = lengths.max || 0
@@ -713,6 +736,53 @@
     return nil if max_error > [0.5.mm, radius * 0.003].max
 
     { center: center, xaxis: xaxis, normal: normal, radius: radius, sweep: sweep, edge_count: edge_count }
+  end
+  def self.fit_circle_from_points(points, normal)
+    count = points.length
+    return nil if count < 8 || !normal || normal.length <= 0.001.mm
+
+    start_point = points[0]
+    middle_point = points[count / 3]
+    end_point = points[(count * 2) / 3]
+    axis_u = start_point.vector_to(middle_point)
+    return nil if axis_u.length <= 0.001.mm
+
+    axis_u.normalize!
+    axis_v = normal.cross(axis_u)
+    return nil if axis_v.length <= 0.001.mm
+
+    axis_v.normalize!
+    origin = start_point
+    project = lambda do |point|
+      vector = origin.vector_to(point)
+      [vector.dot(axis_u), vector.dot(axis_v)]
+    end
+    x1, y1 = project.call(start_point)
+    x2, y2 = project.call(middle_point)
+    x3, y3 = project.call(end_point)
+    denominator = 2.0 * (x1 * (y2 - y3) + x2 * (y3 - y1) + x3 * (y1 - y2))
+    return nil if denominator.abs < 1e-9
+
+    center_x = ((x1 * x1 + y1 * y1) * (y2 - y3) +
+                (x2 * x2 + y2 * y2) * (y3 - y1) +
+                (x3 * x3 + y3 * y3) * (y1 - y2)) / denominator
+    center_y = ((x1 * x1 + y1 * y1) * (x3 - x2) +
+                (x2 * x2 + y2 * y2) * (x1 - x3) +
+                (x3 * x3 + y3 * y3) * (x2 - x1)) / denominator
+    center = Geom::Point3d.new(
+      origin.x + axis_u.x * center_x + axis_v.x * center_y,
+      origin.y + axis_u.y * center_x + axis_v.y * center_y,
+      origin.z + axis_u.z * center_x + axis_v.z * center_y
+    )
+    radius = center.distance(start_point)
+    return nil if radius <= 0.001.mm
+
+    tolerance = [0.5.mm, radius * 0.003].max
+    return nil unless points.all? { |point| (center.distance(point) - radius).abs <= tolerance }
+
+    { center: center, normal: normal, radius: radius, edge_count: count, circular: true }
+  rescue
+    nil
   end
   def self.choose_fit_sweep(raw_end, raw_mid)
     candidates = []
