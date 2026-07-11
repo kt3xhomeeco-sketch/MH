@@ -9,7 +9,7 @@ module MH
         SHEET = 'panel_defaults'.freeze
 
         def ensure_loaded
-          return if defined?(MH::Panel::TaoVan) && defined?(MH::Panel::TaoCanh)
+          return if defined?(MH::Panel::TaoVan) && defined?(MH::Panel::TaoCanh) && defined?(MH::Panel::DucKhung)
 
           path = File.join(Sketchup.find_support_file('Plugins'), 'MH_panel', 'src', 'main.rb')
           load path if File.exist?(path)
@@ -17,7 +17,7 @@ module MH
 
         def available?
           ensure_loaded
-          !!(defined?(MH::Panel::TaoVan) && defined?(MH::Panel::TaoCanh))
+          !!(defined?(MH::Panel::TaoVan) && defined?(MH::Panel::TaoCanh) && defined?(MH::Panel::DucKhung))
         rescue
           false
         end
@@ -29,6 +29,8 @@ module MH
             MH::Panel.activate_tao_van
           when 'tao_canh'
             MH::Panel.activate_tao_canh
+          when 'duc_khung'
+            MH::Panel.activate_duc_khung
           else
             false
           end

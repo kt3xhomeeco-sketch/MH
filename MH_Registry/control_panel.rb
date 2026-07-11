@@ -14,7 +14,7 @@ module MH
 
       HTML_FILE = File.join(PATH, 'control_panel', 'html', 'index.html').freeze
       # Section cài đặt nhúng -> đều thuộc MH::Panel::Settings.
-      PANEL_SECTIONS = %w[cai_dat tao_van tao_canh].freeze
+      PANEL_SECTIONS = %w[cai_dat tao_van tao_canh duc_khung].freeze
       REGISTRY_SECTIONS = %w[reg_main reg_superimp reg_naming reg_ma_vat_lieu].freeze
       NATIVE_SECTIONS = %w[
         thongke_panel viewport_names_settings fast_rename_settings
@@ -586,6 +586,8 @@ module MH
               MH::Panel.activate_tao_van
             when 'tao_canh'
               MH::Panel.activate_tao_canh
+            when 'duc_khung'
+              MH::Panel.activate_duc_khung
             end
           end
         end

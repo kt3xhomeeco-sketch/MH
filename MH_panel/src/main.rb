@@ -34,6 +34,7 @@ module MH
       require_relative 'tools/taovan'
       require_relative 'tools/taocanh'
       require_relative 'tools/catvan'
+      require_relative 'tools/duckhung'
     end
 
     def reload
@@ -57,6 +58,10 @@ module MH
 
     def activate_cat_van
       Sketchup.active_model.select_tool(MH::Panel::CatVan.new)
+    end
+
+    def activate_duc_khung
+      Sketchup.active_model.select_tool(MH::Panel::DucKhung.new)
     end
 
     def open_settings(tab = 'cai_dat')
