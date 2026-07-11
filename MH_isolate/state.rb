@@ -11,7 +11,8 @@ module MH
       TAG_MARKER_KEY = 'temporary_tag'.freeze
       FORMAT_VERSION = 1
 
-      @runtime = {}
+      @runtime ||= {}
+      @restore_refs ||= {}
 
       class << self
         def model_key(model)
@@ -48,17 +49,46 @@ module MH
 
         def clear(model)
           @runtime.delete(model_key(model))
+          @restore_refs.delete(model_key(model))
           dictionary = model.attribute_dictionary(DICT, false)
           dictionary.delete_key(STATE_KEY) if dictionary
           nil
         end
 
         def sync(model)
+          @restore_refs.delete(model_key(model))
           fetch(model, reload: true)
         end
 
         def release(model)
-          @runtime.delete(model_key(model)) if model
+          return unless model
+
+          key = model_key(model)
+          @runtime.delete(key)
+          @restore_refs.delete(key)
+        end
+
+        def cache_restore_refs(model, entity_refs, layer_refs)
+          @restore_refs[model_key(model)] = {
+            entities: entity_refs,
+            layers: layer_refs
+          }
+        end
+
+        def cached_entity(model, persistent_id)
+          refs = @restore_refs[model_key(model)]
+          entity = refs && refs[:entities][persistent_id.to_i]
+          entity if entity && entity.valid?
+        rescue StandardError
+          nil
+        end
+
+        def cached_layer(model, persistent_id)
+          refs = @restore_refs[model_key(model)]
+          layer = refs && refs[:layers][persistent_id.to_i]
+          layer if layer && layer.valid?
+        rescue StandardError
+          nil
         end
 
         # Entity deletion is safe even if the persisted record remains stale.
@@ -75,15 +105,29 @@ module MH
 
         def entity(model, persistent_id)
           return nil unless persistent_id
+          cached = cached_entity(model, persistent_id)
+          return cached if cached
+
           found = model.find_entity_by_persistent_id(persistent_id.to_i)
-          found if found && found.valid?
+          if found && found.valid?
+            refs = (@restore_refs[model_key(model)] ||= { entities: {}, layers: {} })
+            refs[:entities][persistent_id.to_i] = found
+            found
+          end
         rescue StandardError
           nil
         end
 
         def layer(model, persistent_id, fallback_name = nil)
+          cached = cached_layer(model, persistent_id) if persistent_id
+          return cached if cached
+
           found = entity(model, persistent_id)
-          return found if found.is_a?(Sketchup::Layer)
+          if found.is_a?(Sketchup::Layer)
+            refs = (@restore_refs[model_key(model)] ||= { entities: {}, layers: {} })
+            refs[:layers][persistent_id.to_i] = found
+            return found
+          end
           return model.layers[fallback_name] if fallback_name && model.layers[fallback_name]
           nil
         rescue StandardError

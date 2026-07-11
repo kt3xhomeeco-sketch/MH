@@ -23,6 +23,10 @@ module MH
     FAST_VISIBILITY_STATE_KEY = 'fast_visibility_state'.freeze
     FAST_VISIBILITY_TAG_MARKER_KEY = 'fast_visibility_tag'.freeze
     FAST_VISIBILITY_TAG_PREFIX = '__MH_Van_Hidden__'.freeze
+    PROTECTED_VISIBILITY_TAG_NAMES = ['MH_DWG'].freeze
+    GROUP_CODE_SHOW_THICKNESS_KEY = 'group_code_show_thickness'.freeze
+    GROUP_CODE_SHOW_PAINT_KEY = 'group_code_show_paint'.freeze
+    GROUP_CODE_PAINT_TOKEN = 'SON'.freeze
     AUTO_REFRESH_SECONDS = 0.5
 
     if defined?(Sketchup::EntityObserver)
@@ -45,6 +49,22 @@ module MH
 
         def onMaterialRemove(_materials, material)
           MH::Van.mark_dirty_material(material)
+        end
+      end
+    end
+
+    if defined?(Sketchup::ModelObserver)
+      class ModelChangeObserver < Sketchup::ModelObserver
+        def onTransactionCommit(model)
+          MH::Van.mark_selected_records_dirty(model)
+        end
+
+        def onTransactionUndo(model)
+          MH::Van.mark_selected_records_dirty(model)
+        end
+
+        def onTransactionRedo(model)
+          MH::Van.mark_selected_records_dirty(model)
         end
       end
     end
@@ -85,6 +105,7 @@ module MH
         @last_rows = rows
         attach_part_observers((@last_records_by_id || {}).values)
         attach_materials_observer
+        attach_model_observer
         execute('renderRows', rows)
       end
 
@@ -168,6 +189,28 @@ module MH
         nil
       end
 
+      def mark_selected_records_dirty(model = Sketchup.active_model)
+        return if @suspend_dirty_tracking
+        return unless model && @last_records_by_id
+
+        ids = {}
+        model.selection.each do |entity|
+          next unless entity && entity.valid? && entity.respond_to?(:persistent_id)
+
+          selected_id = entity.persistent_id.to_i
+          ids[selected_id] = true if @last_records_by_id[selected_id]
+          Array(@ancestor_record_ids && @ancestor_record_ids[selected_id]).each do |record_id|
+            ids[record_id.to_i] = true
+          end
+        end
+        return if ids.empty?
+
+        @dirty_entity_ids ||= {}
+        ids.each_key { |id| @dirty_entity_ids[id] = true }
+      rescue StandardError
+        nil
+      end
+
       def clear_dirty_entity_ids(ids)
         return unless @dirty_entity_ids
 
@@ -185,6 +228,8 @@ module MH
         @record_signatures = {}
         @record_row_keys = {}
         @definition_record_ids = Hash.new { |hash, key| hash[key] = [] }
+        @ancestor_record_ids = Hash.new { |hash, key| hash[key] = [] }
+        @bottom_face_counts_cache = nil
         items = scan_items_for_grouping(records)
         buckets = native_group_scan_items(items) || ruby_group_scan_items(items)
 
@@ -196,19 +241,20 @@ module MH
       end
 
       def scan_items_for_grouping(records)
-        records.map do |record|
+        items = records.map do |record|
           entity = record[:entity]
           id = entity.persistent_id
           @last_records_by_id[id] = record
           if entity.respond_to?(:definition) && entity.definition
             @definition_record_ids[entity.definition.entityID] << id
           end
+          Array(record[:ancestor_ids]).each { |ancestor_id| @ancestor_record_ids[ancestor_id.to_i] << id }
 
-          default_code = default_material_code(entity)
-          thickness = thickness_mm(entity, record[:transform], default_code)
-          code = default_code
+          raw_code = default_material_code(entity)
+          thickness = thickness_mm(entity, record[:transform], raw_code)
+          code = group_material_code_display(raw_code)
           formatted_thickness = format_thickness(thickness)
-          key = "#{formatted_thickness}|#{code}"
+          key = group_row_key(formatted_thickness, code)
           @record_row_keys[id] = key
           @record_signatures[id] = record_signature(entity, record[:transform], thickness)
 
@@ -217,8 +263,9 @@ module MH
             'thickness' => formatted_thickness,
             'thickness_value' => thickness,
             'code' => code,
-            'default_code' => default_code,
-            'color' => entity.get_attribute(DICT, ATTR_COLOR, material_color(entity, code)).to_s,
+            'default_code' => code,
+            'raw_code' => raw_code,
+            'color' => entity.get_attribute(DICT, ATTR_COLOR, material_color(entity, raw_code)).to_s,
             'id' => id,
             'ancestor_ids' => record[:ancestor_ids],
             'path' => {
@@ -228,6 +275,8 @@ module MH
             'visible' => record_visible?(record)
           }
         end
+        @last_group_scan_items = items.map(&:dup)
+        items
       end
 
       def native_group_scan_items(items)
@@ -256,13 +305,14 @@ module MH
             'color' => item['color'],
             'ids' => [],
             'ancestor_ids' => [],
-            'paths' => []
+          'paths' => []
           }
 
           row = buckets[key]
           row['count'] += 1
           row['visible'] ||= !!item['visible']
           row['all_hidden'] &&= !item['visible']
+          track_group_row_mix(row, item)
           row['ids'] << item['id']
           row['ancestor_ids'].concat(Array(item['ancestor_ids']))
           row['paths'] << item['path']
@@ -271,8 +321,34 @@ module MH
         buckets.each_value do |row|
           row['ids'].uniq!
           row['ancestor_ids'].uniq!
+          finalize_group_row_mix(row)
         end
         buckets
+      end
+
+      def track_group_row_mix(row, item)
+          row['_thickness_values'] ||= {}
+          row['_color_values'] ||= {}
+          row['_raw_code_values'] ||= {}
+          row['_thickness_values'][item['thickness'].to_s] = true
+          row['_color_values'][item['color'].to_s] = true
+          row['_raw_code_values'][(item['raw_code'] || item['code']).to_s] = true
+      rescue StandardError
+        nil
+      end
+
+      def finalize_group_row_mix(row)
+        thickness_values = row.delete('_thickness_values') || {}
+        color_values = row.delete('_color_values') || {}
+        raw_code_values = row.delete('_raw_code_values') || {}
+        row['mixed_thickness'] = thickness_values.length > 1
+        row['mixed_color'] = color_values.length > 1 || raw_code_values.length > 1
+        row['raw_codes'] = raw_code_values.keys
+        row['raw_code'] = raw_code_values.keys.first if raw_code_values.length == 1
+        row['thickness'] = 'Nhiều' if row['mixed_thickness']
+      rescue StandardError
+        row['mixed_thickness'] = false
+        row['mixed_color'] = false
       end
 
       def set_visible(payload_json)
@@ -372,6 +448,15 @@ module MH
         alert_error(e)
       end
 
+      def set_group_code_options(payload_json)
+        payload = parse_json(payload_json)
+        Sketchup.write_default(DICT, GROUP_CODE_SHOW_THICKNESS_KEY, payload['show_thickness'] != false)
+        Sketchup.write_default(DICT, GROUP_CODE_SHOW_PAINT_KEY, payload['show_paint'] != false)
+        refresh_group_code_display
+      rescue StandardError => e
+        alert_error(e)
+      end
+
       def fast_visibility_mode?
         value = Sketchup.read_default(DICT, FAST_VISIBILITY_KEY, false)
         value == true || value.to_s == 'true'
@@ -379,9 +464,31 @@ module MH
         false
       end
 
+      def group_code_show_thickness?
+        setting_enabled?(GROUP_CODE_SHOW_THICKNESS_KEY, true)
+      end
+
+      def group_code_show_paint?
+        setting_enabled?(GROUP_CODE_SHOW_PAINT_KEY, true)
+      end
+
+      def setting_enabled?(key, default)
+        value = Sketchup.read_default(DICT, key, default)
+        return value if value == true || value == false
+
+        text = value.to_s.strip.downcase
+        return false if %w[false 0 no off].include?(text)
+        return true if %w[true 1 yes on].include?(text)
+
+        !!default
+      rescue StandardError
+        !!default
+      end
+
       def fast_hide_entities(model, entities, key = nil)
         targets = Array(entities).select do |entity|
-          entity && entity.valid? && !entity.hidden? && entity_layer(entity)
+          entity && entity.valid? && !entity.hidden? && entity_layer(entity) &&
+            !protected_fast_visibility_entity?(entity)
         end
         return if targets.empty?
 
@@ -428,6 +535,9 @@ module MH
       end
 
       def isolate_row_by_fast_tags(model, target_key)
+        shared_result = isolate_row_via_shared_cache(model, target_key)
+        return shared_result unless shared_result.nil?
+
         state = fast_visibility_state(model)
         records = state['records'] ||= {}
         target_key = target_key.to_s
@@ -445,28 +555,31 @@ module MH
 
         model.start_operation('MH Van - Cô lập dòng ván', true)
         begin
-          @last_rows.each do |row|
-            key = row['key'].to_s
-            next if key.empty?
+          unless fast_visibility_cache_matches_rows?(state)
+            @last_rows.each do |row|
+              key = row['key'].to_s
+              next if key.empty?
 
-            layer = fast_visibility_temp_layer(model, state, key)
-            next unless layer
+              layer = fast_visibility_temp_layer(model, state, key)
+              next unless layer
 
-            entities_from_ids(row['ids']).each do |entity|
-              next unless entity && entity.valid?
+              entities_from_ids(row['ids']).each do |entity|
+                next unless entity && entity.valid?
+                next if protected_fast_visibility_entity?(entity)
 
-              id = entity.persistent_id.to_i
-              next unless id.positive?
+                id = entity.persistent_id.to_i
+                next unless id.positive?
 
-              original_layer = entity_layer(entity)
-              unless marked_fast_visibility_layer?(original_layer)
-                records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+                original_layer = entity_layer(entity)
+                unless marked_fast_visibility_layer?(original_layer)
+                  records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+                end
+                records[id.to_s]['fast_key'] = fast_visibility_layer_key(layer)
+                entity.hidden = false if entity.hidden?
+                entity.layer = layer unless entity_layer(entity) == layer
+              rescue StandardError
+                next
               end
-              records[id.to_s]['fast_key'] = fast_visibility_layer_key(layer)
-              entity.hidden = false if entity.hidden?
-              entity.layer = layer unless entity_layer(entity) == layer
-            rescue StandardError
-              next
             end
           end
 
@@ -477,6 +590,7 @@ module MH
           end
           state['isolate_active'] = true
           state['isolate_key'] = target_key
+          state['soft_shown'] = false
           save_fast_visibility_state(model, state)
           model.commit_operation
           model.active_view.invalidate
@@ -488,12 +602,99 @@ module MH
         end
       end
 
+      # MH Van row isolation and MH Isolate must use one physical Tag cache.
+      # Delegating avoids two plugins fighting over Entity#layer.
+      def isolate_row_via_shared_cache(model, target_key)
+        return nil unless defined?(MH::Isolate::Engine)
+        return nil unless MH::Isolate::Engine.respond_to?(:isolate_entities)
+
+        row = Array(@last_rows).find { |item| item['key'].to_s == target_key.to_s }
+        return nil unless row
+
+        targets = entities_from_ids(row['ids']).select do |entity|
+          entity && entity.valid? &&
+            (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance))
+        end
+        return nil if targets.empty?
+
+        active_pids = model.active_entities.each_with_object({}) do |entity, result|
+          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+          result[entity.persistent_id.to_i] = true
+        end
+        return nil unless targets.all? { |entity| active_pids[entity.persistent_id.to_i] }
+
+        # One-time migration from the old MH Van per-row temp Tags. After this,
+        # MH Isolate is the sole physical visibility-cache owner.
+        legacy_state = fast_visibility_state(model)
+        legacy_records = legacy_state['records']
+        if legacy_records.is_a?(Hash) && legacy_records.any?
+          return nil unless restore_all_fast_hidden_entities(model)
+        end
+
+        result = MH::Isolate::Engine.isolate_entities(model, targets, preserve_selection: false)
+        return false unless result
+
+        shared_state = MH::Isolate::State.fetch(model)
+        shared_state && shared_state['soft_unisolated'] != true
+      rescue StandardError => error
+        warn("MH Van shared isolate cache failed: #{error.class}: #{error.message}")
+        nil
+      end
+
       def fast_show_all_row_tags(model, state = fast_visibility_state(model))
         fast_visibility_tag_layers(state, model).each_value do |layer|
           layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=)
         end
       rescue StandardError
         nil
+      end
+
+      # Visual show-all that keeps every MH Van temp Tag and original-Tag map.
+      # MH Isolate calls this through its cache coordinator.
+      def show_all_fast_visibility_cached(model = Sketchup.active_model)
+        return false unless model
+
+        state = fast_visibility_state(model)
+        records = state['records']
+        return false unless records.is_a?(Hash) && records.any?
+
+        model.start_operation('MH Van - Hiện tất cả bằng cache', true)
+        begin
+          fast_show_all_row_tags(model, state)
+          state['isolate_active'] = false
+          state['isolate_key'] = nil
+          state['soft_shown'] = true
+          save_fast_visibility_state(model, state)
+          model.commit_operation
+          model.active_view.invalidate
+          true
+        rescue StandardError
+          model.abort_operation
+          false
+        end
+      end
+
+      def fast_visibility_cache_matches_rows?(state)
+        records = state['records']
+        tags = state['tags']
+        return false unless records.is_a?(Hash) && tags.is_a?(Hash)
+
+        model = Sketchup.active_model
+        Array(@last_rows).all? do |row|
+          key = fast_visibility_safe_key(row['key'])
+          tag_state = tags[key]
+          layer = tag_state && fast_visibility_layer(model, tag_state['temp_tag_pid'], tag_state['temp_tag_name'])
+          next false unless layer && layer.valid?
+
+          Array(row['ids']).all? do |id|
+            record = records[id.to_i.to_s]
+            entity = model.find_entity_by_persistent_id(id.to_i)
+            record && entity && entity.valid? &&
+              record['fast_key'].to_s == key && entity_layer(entity) == layer
+          end
+        end
+      rescue StandardError
+        false
       end
 
       def fast_visibility_tag_layers(state, model)
@@ -671,6 +872,15 @@ module MH
         false
       end
 
+      def protected_fast_visibility_entity?(entity)
+        layer = entity_layer(entity)
+        layer && PROTECTED_VISIBILITY_TAG_NAMES.any? do |name|
+          layer.name.to_s.casecmp(name).zero?
+        end
+      rescue StandardError
+        false
+      end
+
       def recover_fast_visibility_entity(model, entity)
         layer = entity_layer(entity)
         return unless marked_fast_visibility_layer?(layer)
@@ -682,42 +892,57 @@ module MH
 
       def set_code(payload_json)
         payload = parse_json(payload_json)
-        code = canonical_material_code(payload['code'].to_s.strip)
+        input_code = payload['code'].to_s
+        code = canonical_material_code(input_code)
         entities = entities_from_ids(payload['ids'])
         return if entities.empty?
         return reset_code(payload_json) if code.empty?
 
         model = Sketchup.active_model
-        current_materials = entities.map { |entity| primary_material(entity) if entity.valid? }.compact.uniq
-        target_material = nil
-        renamed_material = nil
+        code_by_entity = resolved_material_codes_for_entities(entities, input_code)
+        target_materials = []
+        renamed_materials = []
         @suspend_dirty_tracking = true
         begin
           model.start_operation('MH Van - Đổi mã vật liệu', true)
-          target_material = material_for_code_change(code, current_materials, entities)
-          renamed_material = target_material if current_materials.length == 1 && current_materials.first.equal?(target_material)
+          code_groups = entities.group_by { |entity| code_by_entity[entity.persistent_id] || code }
+          code_groups.each do |target_code, group_entities|
+            current_materials = group_entities.map { |entity| primary_material(entity) if entity.valid? }.compact.uniq
+            target_material = material_for_code_change(target_code, current_materials, group_entities)
+            target_materials << target_material
+            renamed_materials << target_material if current_materials.length == 1 && current_materials.first.equal?(target_material)
 
-          # Renaming the shared material already updates every group using it.
-          unless renamed_material
-            entities.each do |entity|
-              next unless entity.valid?
+            # Renaming the shared material already updates every group using it.
+            unless renamed_materials.include?(target_material)
+              group_entities.each do |entity|
+                next unless entity.valid?
 
-              assign_material_code(entity, code, target_material)
+                assign_material_code(entity, target_code, target_material)
+              end
             end
           end
           model.commit_operation
         ensure
           @suspend_dirty_tracking = false
         end
-        affected_ids = if renamed_material
-                         cached_ids_for_materials([renamed_material])
+        affected_ids = if renamed_materials.any?
+                         cached_ids_for_materials(renamed_materials)
                        else
                          entities.map(&:persistent_id)
-                       end
+        end
         clear_dirty_entity_ids(affected_ids)
-        clear_dirty_materials([target_material])
-        color = material_color(entities.find { |entity| entity && entity.valid? }, code)
-        update_cached_code_after_set(affected_ids.uniq, code, color) || patch_cached_rows_for_ids(affected_ids.uniq) || refresh
+        clear_dirty_materials(target_materials)
+        affected_ids.uniq.each do |id|
+          record = @last_records_by_id && @last_records_by_id[id.to_i]
+          entity = record && record[:entity]
+          entity ||= entities.find { |item| item.persistent_id == id.to_i }
+          next unless entity && entity.valid?
+
+          raw_code = default_material_code(entity)
+          color = material_color(entity, raw_code)
+          update_cached_group_scan_items_code([id], raw_code, group_material_code_display(raw_code), color)
+        end
+        refresh_group_code_display || patch_cached_rows_for_ids(affected_ids.uniq)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -748,17 +973,29 @@ module MH
         return if changes.empty?
 
         model = Sketchup.active_model
-        model.start_operation('MH Van - Bỏ mã sơn', true)
-        changes.each do |entity, new_code|
-          next unless entity.valid?
+        @suspend_dirty_tracking = true
+        begin
+          model.start_operation('MH Van - Bỏ mã sơn', true)
+          changes.each do |entity, new_code|
+            next unless entity.valid?
 
-          assign_material_code(entity, new_code, material_by_name(new_code, primary_material(entity)))
-          entity.delete_attribute(DICT, ATTR_CODE)
-          entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
-          entity.delete_attribute(DICT, ATTR_COLOR)
+            assign_material_code(entity, new_code, material_by_name(new_code, primary_material(entity)))
+            entity.delete_attribute(DICT, ATTR_CODE)
+            entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
+            entity.delete_attribute(DICT, ATTR_COLOR)
+          end
+          model.commit_operation
+        ensure
+          @suspend_dirty_tracking = false
         end
-        model.commit_operation
-        refresh
+        changed_ids = changes.keys.map(&:persistent_id)
+        changes.group_by { |_entity, new_code| new_code }.each do |new_code, pairs|
+          ids_for_code = pairs.map { |entity, _code| entity.persistent_id }
+          color = material_color(pairs.first.first, new_code)
+          patch_cached_rows_for_ids(ids_for_code) unless update_cached_code_after_set(ids_for_code, new_code, color)
+        end
+        clear_dirty_entity_ids(changed_ids)
+        clear_dirty_materials(old_materials.compact)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -788,7 +1025,7 @@ module MH
         affected_ids = entities.map(&:persistent_id)
         clear_dirty_entity_ids(affected_ids)
         color = material_color(entities.find { |entity| entity && entity.valid? }, 'Default')
-        update_cached_code_after_set(affected_ids, 'Default', color) || patch_cached_rows_for_ids(affected_ids) || refresh
+        patch_cached_rows_for_ids(affected_ids) unless update_cached_code_after_set(affected_ids, 'Default', color)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -964,6 +1201,7 @@ module MH
         @dialog.add_action_callback('set_visible') { |_ctx, payload| set_visible(payload) }
         @dialog.add_action_callback('set_visible_rows') { |_ctx, payload| set_visible_rows(payload) }
         @dialog.add_action_callback('set_fast_visibility') { |_ctx, payload| set_fast_visibility(payload) }
+        @dialog.add_action_callback('set_group_code_options') { |_ctx, payload| set_group_code_options(payload) }
         @dialog.add_action_callback('set_code') { |_ctx, payload| set_code(payload) }
         @dialog.add_action_callback('reset_code') { |_ctx, payload| reset_code(payload) }
         @dialog.add_action_callback('set_color') { |_ctx, payload| set_color(payload) }
@@ -1005,6 +1243,57 @@ module MH
         return unless @dialog && @dialog.visible?
 
         @dialog.execute_script("#{function_name}(#{JSON.generate(data)})")
+      end
+
+      def refresh_cached_records
+        records = (@last_records_by_id || {}).values.select do |record|
+          entity = record[:entity]
+          entity && entity.valid?
+        end
+        return false if records.empty?
+
+        rows = scan_rows(records)
+        @last_rows = rows
+        attach_part_observers((@last_records_by_id || {}).values)
+        attach_materials_observer
+        execute('renderRows', rows)
+        true
+      rescue StandardError
+        false
+      end
+
+      def refresh_group_code_display
+        items = Array(@last_group_scan_items)
+        return false if items.empty?
+
+        show_thickness = group_code_show_thickness?
+        show_paint = group_code_show_paint?
+        separator = material_code_separator
+        display_code_cache = {}
+        display_items = items.map do |item|
+          raw_code = (item['raw_code'] || item['code']).to_s
+          code = display_code_cache[raw_code] ||= group_material_code_display(raw_code, show_thickness, show_paint, separator)
+          copy = item.dup
+          copy['code'] = code
+          copy['default_code'] = code
+          copy['key'] = group_row_key(copy['thickness'], code, show_thickness)
+          copy
+        end
+
+        buckets = ruby_group_scan_items(display_items)
+        display_code = lambda do |raw_code|
+          raw = raw_code.to_s
+          display_code_cache[raw] ||= group_material_code_display(raw, show_thickness, show_paint, separator)
+        end
+        apply_cached_abf_sheet_type_counts(buckets, display_code)
+        apply_cached_bottom_face_counts(buckets, display_code)
+        rows = buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
+        @last_rows = rows
+        rebuild_row_indexes(rows)
+        execute('renderRows', rows)
+        true
+      rescue StandardError
+        false
       end
 
       def parse_json(payload_json)
@@ -1052,6 +1341,19 @@ module MH
         @materials_observer_attached = true
       rescue StandardError
         @materials_observer_attached = true
+      end
+
+      def attach_model_observer
+        return unless defined?(ModelChangeObserver)
+
+        model = Sketchup.active_model
+        return if @observed_model && @observed_model.equal?(model)
+
+        @model_observer ||= ModelChangeObserver.new
+        model.add_observer(@model_observer)
+        @observed_model = model
+      rescue StandardError
+        nil
       end
 
       def cached_ids_for_materials(materials)
@@ -1164,6 +1466,7 @@ module MH
         end
 
         new_buckets.each_value do |new_row|
+          finalize_group_row_mix(new_row)
           existing = @last_rows.find { |row| row['key'] == new_row['key'] }
           if existing
             merge_cached_row(existing, new_row)
@@ -1185,18 +1488,20 @@ module MH
 
       def add_record_to_bucket(buckets, record)
         entity = record[:entity]
-        default_code = default_material_code(entity)
-        thickness = thickness_mm(entity, record[:transform], default_code)
-        code = default_code
-        color = material_color(entity, code).to_s
-        key = "#{format_thickness(thickness)}|#{code}"
+        raw_code = default_material_code(entity)
+        thickness = thickness_mm(entity, record[:transform], raw_code)
+        code = group_material_code_display(raw_code)
+        color = material_color(entity, raw_code).to_s
+        formatted_thickness = format_thickness(thickness)
+        key = group_row_key(formatted_thickness, code)
 
         buckets[key] ||= {
           'key' => key,
-          'thickness' => format_thickness(thickness),
+          'thickness' => formatted_thickness,
           'thickness_value' => thickness,
           'code' => code,
-          'default_code' => default_code,
+          'default_code' => code,
+          'raw_code' => raw_code,
           'count' => 0,
           'two_face' => 0,
           'visible' => false,
@@ -1212,6 +1517,13 @@ module MH
         visible = record_visible?(record)
         row['visible'] ||= visible
         row['all_hidden'] &&= !visible
+        track_group_row_mix(
+          row,
+          'thickness' => formatted_thickness,
+          'color' => color,
+          'raw_code' => raw_code,
+          'code' => code
+        )
         row['ids'] << entity.persistent_id
         row['ancestor_ids'].concat(record[:ancestor_ids])
         row['paths'] << {
@@ -1222,15 +1534,45 @@ module MH
         row['ancestor_ids'].uniq!
         @record_row_keys[entity.persistent_id] = key if @record_row_keys
         @record_signatures[entity.persistent_id] = record_signature(entity, record[:transform], thickness) if @record_signatures
+        upsert_cached_group_scan_item(
+          'key' => key,
+          'thickness' => formatted_thickness,
+          'thickness_value' => thickness,
+          'code' => code,
+          'default_code' => code,
+          'raw_code' => raw_code,
+          'color' => color,
+          'id' => entity.persistent_id,
+          'ancestor_ids' => record[:ancestor_ids],
+          'path' => {
+            'id' => entity.persistent_id,
+            'ancestor_ids' => record[:ancestor_ids]
+          },
+          'visible' => visible
+        )
+      end
+
+      def upsert_cached_group_scan_item(item)
+        return unless @last_group_scan_items
+
+        id = item['id'].to_i
+        index = @last_group_scan_items.find_index { |cached| cached['id'].to_i == id }
+        if index
+          @last_group_scan_items[index] = item
+        else
+          @last_group_scan_items << item
+        end
+      rescue StandardError
+        nil
       end
 
       def record_row_key(record)
         entity = record[:entity]
         return nil unless entity && entity.valid? && part_like?(entity)
 
-        default_code = default_material_code(entity)
-        thickness = thickness_mm(entity, record[:transform], default_code)
-        "#{format_thickness(thickness)}|#{default_code}"
+        raw_code = default_material_code(entity)
+        thickness = thickness_mm(entity, record[:transform], raw_code)
+        group_row_key(format_thickness(thickness), group_material_code_display(raw_code))
       rescue StandardError
         nil
       end
@@ -1255,6 +1597,9 @@ module MH
         existing['paths'] = (Array(existing['paths']) + Array(new_row['paths'])).uniq { |path| path['id'].to_i }
         existing['ancestor_ids'] = (Array(existing['ancestor_ids']) + Array(new_row['ancestor_ids'])).uniq
         existing['color'] = new_row['color']
+        existing['mixed_thickness'] = existing['mixed_thickness'] || new_row['mixed_thickness']
+        existing['mixed_color'] = existing['mixed_color'] || new_row['mixed_color'] || existing['raw_code'].to_s != new_row['raw_code'].to_s
+        existing['thickness'] = 'Nhiều' if existing['mixed_thickness']
         refresh_cached_row_state(existing)
       end
 
@@ -1361,6 +1706,10 @@ module MH
       def update_cached_code_after_set(ids, code, color)
         return false unless @last_rows && @last_rows.any?
 
+        display_code = group_material_code_display(code)
+        update_cached_group_scan_items_code(ids, code, display_code, color)
+        return true if @last_group_scan_items && refresh_group_code_display
+
         id_lookup = {}
         Array(ids).each do |id|
           id = id.to_i
@@ -1389,11 +1738,12 @@ module MH
           end
 
           moved_row = {
-            'key' => "#{row['thickness']}|#{code}",
+            'key' => group_row_key(row['thickness'], display_code),
             'thickness' => row['thickness'],
             'thickness_value' => row['thickness_value'],
-            'code' => code,
-            'default_code' => code,
+            'code' => display_code,
+            'default_code' => display_code,
+            'raw_code' => code,
             'count' => moved_ids.length,
             'two_face' => 0,
             'visible' => row['visible'],
@@ -1424,6 +1774,31 @@ module MH
         true
       rescue StandardError
         false
+      end
+
+      def update_cached_group_scan_items_code(ids, raw_code, display_code, color = nil)
+        items = Array(@last_group_scan_items)
+        return if items.empty?
+
+        id_lookup = {}
+        Array(ids).each do |id|
+          id = id.to_i
+          id_lookup[id] = true if id.positive?
+        end
+        return if id_lookup.empty?
+
+        items.each do |item|
+          id = item['id'].to_i
+          next unless id_lookup[id]
+
+          item['raw_code'] = raw_code
+          item['code'] = display_code
+          item['default_code'] = display_code
+          item['key'] = group_row_key(item['thickness'], display_code)
+          item['color'] = color if color
+        end
+      rescue StandardError
+        nil
       end
 
       def part_records
@@ -1759,24 +2134,107 @@ module MH
 
       def default_material_code(entity)
         material = entity.respond_to?(:material) ? entity.material : nil
-        material ? material.display_name.to_s : 'Default'
+        material ? material.name.to_s : 'Default'
+      end
+
+      def group_material_code_display(code, show_thickness = nil, show_paint = nil, separator = nil)
+        text = code.to_s
+        return 'Default' if text.empty? || text.casecmp('Default').zero?
+        show_thickness = group_code_show_thickness? if show_thickness.nil?
+        show_paint = group_code_show_paint? if show_paint.nil?
+        return text if show_thickness && show_paint
+
+        sep = separator || material_code_separator
+        parts = text.split(sep, -1)
+        return text if parts.empty?
+
+        unless show_thickness
+          parts.delete_at(1) if removable_thickness_code_segment?(parts[1])
+        end
+
+        unless show_paint
+          index = parts.find_index { |part| comparable_material_code_segment(part) == GROUP_CODE_PAINT_TOKEN }
+          parts = parts[0..index] if index
+        end
+
+        result = parts.join(sep)
+        result.empty? ? text : result
+      rescue StandardError
+        text
+      end
+
+      def resolved_material_codes_for_entities(entities, display_code)
+        show_thickness = group_code_show_thickness?
+        show_paint = group_code_show_paint?
+        entities.each_with_object({}) do |entity, map|
+          next unless entity && entity.valid?
+
+          raw_code = default_material_code(entity)
+          merged = merge_display_code_with_raw_code(display_code, raw_code, show_thickness, show_paint)
+          map[entity.persistent_id] = canonical_material_code(merged)
+        end
+      end
+
+      def merge_display_code_with_raw_code(display_code, raw_code, show_thickness, show_paint)
+        text = display_code.to_s
+        return text if text.empty? || text.casecmp('Default').zero?
+        return text if show_thickness && show_paint
+
+        sep = material_code_separator
+        parts = text.split(sep, -1)
+        raw_parts = raw_code.to_s.split(sep, -1)
+        return text if parts.empty? || raw_parts.empty?
+
+        unless show_thickness || removable_thickness_code_segment?(parts[1])
+          raw_thickness = raw_parts[1]
+          parts.insert(1, raw_thickness) if removable_thickness_code_segment?(raw_thickness)
+        end
+
+        unless show_paint
+          input_son_index = parts.find_index { |part| comparable_material_code_segment(part) == GROUP_CODE_PAINT_TOKEN }
+          raw_son_index = raw_parts.find_index { |part| comparable_material_code_segment(part) == GROUP_CODE_PAINT_TOKEN }
+          if input_son_index && raw_son_index && parts.length == input_son_index + 1
+            hidden_tail = raw_parts[(raw_son_index + 1)..-1].to_a
+            parts.concat(hidden_tail)
+          end
+        end
+
+        parts.join(sep)
+      rescue StandardError
+        display_code.to_s
+      end
+
+      def group_row_key(thickness, code, show_thickness = nil)
+        show_thickness = group_code_show_thickness? if show_thickness.nil?
+        key_thickness = show_thickness ? thickness.to_s : '*'
+        "#{key_thickness}|#{code}"
+      end
+
+      def material_code_separator
+        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:rules)
+          sep = MH::MaterialCode.rules['segment_separator'].to_s
+          return sep unless sep.empty?
+        end
+
+        '.'
+      rescue StandardError
+        '.'
+      end
+
+      def comparable_material_code_segment(value)
+        value.to_s.strip.upcase.gsub(/\s+/, '')
+      end
+
+      def removable_thickness_code_segment?(value)
+        text = value.to_s.strip
+        return false unless text.match?(/\A\d+(?:[,.]\d+)?\z/)
+
+        number = text.tr(',', '.').to_f
+        number >= 3.0 && number <= 80.0
       end
 
       def canonical_material_code(code)
-        text = code.to_s.strip
-        return text if text.empty?
-
-        if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:parse) && MH::MaterialCode.respond_to?(:canonical)
-          parsed = MH::MaterialCode.parse(text)
-          return text if parsed[:finish_code].to_s.strip.empty?
-
-          canonical = MH::MaterialCode.canonical(text).to_s.strip
-          return canonical unless canonical.empty?
-        end
-
-        text
-      rescue StandardError
-        text
+        code.to_s
       end
 
       def strip_paint_material_code(code)
@@ -1832,7 +2290,7 @@ module MH
       end
 
       def material_for_code_change(code, current_materials, target_entities = [])
-        name = code.to_s.strip
+        name = code.to_s
         return nil if name.empty?
 
         existing = Sketchup.active_model.materials[name]
@@ -1870,7 +2328,7 @@ module MH
       end
 
       def material_by_name(name, source_material = nil)
-        name = name.to_s.strip
+        name = name.to_s
         return nil if name.empty?
 
         materials = Sketchup.active_model.materials
@@ -1939,8 +2397,28 @@ module MH
       def apply_abf_sheet_type_counts(buckets)
         abf_sheet_type_rows.each do |item|
           thickness = item[:thickness] || item['thickness']
-          material = (item[:material] || item['material']).to_s
-          key = "#{format_thickness(thickness)}|#{material}"
+          raw_material = (item[:material] || item['material']).to_s
+          material = group_material_code_display(raw_material)
+          key = group_row_key(format_thickness(thickness), material)
+          row = buckets[key]
+          next unless row
+          next unless row['code'] == row['default_code']
+
+          row['count'] = (item[:quantity] || item['quantity'] || row['count']).to_i
+          row['two_face'] = (item[:quantity_2f] || item['quantity_2f'] || row['two_face']).to_i
+          color = item[:color] || item['color']
+          row['color'] = abf_color_to_hex(color) if color
+        end
+      rescue StandardError
+        nil
+      end
+
+      def apply_cached_abf_sheet_type_counts(buckets, display_code = nil)
+        Array(@abf_sheet_type_rows_cache).each do |item|
+          thickness = item[:thickness] || item['thickness']
+          raw_material = (item[:material] || item['material']).to_s
+          material = display_code ? display_code.call(raw_material) : group_material_code_display(raw_material)
+          key = group_row_key(format_thickness(thickness), material)
           row = buckets[key]
           next unless row
           next unless row['code'] == row['default_code']
@@ -1955,7 +2433,26 @@ module MH
       end
 
       def apply_bottom_face_counts(buckets)
-        bottom_face_counts.each do |key, count|
+        bottom_face_counts.each do |raw_key, count|
+          thickness, raw_material = raw_key.to_s.split('|', 2)
+          key = group_row_key(thickness, group_material_code_display(raw_material))
+          row = buckets[key]
+          next unless row
+          next unless row['code'] == row['default_code']
+
+          row['two_face'] = count
+        end
+      rescue StandardError
+        nil
+      end
+
+      def apply_cached_bottom_face_counts(buckets, display_code = nil)
+        return unless @bottom_face_counts_cache
+
+        @bottom_face_counts_cache.each do |raw_key, count|
+          thickness, raw_material = raw_key.to_s.split('|', 2)
+          material = display_code ? display_code.call(raw_material) : group_material_code_display(raw_material)
+          key = group_row_key(thickness, material)
           row = buckets[key]
           next unless row
           next unless row['code'] == row['default_code']
@@ -1967,24 +2464,26 @@ module MH
       end
 
       def bottom_face_counts
-        counts = Hash.new(0)
-        each_model_entity(Sketchup.active_model.entities) do |entity|
-          next unless entity.respond_to?(:get_attribute)
-          next unless entity.respond_to?(:definition)
-          next unless entity.get_attribute('ABF', 'is-bottom-sheet') == true
+        @bottom_face_counts_cache ||= begin
+          counts = Hash.new(0)
+          each_model_entity(Sketchup.active_model.entities) do |entity|
+            next unless entity.respond_to?(:get_attribute)
+            next unless entity.respond_to?(:definition)
+            next unless entity.get_attribute('ABF', 'is-bottom-sheet') == true
 
-          material = entity.get_attribute('ABF', 'sheet-type').to_s
-          thickness = entity.get_attribute('ABF', 'sheet-thickness')
-          next if material.empty? || thickness.nil?
+            raw_material = entity.get_attribute('ABF', 'sheet-type').to_s
+            thickness = entity.get_attribute('ABF', 'sheet-thickness')
+            next if raw_material.empty? || thickness.nil?
 
-          key = "#{format_thickness(thickness)}|#{material}"
-          entity.definition.entities.each do |child|
-            next unless child.respond_to?(:get_attribute)
+            key = "#{format_thickness(thickness)}|#{raw_material}"
+            entity.definition.entities.each do |child|
+              next unless child.respond_to?(:get_attribute)
 
-            counts[key] += 1 if child.get_attribute('ABF', 'is-bottom-face') == true
+              counts[key] += 1 if child.get_attribute('ABF', 'is-bottom-face') == true
+            end
           end
+          counts
         end
-        counts
       end
 
       def each_model_entity(container, &block)
@@ -2229,11 +2728,21 @@ module MH
               .tool-btn:hover { border-color: var(--blue); color: var(--blue); }
               .material-head {
                 display: grid;
-                grid-template-columns: max-content minmax(80px, 1fr);
+                grid-template-columns: max-content minmax(80px, 1fr) max-content max-content;
                 align-items: center;
-                gap: 10px;
+                gap: 8px;
                 min-width: 0;
               }
+              .code-option {
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                height: 24px;
+                color: #111;
+                white-space: nowrap;
+                user-select: none;
+              }
+              .code-option input { margin: 0; }
               .search {
                 width: 100%;
                 min-width: 0;
@@ -2321,6 +2830,13 @@ module MH
               .eye-cell { width: 30px; text-align: center; }
               .thickness-cell { width: 78px; color: #111; cursor: pointer; }
               .thickness-cell:hover span { text-decoration: underline; }
+              .thickness-cell.muted,
+              .color-cell.muted { opacity: .35; }
+              .thickness-cell.muted { color: #777; }
+              .color-cell.muted .swatch {
+                filter: grayscale(1);
+                cursor: default;
+              }
               .code-cell { width: auto; min-width: 0; }
               .count-cell { width: 54px; text-align: right; color: #000; }
               .two-cell { width: 74px; text-align: center; }
@@ -2416,6 +2932,14 @@ module MH
                 <div class="material-head">
                   <button class="sort" data-sort="code">Vật Liệu ▲</button>
                   <input id="search" class="search" type="search" placeholder="Tìm độ dày / vật liệu">
+                  <label class="code-option" title="Hiển thị phần độ dày trong mã vật liệu">
+                    <input id="showCodeThickness" type="checkbox" #{group_code_show_thickness? ? 'checked' : ''}>
+                    <span>Độ dày</span>
+                  </label>
+                  <label class="code-option" title="Hiển thị mã sơn/mã hoàn thiện trong mã vật liệu">
+                    <input id="showCodePaint" type="checkbox" #{group_code_show_paint? ? 'checked' : ''}>
+                    <span>Màu sơn</span>
+                  </label>
                 </div>
                 <div style="text-align:center">2 Mặt</div>
                 <button id="stripPaint" class="tool-btn" title="Bỏ phần mã sơn của các dòng đang lọc">Bỏ Sơn</button>
@@ -2577,14 +3101,14 @@ module MH
                     <td class="eye-cell">
                       <button class="eye ${row.visible ? '' : 'off'}" title="Ẩn/hiện trong model" data-action="visible" data-key="${escapeHtml(row.key)}">●</button>
                     </td>
-                    <td class="thickness-cell" title="Cô lập dòng này" data-action="isolate" data-key="${escapeHtml(row.key)}"><span style="color:#0084d7">${escapeHtml(row.thickness)}</span>&nbsp;&nbsp;mm</td>
+                    <td class="thickness-cell ${row.mixed_thickness ? 'muted' : ''}" title="Cô lập dòng này" data-action="isolate" data-key="${escapeHtml(row.key)}"><span style="color:#0084d7">${escapeHtml(row.mixed_thickness ? 'Nhiều' : row.thickness)}</span>${row.mixed_thickness ? '' : '&nbsp;&nbsp;mm'}</td>
                     <td class="code-cell">
                       <input class="code" value="${escapeHtml(row.code)}" data-action="code" data-key="${escapeHtml(row.key)}">
                     </td>
                     <td class="count-cell"><span class="count">${escapeHtml(row.count)}</span></td>
                     <td class="two-cell">${Number(row.two_face || 0) > 0 ? `<input class="two-input" readonly value="${escapeHtml(row.two_face)}">` : ''}</td>
                     <td class="reset-cell"><button class="reset" title="Xóa mã nhập tay, về mã mặc định" data-action="reset" data-key="${escapeHtml(row.key)}">×</button></td>
-                    <td class="color-cell"><input class="swatch" type="color" value="${escapeHtml(row.color || '#d8d8d8')}" data-action="color" data-key="${escapeHtml(row.key)}"></td>
+                    <td class="color-cell ${row.mixed_color ? 'muted' : ''}"><input class="swatch" type="color" value="${escapeHtml(row.color || '#d8d8d8')}" data-action="color" data-key="${escapeHtml(row.key)}" ${row.mixed_color ? 'disabled' : ''}></td>
                     <td class="edit-cell"><button class="pencil" title="Chọn các object của dòng" data-action="select" data-key="${escapeHtml(row.key)}">♢</button></td>
                   </tr>
                 `).join('');
@@ -2605,8 +3129,8 @@ module MH
               function commitCodeInput(el) {
                 const row = rowByKey(el.dataset.key);
                 if (!row) return;
-                const code = el.value.trim();
-                if (code === String(row.code || '').trim()) return;
+                const code = el.value;
+                if (code === String(row.code || '')) return;
                 if (el.dataset.pendingCode === code) return;
                 el.dataset.pendingCode = code;
                 row.code = code || 'Default';
@@ -2672,6 +3196,16 @@ module MH
               document.getElementById('fastVisibility').addEventListener('change', (event) => {
                 callRuby('set_fast_visibility', { enabled: event.target.checked });
               });
+
+              function syncGroupCodeOptions() {
+                callRuby('set_group_code_options', {
+                  show_thickness: document.getElementById('showCodeThickness').checked,
+                  show_paint: document.getElementById('showCodePaint').checked
+                });
+              }
+
+              document.getElementById('showCodeThickness').addEventListener('change', syncGroupCodeOptions);
+              document.getElementById('showCodePaint').addEventListener('change', syncGroupCodeOptions);
 
               document.getElementById('master').addEventListener('change', (event) => {
                 const payloadRows = rows.map((row) => ({

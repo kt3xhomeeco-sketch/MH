@@ -31,6 +31,13 @@ module MH
         State.active?(Sketchup.active_model) ? MF_ENABLED : MF_GRAYED
       end
 
+      show_all_tags_command = UI::Command.new('MH Show All Tags') do
+        Engine.show_all_tags
+      end
+      show_all_tags_command.tooltip = 'MH Show All Tags'
+      show_all_tags_command.status_bar_text = 'Turn every Tag and Tag Folder visible. Useful as a shortcut command.'
+      show_all_tags_command.set_validation_proc { MF_ENABLED }
+
       toggle_command = UI::Command.new('MH Toggle Isolate/Unisolate') do
         Engine.toggle
       end
@@ -47,6 +54,7 @@ module MH
       menu.add_item(toggle_command)
       menu.add_item(isolate_command)
       menu.add_item(unisolate_command)
+      menu.add_item(show_all_tags_command)
       menu.add_separator
       loose_item = menu.add_item('Include Loose Edge/Face (Slower)') do
         Engine.toggle_include_loose_geometry
@@ -59,6 +67,12 @@ module MH
       end
       menu.set_validation_proc(zoom_item) do
         Engine.zoom_on_isolate? ? MF_CHECKED : MF_UNCHECKED
+      end
+      fast_cache_item = menu.add_item('Fast Repeated Toggle Cache') do
+        Engine.toggle_fast_toggle_cache
+      end
+      menu.set_validation_proc(fast_cache_item) do
+        Engine.fast_toggle_cache? ? MF_CHECKED : MF_UNCHECKED
       end
       menu.add_item('Force Restore / Cleanup') do
         Engine.force_restore
@@ -73,6 +87,7 @@ module MH
       @commands = {
         isolate: isolate_command,
         unisolate: unisolate_command,
+        show_all_tags: show_all_tags_command,
         toggle: toggle_command
       }
       @menu = menu
