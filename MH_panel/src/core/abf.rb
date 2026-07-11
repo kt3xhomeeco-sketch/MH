@@ -56,15 +56,23 @@
     end
   end
 end
-class Sketchup::Face
-  unless method_defined?(:set_attribute_raw)
-    alias_method :set_attribute_raw, :set_attribute
-    def set_attribute(dict, key, val)
-      if dict == "ABF" && get_attribute("MH::Panel", "chan_dan_canh", false) == true
-        return val
-      end
+module MH
+  module Panel
+    module ABF
+      # Dùng prepend + super thay vì alias set_attribute. ZSU cũng prepend một
+      # guard lên Sketchup::Face; alias có thể vô tình trỏ vào guard đó rồi tạo
+      # vòng lặp ZSU -> MH Panel -> ZSU và văng SystemStackError.
+      module FaceAttributeGuard
+        def set_attribute(dict, key, val)
+          return val if dict == 'ABF' && get_attribute('MH::Panel', 'chan_dan_canh', false) == true
 
-      set_attribute_raw(dict, key, val)
+          super
+        end
+      end
     end
   end
+end
+
+unless Sketchup::Face.ancestors.include?(MH::Panel::ABF::FaceAttributeGuard)
+  Sketchup::Face.prepend(MH::Panel::ABF::FaceAttributeGuard)
 end

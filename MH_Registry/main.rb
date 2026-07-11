@@ -565,24 +565,8 @@ module MH
           # Tạo objects sau khi dialog callback xong
           UI.start_timer(0.1) do
             begin
-              model = Sketchup.active_model
-              model.start_operation("Mark SP (#{count})", true)
-              opts = CURIC::Text.default_text_options.dup
-              opts[:size] = 19.68503937007874
-              opts[:border] = true
-              opts[:border_type] = "Rounded Rectangle"
-              opts[:border_radius] = 11.811023622047244
-              opts[:border_padding] = 0.1
-              opts[:align] = 1
-              opts[:vertical_align] = 1
-
-              sp_codes.each_with_index do |code, i|
-                opts[:position] = Geom::Point3d.new((1000 + spacing_mm * i).mm, -1000.mm, 0)
-                CURIC::Text.place(model.active_entities, code, **opts)
-              end
-              model.commit_operation
+              place_product_labels(sp_codes, spacing_mm, 'Mark SP')
             rescue => e
-              model.abort_operation rescue nil
               dbg("[MH_Registry] mark_products error: #{e.message}")
             end
           end
@@ -628,24 +612,8 @@ module MH
 
           UI.start_timer(0.1) do
             begin
-              model = Sketchup.active_model
-              model.start_operation("Mark SP Auto (#{count})", true)
-              opts = CURIC::Text.default_text_options.dup
-              opts[:size] = 19.68503937007874
-              opts[:border] = true
-              opts[:border_type] = "Rounded Rectangle"
-              opts[:border_radius] = 11.811023622047244
-              opts[:border_padding] = 0.1
-              opts[:align] = 1
-              opts[:vertical_align] = 1
-
-              sp_codes.each_with_index do |code, i|
-                opts[:position] = Geom::Point3d.new((1000 + spacing_mm * i).mm, -1000.mm, 0)
-                CURIC::Text.place(model.active_entities, code, **opts)
-              end
-              model.commit_operation
+              place_product_labels(sp_codes, spacing_mm, 'Mark SP Auto')
             rescue => e
-              model.abort_operation rescue nil
               dbg("[MH_Registry] mark_products_auto error: #{e.message}")
             end
           end
@@ -1526,6 +1494,46 @@ module MH
       end
       collect.call(model.active_entities)
       sort_sp_codes(codes.keys)
+    end
+
+    # Mỗi nhãn dùng hash options riêng; lỗi của một mã cũng không được phép
+    # làm dừng toàn bộ dải mã phía sau.
+    def place_product_labels(codes, spacing_mm, operation_name)
+      model = Sketchup.active_model
+      model.start_operation(operation_name, true)
+      base_options = CURIC::Text.default_text_options.dup
+      base_options[:size] = 19.68503937007874
+      base_options[:border] = true
+      base_options[:border_type] = 'Rounded Rectangle'
+      base_options[:border_radius] = 11.811023622047244
+      base_options[:border_padding] = 0.1
+      base_options[:align] = 1
+      base_options[:vertical_align] = 1
+
+      placed = []
+      failures = []
+      Array(codes).each_with_index do |code, index|
+        options = base_options.dup
+        options[:position] = Geom::Point3d.new((1000 + spacing_mm * index).mm, -1000.mm, 0)
+        begin
+          CURIC::Text.place(model.active_entities, code, **options)
+          placed << code
+        rescue => e
+          failures << "#{code}: #{e.message}"
+          dbg("[MH_Registry] #{operation_name} #{failures.last}")
+        end
+      end
+
+      model.commit_operation
+      model.active_view.invalidate rescue nil
+      summary = "Đánh dấu SP hoàn tất: #{placed.length}/#{Array(codes).length} nhãn."
+      summary += "\nLỗi: #{failures.join('; ')}" if failures.any?
+      UI.messagebox(summary)
+
+      { 'placed' => placed, 'failures' => failures }
+    rescue => e
+      model.abort_operation rescue nil
+      raise e
     end
 
     def symbolize_safe(data)

@@ -4860,8 +4860,8 @@
       spacing: $('markSpacing') ? $('markSpacing').value : 5000
     }).then(function (r) {
       if (r && r.ok) {
-        $('markLog').textContent = 'Đã tạo ' + r.count + ' nhãn: ' + (r.codes || []).join(', ');
-        status('Đánh dấu ' + r.count + ' sản phẩm xong!', 'ok');
+        $('markLog').textContent = 'Đang tạo ' + r.count + ' nhãn: ' + (r.codes || []).join(', ');
+        status('Đang đánh dấu ' + r.count + ' sản phẩm...');
       } else {
         $('markLog').textContent = 'Lỗi: ' + (r && r.error || '');
         status('Lỗi đánh dấu SP', 'err');
@@ -4879,8 +4879,8 @@
     }).then(function (r) {
       $('btnMarkProductsAuto').disabled = false;
       if (r && r.ok) {
-        $('markLog').textContent = 'Đã tạo ' + r.count + ' nhãn từ JSON: ' + (r.codes || []).join(', ');
-        status('Tự động đánh dấu ' + r.count + ' sản phẩm xong!', 'ok');
+        $('markLog').textContent = 'Đang tạo ' + r.count + ' nhãn từ JSON: ' + (r.codes || []).join(', ');
+        status('Đang tự động đánh dấu ' + r.count + ' sản phẩm...');
       } else {
         $('markLog').textContent = 'Lỗi: ' + (r && r.error || '');
         status('Lỗi đánh dấu SP tự động', 'err');
