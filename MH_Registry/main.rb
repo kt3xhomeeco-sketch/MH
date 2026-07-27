@@ -385,6 +385,19 @@ module MH
         deferred.resolve({ 'ok' => true, 'path' => MH::Registry.project_path })
       end
 
+      dlg.on('autosave_config_json') do |deferred, config_data, global_data|
+        path = autosave_config_json(symbolize_safe(config_data))
+        MH::Registry.save_global!(symbolize_safe(global_data)) if global_data.is_a?(Hash)
+        # JSON is the active configuration source. Refresh the DC Import cache
+        # and the currently running Superimp tool so Manual material codes take
+        # effect immediately, without performing the slower Excel save.
+        Connector.notify_config_changed(load_config)
+        refresh_superimp_material_runtime
+        deferred.resolve({ 'ok' => true, 'path' => path })
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => "#{e.class}: #{e.message}" })
+      end
+
       dlg.on('merge_dc_thickness_options_to_config') do |deferred, data|
         begin
           result = merge_dc_thickness_options_to_config(symbolize_safe(data))

@@ -247,7 +247,19 @@ tr.group-row td{
   min-width:22px; height:20px; padding:0 6px; border-radius:999px;
   background:var(--acc); color:#fff; font-size:11px; font-weight:700; flex:0 0 auto;
 }
-.mh-manual-code{overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.mh-manual-code{overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1 1 auto}
+.mh-manual-remove{
+  flex:0 0 auto; border:1px solid #a94a4a; border-radius:5px; background:transparent;
+  color:#ff9797; padding:2px 6px; font:11px/1.2 inherit; cursor:pointer;
+}
+.mh-manual-remove:hover{background:#5b2525; border-color:#e16666; color:#fff}
+.mh-manual-add-form{display:flex; align-items:center; gap:5px; margin-left:6px}
+.mh-manual-add-input{
+  width:150px; max-width:24vw; background:var(--bg0); border:1px solid var(--border);
+  color:var(--txt); border-radius:6px; padding:5px 7px; font:12px/1.2 inherit;
+}
+.mh-manual-add-input:focus{outline:none; border-color:var(--acc)}
+.mh-manual-add-form .btn{white-space:nowrap}
 
 /* Mã vật liệu — bảng mapping kéo thả */
 .mh-mapping-card > .panel-head{margin-bottom:10px}

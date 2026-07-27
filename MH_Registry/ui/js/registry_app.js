@@ -1006,6 +1006,13 @@
   function buildThicknessRow(kind, row, nOpt) {
     var tr = el('tr', { class: 'thickness-row' });
     var materialInput = el('input', { 'data-col': 'material_type', value: row.material_type || '', placeholder: 'VD: MDFCA.AC' });
+    if (kind === 'library') {
+      materialInput.addEventListener('input', function () {
+        // Mã ở thư viện là nguồn của "Danh sách vật liệu tổng".
+        // Đồng bộ ngay khi người dùng nhập/sửa mã, không tự đưa vào Manual.
+        renderManualMaterialsPicker();
+      });
+    }
     tr.appendChild(el('td', {}, [materialInput]));
     var opts = row.options || [];
     for (var i = 0; i < nOpt; i++) {
@@ -1093,6 +1100,7 @@
     rows.push({ material_type: '', options: [] });
     THICK_CFG[kind].write(rows);
     renderThicknessOptions(kind);
+    if (kind === 'library') renderManualMaterialsPicker();
     var inps = $(THICK_CFG[kind].wrap).querySelectorAll('input[data-col="material_type"]');
     for (var i = 0; i < inps.length; i++) { if (!inps[i].value.trim()) { inps[i].focus(); break; } }
   }
@@ -1268,12 +1276,46 @@
     return Object.keys(map).map(function (key) { return map[key]; });
   }
 
+  function removeManualMaterialCode(code) {
+    code = String(code || '').trim();
+    if (!code) return;
+
+    var key = manualMaterialKey(code);
+    var libraryRows = collectThicknessOptions('library');
+    var nextLibraryRows = libraryRows.filter(function (row) {
+      return manualMaterialKey(row) !== key;
+    });
+    var removedFromLibrary = nextLibraryRows.length !== libraryRows.length;
+
+    // Mã trong Manual chỉ hợp lệ khi còn có trong danh sách tổng.
+    // Vì vậy xóa luôn trạng thái/chọn Manual của chính mã này.
+    var manualRows = collectManualMaterialsPicker();
+    var nextManualRows = manualRows.filter(function (row) {
+      return manualMaterialKey(row) !== key;
+    });
+    var removedFromManual = nextManualRows.length !== manualRows.length;
+
+    if (!removedFromLibrary && !removedFromManual) return;
+    THICK_CFG.library.write(nextLibraryRows);
+    state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(nextManualRows);
+    renderThicknessOptions('library');
+    renderManualMaterialsPicker();
+    status('Đã xóa mã ' + code + ' khỏi Danh sách vật liệu.', 'ok');
+  }
+
   function manualPickerItem(row, manualIndex) {
     var code = String(row.material_code || row.material_type || '').trim();
     var item = el('div', { class: 'mh-manual-item', draggable: 'true', 'data-code': code });
     item.appendChild(el('span', { class: 'mh-manual-grip', text: '⋮⋮' }));
     if (manualIndex != null) item.appendChild(el('span', { class: 'mh-manual-order', text: String(manualIndex + 1) }));
     item.appendChild(el('span', { class: 'mh-manual-code', text: code }));
+    var remove = el('button', { class: 'mh-manual-remove', type: 'button', title: 'Xóa vật liệu', text: 'Xóa' });
+    remove.addEventListener('click', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      removeManualMaterialCode(code);
+    });
+    item.appendChild(remove);
     return item;
   }
 
@@ -1320,13 +1362,11 @@
     if (!wrap) return normalizeManualMaterialRowsForUi(state.config.dc_manual_materials || []);
     var out = [];
     var seen = {};
-    var validKeys = manualSourceKeys();
 
     function push(code, enabled, order) {
       code = String(code || '').trim();
       var key = code.toUpperCase();
       if (!code || seen[key]) return;
-      if (!validKeys[key]) return;
       out.push({
         material_code: code,
         sort_order: enabled ? order : '',
@@ -1335,8 +1375,10 @@
       seen[key] = true;
     }
 
+    var availableItems = wrap.querySelectorAll('.mh-manual-list[data-manual-list="available"] .mh-manual-item[data-code]');
+    for (var i = 0; i < availableItems.length; i++) push(availableItems[i].getAttribute('data-code'), false, '');
     var manualItems = wrap.querySelectorAll('.mh-manual-list[data-manual-list="manual"] .mh-manual-item[data-code]');
-    for (var i = 0; i < manualItems.length; i++) push(manualItems[i].getAttribute('data-code'), true, i + 1);
+    for (var j = 0; j < manualItems.length; j++) push(manualItems[j].getAttribute('data-code'), true, j + 1);
 
     return out;
   }
@@ -4304,6 +4346,73 @@
     status('Đã thêm parameter vào ô Param thêm.', 'ok');
   }
 
+  function addManualMaterialCode(code) {
+    code = String(code || '').trim();
+    if (!code) return;
+
+    var rows = collectManualMaterialsPicker();
+    var key = manualMaterialKey(code);
+    var exists = rows.some(function (row) { return manualMaterialKey(row) === key; });
+    if (!exists) rows.push({ material_code: code, sort_order: '', enabled: '0' });
+    state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(rows);
+    renderManualMaterialsPicker();
+    status(
+      !exists
+        ? 'Đã thêm mã ' + code + ' vào Danh sách vật liệu tổng.'
+        : 'Mã ' + code + ' đã có trong Danh sách vật liệu tổng.',
+      'ok'
+    );
+  }
+
+  function openManualMaterialInput() {
+    var card = document.querySelector('[data-card-id="dc_manual_materials"]');
+    var actions = card && card.querySelector('.panel-actions');
+    if (!actions) return;
+
+    var existing = actions.querySelector('.mh-manual-add-form');
+    if (existing) {
+      var currentInput = existing.querySelector('input');
+      if (currentInput) { currentInput.focus(); currentInput.select(); }
+      return;
+    }
+
+    var form = el('div', { class: 'mh-manual-add-form' });
+    var input = el('input', {
+      class: 'mh-manual-add-input',
+      type: 'text',
+      placeholder: 'Mã vật liệu'
+    });
+    var submit = el('button', { class: 'btn primary xs', type: 'button', text: 'Thêm' });
+    var cancel = el('button', { class: 'btn xs', type: 'button', text: 'Hủy' });
+
+    function close() {
+      if (form.parentNode) form.parentNode.removeChild(form);
+    }
+    function submitCode() {
+      var code = input.value.trim();
+      if (!code) {
+        status('Nhập mã vật liệu trước.', 'err');
+        input.focus();
+        return;
+      }
+      close();
+      addManualMaterialCode(code);
+    }
+
+    submit.addEventListener('click', submitCode);
+    cancel.addEventListener('click', close);
+    input.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter') { ev.preventDefault(); submitCode(); }
+      else if (ev.key === 'Escape') { ev.preventDefault(); close(); }
+    });
+
+    form.appendChild(input);
+    form.appendChild(submit);
+    form.appendChild(cancel);
+    actions.appendChild(form);
+    input.focus();
+  }
+
   function addRow(name) {
     if (name === 'ma_surface_face_rules') {
       var sfrWrap = $('tbl_ma_surface_face_rules');
@@ -4315,29 +4424,7 @@
       return;
     }
     if (name === 'dc_manual_materials') {
-      var code = window.prompt('Nhập mã vật liệu thêm vào danh sách Manual:', '');
-      code = String(code || '').trim();
-      if (!code) return;
-      var addedToLibrary = ensureManualMaterialCodeInLibrary(code);
-      var rows = collectManualMaterialsPicker();
-      var key = code.toUpperCase();
-      var exists = rows.some(function (row) {
-        return String(row.material_code || '').trim().toUpperCase() === key;
-      });
-      if (exists) {
-        rows = rows.map(function (row) {
-          if (String(row.material_code || '').trim().toUpperCase() === key) {
-            row.enabled = '1';
-            row.sort_order = rows.filter(function (r) { return manualEnabled(r.enabled); }).length + 1;
-          }
-          return row;
-        });
-      } else {
-        rows.unshift({ material_code: code, sort_order: 1, enabled: '1' });
-      }
-      state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(rows);
-      renderManualMaterialsPicker();
-      status('Đã thêm mã ' + code + ' vào danh sách Manual' + (addedToLibrary ? ' và thư viện độ dày.' : '.'), 'ok');
+      openManualMaterialInput();
       return;
     }
     if (name === 'ma_vat_lieu_global') {
@@ -4760,6 +4847,31 @@
     saveConfig();
   }
 
+  function saveConfigJson() {
+    var data;
+    try {
+      data = collectConfig();
+    } catch (e) {
+      status('Không thể lưu JSON: ' + (e && e.message || e || ''), 'err');
+      return;
+    }
+    status('Đang lưu JSON…');
+    Bridge.get('autosave_config_json', data, state.global).then(function (r) {
+      status(
+        r && r.ok ? 'Đã lưu JSON (chưa ghi Excel).' : 'Lỗi lưu JSON: ' + (r && r.error || ''),
+        r && r.ok ? 'ok' : 'err'
+      );
+    }, function (err) {
+      status('Lỗi lưu JSON: ' + (err && err.message || err || ''), 'err');
+    });
+  }
+
+  function saveSuperimpJson() {
+    var formRow = buildBindingFromLearnForm(false);
+    if (formRow) upsertBindingRow(formRow);
+    saveConfigJson();
+  }
+
   function openConfigFolder() {
     Bridge.get('open_config_folder');
   }
@@ -5027,9 +5139,12 @@
     // add row / save / export buttons (event delegation)
     document.addEventListener('click', function (ev) {
       var t = ev.target;
-      if (t.dataset && t.dataset.add) addRow(t.dataset.add);
-      else if (t.dataset && t.dataset.save) save(t.dataset.save);
-      else if (t.dataset && t.dataset.export) doExport(t.dataset.export);
+      var addTarget = t && t.closest ? t.closest('[data-add]') : null;
+      var saveTarget = t && t.closest ? t.closest('[data-save]') : null;
+      var exportTarget = t && t.closest ? t.closest('[data-export]') : null;
+      if (addTarget) addRow(addTarget.getAttribute('data-add'));
+      else if (saveTarget) save(saveTarget.getAttribute('data-save'));
+      else if (exportTarget) doExport(exportTarget.getAttribute('data-export'));
     });
     on('btnReload', 'click', loadData);
     on('btnImport', 'click', doImport);
@@ -5311,6 +5426,7 @@
       updateMaterialCodePreview();
     });
     on('btnSaveSuperimp', 'click', saveSuperimp);
+    on('btnSaveSuperimpJson', 'click', saveSuperimpJson);
     on('btnLearnDCParams', 'click', learnDCParams);
     on('btnAddExtraParam', 'click', addExtraParam);
     on('btnCreateBinding', 'click', createBinding);

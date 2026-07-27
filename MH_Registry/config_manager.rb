@@ -89,6 +89,23 @@ module MH
       config_json_path
     end
 
+    # Lưu nháp tức thì từ UI: chỉ cập nhật JSON, không tạo backup/manifest
+    # và không chạm vào workbook Excel. Workbook chỉ được ghi khi bấm Lưu.
+    def autosave_config_json(data)
+      data = scrub_removed_config_keys(data || {})
+      synchronize_suffix_sources!(data)
+      persist_project_settings!(data)
+      apply_project_settings!(data)
+      write_registry_json(config_json_path, {
+        'schema_version' => 1,
+        'source' => 'autosave_json',
+        'updated_at' => Time.now.utc.iso8601,
+        'data' => data
+      })
+      MH::NameGrammar.configure(data) if defined?(MH::NameGrammar)
+      config_json_path
+    end
+
     def load_config_json
       payload = read_registry_json(config_json_path)
       data = payload['data'].is_a?(Hash) ? payload['data'] : payload
@@ -555,10 +572,9 @@ module MH
     def save_superimp_library(data)
       existing = File.exist?(superimp_library_path) ? (MH::ExcelBridge.read_all(superimp_library_path) rescue {}) : {}
       existing.delete('dc_type_groups')
-      manual_rows = filter_manual_materials_by_thickness_library(
-        data['dc_manual_materials'],
-        data['dc_thickness_options_library'] || data['dc_thickness_options']
-      )
+      # Danh sách vật liệu là nguồn độc lập với bảng độ dày.  enabled=1
+      # mới là mã được dùng cho chế độ Manual của Superimp.
+      manual_rows = Array(data['dc_manual_materials'])
       sheets = existing.merge(
         'superimp_import_list' => save_rows(data['superimp_import_list'], superimp_import_list_columns),
         'dc_manual_materials' => save_rows(manual_rows, dc_manual_material_columns),
@@ -945,8 +961,7 @@ module MH
       save_rows(default_dc_material_options, dc_material_option_columns)
     end
 
-    # ---- dc_manual_materials: danh sach ma VL nhap tay (che do Manual o HUD) ----
-    # Khong tra Excel; HUD Superimp xoay vong cac ma nay (gat sang Manual).
+    # ---- dc_manual_materials: danh sach vat lieu; enabled=1 dung cho Manual HUD ----
     def dc_manual_material_columns
       %w[enabled material_code sort_order]
     end

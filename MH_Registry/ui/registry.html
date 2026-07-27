@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <meta http-equiv="X-UA-Compatible" content="IE=edge" />
   <title>MH Registry</title>
-  <link rel="stylesheet" href="css/registry.css?v=material-code-contract-20260626-47" />
+  <link rel="stylesheet" href="css/registry.css?v=material-code-contract-20260727-49" />
   <script>
     if (window.parent !== window && window.parent.sketchup) {
       window.sketchup = window.parent.sketchup;
@@ -33,6 +33,7 @@
     </nav>
     <div class="tab-actions" data-tab-actions="superimp">
       <button class="btn" id="btnReloadMaterialProfiles">Sinh từ Config</button>
+      <button class="btn" id="btnSaveSuperimpJson">Lưu JSON</button>
       <button class="btn primary" id="btnSaveSuperimp">Lưu</button>
     </div>
   </div>
@@ -148,7 +149,7 @@
           <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
           <div>
             <div class="mh-manual-title-row">
-              <h3>DC — Danh sách mã VL thủ công</h3>
+              <h3>Danh sách vật liệu</h3>
               <input id="dcManualSearch" class="mh-manual-search" type="search" placeholder="Tìm mã VL..." />
             </div>
           </div>
@@ -164,7 +165,7 @@
           <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
           <div>
             <div class="mh-card-title-row">
-              <h3>Độ dày vật liệu — THƯ VIỆN <span class="badge glob">LIBRARY</span></h3>
+              <h3>Độ dày vật liệu</h3>
               <input id="dcThicknessLibrarySearch" class="mh-card-search" type="search" placeholder="Tìm mã VL..." />
             </div>
           </div>
@@ -384,7 +385,7 @@
 
   <footer class="statusbar"><span id="status">Sẵn sàng.</span></footer>
 
-  <script type="text/javascript" src="js/registry_app.js?v=material-code-contract-20260626-49"></script>
+  <script type="text/javascript" src="js/registry_app.js?v=material-code-contract-20260727-56"></script>
   <script type="text/javascript" src="js/registry_collapse.js?v=material-code-contract-20260626-48"></script>
   <script type="text/javascript" src="js/registry_card_sort.js?v=material-code-contract-20260626-48"></script>
   <script type="text/javascript" src="js/material_assign_card_layout.js?v=material-code-contract-20260626-48"></script>
