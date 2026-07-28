@@ -31,6 +31,23 @@
       background: var(--panel);
       border-bottom: 1px solid var(--line);
     }
+    .edge-options {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 7px 12px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--line);
+    }
+    .edge-options input[type="number"] {
+      width: 58px;
+      height: 26px;
+      border: 1px solid var(--line);
+      border-radius: 3px;
+      padding: 2px 5px;
+      font: inherit;
+      text-align: right;
+    }
     .title {
       font-size: 16px;
       margin-right: auto;
@@ -76,7 +93,7 @@
       white-space: nowrap;
     }
     .wrap {
-      height: calc(100vh - 105px);
+      height: calc(100vh - 145px);
       overflow: auto;
       background: var(--panel);
     }
@@ -126,8 +143,17 @@
   <div class="bar">
     <div class="title">MH Export - DMVT ván/nẹp</div>
     <label><input id="paintToggle" type="checkbox"> Hiển thị mã sơn</label>
+    <label title="Tính đủ 4 cạnh nhỏ của mọi tấm theo nẹp đang chọn trong MH Nep">
+      <input id="fullEdgingToggle" type="checkbox" checked>
+      Giả định dán nẹp toàn bộ tấm
+    </label>
     <button id="refreshBtn">Refresh</button>
     <button id="exportBtn" class="primary">Xuất Excel</button>
+  </div>
+  <div class="edge-options">
+    <label title="Hệ số nhân mét dài của Nẹp 22">Nẹp 22 × <input id="nep22Multiplier" type="number" min="0" step="0.1" value="2"></label>
+    <label title="Hệ số nhân mét dài của Nẹp 44">Nẹp 44 × <input id="nep44Multiplier" type="number" min="0" step="0.1" value="3"></label>
+    <label title="Tấm có độ dày nhỏ hơn ngưỡng này sẽ không tính nẹp">Không tính nẹp khi dày &lt; <input id="minEdgeThickness" type="number" min="0" step="0.1" value="12"> mm</label>
   </div>
   <div id="meta" class="meta"></div>
   <div id="status" class="status">Đang đọc model...</div>
@@ -173,7 +199,13 @@
     }
 
     function options() {
-      return { show_paint_code: $('paintToggle').checked };
+      return {
+        show_paint_code: $('paintToggle').checked,
+        assume_full_edging: $('fullEdgingToggle').checked,
+        nep22_multiplier: $('nep22Multiplier').value,
+        nep44_multiplier: $('nep44Multiplier').value,
+        min_thickness_mm: $('minEdgeThickness').value
+      };
     }
 
     function setBusy(value) {
@@ -191,19 +223,22 @@
     function formatQty(value) {
       const n = Number(value);
       if (!Number.isFinite(n)) return escapeHtml(value);
-      return n.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
+      return n.toLocaleString('vi-VN', { maximumFractionDigits: 0 });
     }
 
     window.mhExportLoad = function(payload) {
       setBusy(false);
       const rows = payload.rows || [];
       const summary = payload.summary || {};
+      const edgeOptions = summary.edge_options || {};
       $('meta').innerHTML = [
         `Mã vật liệu: ${summary.material_count ?? 0}`,
         `Dòng: ${summary.row_count ?? rows.length}`,
         `Số tấm: ${summary.sheet_count ?? 0}`,
         `ABF Data: ${summary.abf_data_rows ?? 0}`,
-        `Mét nẹp: ${summary.edge_band_m ?? 0}`
+        `Mét nẹp: ${summary.edge_band_m ?? 0}`,
+        `Đang áp dụng: Nẹp 22 × ${edgeOptions.nep22_multiplier ?? 2}`,
+        `Nẹp 44 × ${edgeOptions.nep44_multiplier ?? 3}; dày ≥ ${edgeOptions.min_thickness_mm ?? 12}mm`
       ].map((text) => `<div title="${escapeHtml(text)}">${escapeHtml(text)}</div>`).join('');
 
       $('status').textContent = rows.length ? 'Sẵn sàng review.' : 'Không có dữ liệu để xuất.';
@@ -250,10 +285,23 @@
       $('status').textContent = 'Đang xuất Excel...';
       sendSketchUp('export_excel', options(), 'Không gọi được lệnh xuất Excel. Đóng mở lại dialog.');
     });
-    $('paintToggle').addEventListener('change', () => {
-      setBusy(true);
-      $('status').textContent = 'Đang đổi chế độ mã sơn...';
-      sendSketchUp('refresh', options(), 'Không gọi được lệnh refresh. Đóng mở lại dialog.');
+    // The Ruby side caches raw edge data. Debounce option changes so typing
+    // never triggers a full ABF scan, while the table still updates itself.
+    let optionRefreshTimer = null;
+    function refreshOptionsSoon() {
+      clearTimeout(optionRefreshTimer);
+      $('status').textContent = 'Đang áp dụng thông số nẹp...';
+      optionRefreshTimer = setTimeout(() => {
+        setBusy(true);
+        sendSketchUp('refresh', options(), 'Không gọi được lệnh refresh. Đóng mở lại dialog.');
+      }, 350);
+    }
+
+    $('paintToggle').addEventListener('change', refreshOptionsSoon);
+    $('fullEdgingToggle').addEventListener('change', refreshOptionsSoon);
+    ['nep22Multiplier', 'nep44Multiplier', 'minEdgeThickness'].forEach((id) => {
+      $(id).addEventListener('input', refreshOptionsSoon);
+      $(id).addEventListener('change', refreshOptionsSoon);
     });
 
     document.addEventListener('DOMContentLoaded', () => {

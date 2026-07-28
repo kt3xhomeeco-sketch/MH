@@ -30,6 +30,8 @@ Tài liệu này ghi lại kết cấu kiến trúc, các tính năng và cách 
 1. **Thống kê chi tiết khối lượng ván & nẹp**:
    - Tính tổng số tấm ván cần dùng dựa trên số lượng tấm lồng (nesting sheets) của ABF.
    - Đo tổng mét dài (linear meters) của từng loại nẹp chỉ cạnh được dán thực tế trên các tấm ván.
+   - Có tùy chọn **Giả định dán nẹp toàn bộ tấm**: không cần ghi nẹp vào model, plugin tự tính đủ 4 cạnh nhỏ của mọi tấm ABF theo nẹp chính/phụ đang chọn trong `MH_nep`.
+   - Dòng nẹp được gom theo mã vật liệu của tấm ván; mã `EdgeBandType` chỉ dùng để xác định loại nẹp và hệ số áp dụng.
 2. **Chuẩn hóa mã vật liệu thông minh**:
    - Tra cứu và chuyển đổi mã code vật liệu của tấm ván sang tên vật tư tiếng Việt chuẩn hóa bằng cách đọc cấu hình từ file `MH_Registry/Config.xlsx` (sheet `ma_vat_lieu`).
    - Tự động loại bỏ hậu tố chỉ định mã màu sơn (`strip_paint_suffix`) khi cần nhóm gộp vật liệu ván thô (không phân biệt bóng/mờ/sơn).
@@ -48,7 +50,7 @@ Tài liệu này ghi lại kết cấu kiến trúc, các tính năng và cách 
 ```mermaid
 graph TD
     A[SketchUp Model] -->|Walk Instances| B(Trích xuất Thuộc tính ABF)
-    B -->|Đo đạc hình học & Hướng nẹp| C[Tạo Preview Payload]
+    B -->|Đo đạc hình học & Hướng nẹp hoặc giả định đủ 4 cạnh| C[Tạo Preview Payload]
     C -->|Ánh xạ Registry| D[Chuẩn hóa tên Vật liệu]
     D -->|Click Xuất| E[Ghi JSON tạm vào Temp Directory]
     E -->|Open3.capture3| F[Chạy Script Python mh_export_dmvt.py]

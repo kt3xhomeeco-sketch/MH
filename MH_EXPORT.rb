@@ -6,7 +6,7 @@ require 'extensions.rb'
 module MH
   module Export
     EXTENSION_NAME = 'MH Export'.freeze
-    EXTENSION_VERSION = '1.0.0'.freeze
+    EXTENSION_VERSION = '1.1.0'.freeze
 
     unless file_loaded?(__FILE__)
       extension = SketchupExtension.new(
