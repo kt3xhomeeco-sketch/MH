@@ -132,10 +132,12 @@ module MH
 
       def refresh_dirty_rows
         dirty_entity_ids = @dirty_entity_ids ? @dirty_entity_ids.keys : []
+        selected_entity_ids = selected_record_ids_for_dirty_check
+        force_entity_ids = (dirty_entity_ids + selected_entity_ids).uniq
         dirty_materials = @dirty_materials ? @dirty_materials.values : []
-        return if dirty_entity_ids.empty? && dirty_materials.empty?
+        return if force_entity_ids.empty? && dirty_materials.empty?
 
-        dirty_ids = detect_changed_record_ids(dirty_entity_ids)
+        dirty_ids = detect_changed_record_ids(force_entity_ids)
         @dirty_entity_ids = {}
         @dirty_materials = {}
 
@@ -146,7 +148,7 @@ module MH
 
         dirty_ids.uniq!
         if dirty_ids.empty?
-          update_cached_visibility_for_ids(dirty_entity_ids)
+          update_cached_visibility_for_ids(dirty_entity_ids) unless dirty_entity_ids.empty?
           return
         end
 
@@ -193,6 +195,18 @@ module MH
         return if @suspend_dirty_tracking
         return unless model && @last_records_by_id
 
+        ids = selected_record_ids_for_dirty_check(model)
+        return if ids.empty?
+
+        @dirty_entity_ids ||= {}
+        ids.each { |id| @dirty_entity_ids[id.to_i] = true }
+      rescue StandardError
+        nil
+      end
+
+      def selected_record_ids_for_dirty_check(model = Sketchup.active_model, limit = 200)
+        return [] unless model && @last_records_by_id
+
         ids = {}
         model.selection.each do |entity|
           next unless entity && entity.valid? && entity.respond_to?(:persistent_id)
@@ -201,14 +215,13 @@ module MH
           ids[selected_id] = true if @last_records_by_id[selected_id]
           Array(@ancestor_record_ids && @ancestor_record_ids[selected_id]).each do |record_id|
             ids[record_id.to_i] = true
+            break if limit && ids.length >= limit
           end
+          break if limit && ids.length >= limit
         end
-        return if ids.empty?
-
-        @dirty_entity_ids ||= {}
-        ids.each_key { |id| @dirty_entity_ids[id] = true }
+        ids.keys
       rescue StandardError
-        nil
+        []
       end
 
       def clear_dirty_entity_ids(ids)
@@ -902,12 +915,14 @@ module MH
         code_by_entity = resolved_material_codes_for_entities(entities, input_code)
         target_materials = []
         renamed_materials = []
+        old_materials = []
         @suspend_dirty_tracking = true
         begin
           model.start_operation('MH Van - Đổi mã vật liệu', true)
           code_groups = entities.group_by { |entity| code_by_entity[entity.persistent_id] || code }
           code_groups.each do |target_code, group_entities|
             current_materials = group_entities.map { |entity| primary_material(entity) if entity.valid? }.compact.uniq
+            old_materials.concat(current_materials)
             target_material = material_for_code_change(target_code, current_materials, group_entities)
             target_materials << target_material
             renamed_materials << target_material if current_materials.length == 1 && current_materials.first.equal?(target_material)
@@ -921,6 +936,7 @@ module MH
               end
             end
           end
+          remove_unused_materials(old_materials.compact.uniq - target_materials.compact.uniq)
           model.commit_operation
         ensure
           @suspend_dirty_tracking = false
@@ -1402,11 +1418,12 @@ module MH
 
           refresh_record_transform(record)
           signature = record_signature(entity, record[:transform], record_key_thickness(@record_row_keys && @record_row_keys[id]))
-          next if signature == @record_signatures[id]
+          key = record_row_key(record)
+          cached_key = @record_row_keys && @record_row_keys[id]
+          next if signature == @record_signatures[id] && key && key == cached_key
 
           @record_signatures[id] = signature
-          key = record_row_key(record)
-          next if key && key == (@record_row_keys && @record_row_keys[id])
+          next if key && key == cached_key
 
           @record_row_keys[id] = key if key && @record_row_keys
           changed << id
@@ -1979,15 +1996,19 @@ module MH
         local_thickness = bounds_thickness_mm(entity, transform)
         world_thickness = world_bounds_thickness_mm(entity)
 
-        candidate = closest_sheet_type_thickness(material, [local_thickness, world_thickness])
-        return candidate if candidate
+        if local_thickness && world_thickness && (local_thickness.round(1) != world_thickness.round(1))
+          geometry_thickness = largest_face_thickness_mm(entity, transform)
+          return geometry_thickness if geometry_thickness
 
-        return local_thickness if local_thickness && world_thickness && (local_thickness - world_thickness).abs <= 0.2
+          return world_thickness
+        end
+
+        return world_thickness if local_thickness && world_thickness && (local_thickness - world_thickness).abs <= 0.2
 
         geometry_thickness = largest_face_thickness_mm(entity, transform)
         return geometry_thickness if geometry_thickness
 
-        local_thickness || world_thickness || 0.0
+        world_thickness || local_thickness || 0.0
       end
 
       def bounds_thickness_mm(entity, transform = nil)
@@ -2072,13 +2093,13 @@ module MH
         nil
       end
 
-      def closest_sheet_type_thickness(material, values)
+      def closest_sheet_type_thickness(material, values, tolerance = 0.2)
         candidates = sheet_type_thickness_candidates(material)
         return nil if candidates.empty?
 
         Array(values).compact.each do |value|
           match = candidates.min_by { |candidate| (candidate - value).abs }
-          return match if match && (match - value).abs <= 1.0
+          return match if match && (match - value).abs <= tolerance
         end
         nil
       rescue StandardError
@@ -2404,7 +2425,8 @@ module MH
           next unless row
           next unless row['code'] == row['default_code']
 
-          row['count'] = (item[:quantity] || item['quantity'] || row['count']).to_i
+          quantity = (item[:quantity] || item['quantity'] || row['count']).to_i
+          row['count'] = [row['count'].to_i, quantity].max
           row['two_face'] = (item[:quantity_2f] || item['quantity_2f'] || row['two_face']).to_i
           color = item[:color] || item['color']
           row['color'] = abf_color_to_hex(color) if color
@@ -2423,7 +2445,8 @@ module MH
           next unless row
           next unless row['code'] == row['default_code']
 
-          row['count'] = (item[:quantity] || item['quantity'] || row['count']).to_i
+          quantity = (item[:quantity] || item['quantity'] || row['count']).to_i
+          row['count'] = [row['count'].to_i, quantity].max
           row['two_face'] = (item[:quantity_2f] || item['quantity_2f'] || row['two_face']).to_i
           color = item[:color] || item['color']
           row['color'] = abf_color_to_hex(color) if color
