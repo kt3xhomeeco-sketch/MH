@@ -22,6 +22,7 @@ module MH
     DEFAULT_TEMPLATE = 'D:/Cong viec/Sample/DMVT-VAN.xlsx'.freeze
     DEFAULT_EXPORTER = File.join(__dir__, 'exporter', 'mh_export_dmvt.py').freeze
     UNKNOWN_MATERIAL = '__UNKNOWN_MATERIAL__'.freeze
+    SURFACE_COVER_PREFIX_REGEX = /\A(?:Melamine|Laminate|Veneer)(?:\s|\z)/i.freeze
     DEFAULT_ASSUMED_EDGE_THICKNESS_MM = 0.8
     DEFAULT_EDGE_OPTIONS = {
       nep22_multiplier: 2.0,
@@ -751,6 +752,7 @@ module MH
         layers = parsed[:layers] || parsed['layers'] || {}
         %w[chat_lieu nha_cung_cap be_mat].each do |layer_key|
           mapped = material_mapping_name(layer_key, layers[layer_key] || layers[layer_key.to_sym])
+          mapped = "phủ #{mapped}" if surface_cover_name?(layer_key, mapped)
           names << mapped unless mapped.empty?
         end
       end
@@ -768,6 +770,10 @@ module MH
     rescue StandardError => error
       warn_error(error)
       ''
+    end
+
+    def surface_cover_name?(layer_key, value)
+      layer_key.to_s == 'be_mat' && value.to_s.strip.match?(SURFACE_COVER_PREFIX_REGEX)
     end
 
     def material_code_parse(code)
