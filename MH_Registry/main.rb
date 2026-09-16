@@ -171,7 +171,7 @@ module MH
       end
       Menu.add(app: 'Thongke', key: 'material_hud', label: 'Material HUD (độc lập)') do
         require File.join(Sketchup.find_support_file('Plugins'), 'MH_MaterialHUD', 'main.rb')
-        MH::MaterialHUD.show
+        MH::MaterialHUD.toggle
       end
       Menu.add(app: 'Thongke', key: 'info_hud', label: 'Info HUD') do
         load_app_file('MH_Thongke', 'main.rb') unless defined?(MH_Thongke)

@@ -144,6 +144,14 @@ class MaterialHudStandaloneTest < Minitest::Test
     assert index.complete
   end
 
+  def test_color_values_are_not_material_codes
+    refute HUD::ModelIndex.displayable_material_name?('#FFFFFF')
+    refute HUD::ModelIndex.displayable_material_name?('#FFFFF')
+    refute HUD::ModelIndex.displayable_material_name?('rgb(255, 255, 255)')
+    refute HUD::ModelIndex.displayable_material_name?('Color_FFFFFF')
+    assert HUD::ModelIndex.displayable_material_name?('MDFCA.AC.LAM.L8304')
+  end
+
   def test_saved_approval_does_not_match_other_product_or_any_target
     approvals = HUD::Acceptances.new({ 'SP05|VL|MDFCA.PANEL||' => { 'action' => 'accept' } })
     assert approvals.accepted?('SP05', 'MDFCA.PANEL', '')

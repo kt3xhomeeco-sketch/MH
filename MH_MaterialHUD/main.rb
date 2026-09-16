@@ -16,9 +16,9 @@ module MH
 
     unless @menu_registered
       menu = UI.menu('Extensions').add_submenu('MH Material HUD')
-      command = UI::Command.new('Material HUD — mở / kích hoạt Tab') { show }
-      command.tooltip = 'Material HUD độc lập — Tab: View / Select'
-      command.status_bar_text = 'Đọc JSON dùng chung, không chạy MH Thongke.'
+      command = UI::Command.new('Material HUD — bật / tắt') { toggle }
+      command.tooltip = 'Bật / tắt Material HUD — Tab: View / Select'
+      command.status_bar_text = 'Bấm lần 1 bật, lần 2 tắt Material HUD.'
       command.small_icon = command.large_icon = File.join(__dir__, 'icon.svg')
       menu.add_item(command)
       menu.add_item('Tắt Material HUD') { hide }

@@ -30,21 +30,18 @@ module MH
         data = MaterialHUD.data || {}
         rows = Array(data[:rows])
         width = [460, view.vpwidth.to_i].min
-        capacity = [[(view.vpheight.to_i - 102) / 26, 1].max, 15].min
+        capacity = [[(view.vpheight.to_i - 70) / 26, 1].max, 15].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
         shown = rows.drop(offset).first(capacity)
-        height = 80 + [shown.size, 1].max * 26
+        height = 51 + [shown.size, 1].max * 26
         x, y = OverlayEngine.panel_origin(view, width, height, anchor: :bottom_right)
         MaterialHUD.panel_rect = [x, y, width, height]
         rect(view, x, y, width, height, :panel)
-        text(view, x + 10, y + 5, "MATERIAL HUD  |  #{MaterialHUD.mode.upcase}  |  Tab: đổi chế độ", bold: true)
-        label = data[:indexing] ? 'Đang lập chỉ mục model...' : File.basename(data[:path].to_s)
-        text(view, x + 10, y + 23, truncate(label, 65), size: 7)
-        rect(view, x + 10, y + 39, width - 20, 20, :header)
-        text(view, x + 16, y + 43, 'MÃ VẬT LIỆU', color: :white, bold: true)
-        text(view, x + 286, y + 43, 'GHI CHÚ', color: :white)
-        text(view, x + 366, y + 43, 'TRẠNG THÁI', color: :white, size: 7)
-        row_y = y + 59
+        rect(view, x + 10, y + 10, width - 20, 20, :header)
+        text(view, x + 16, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true)
+        text(view, x + 286, y + 14, 'GHI CHÚ', color: :white)
+        text(view, x + 366, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
+        row_y = y + 30
         if shown.empty?
           text(view, x + 16, row_y + 6, truncate(data[:message], 60))
         else

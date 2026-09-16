@@ -63,9 +63,22 @@ module MH
       def collect_material(material, product)
         return if material.nil? || product.empty?
         name = material.name.to_s
-        return if name =~ /\A(?:white|red|black|green|blue|yellow|gr[ae]y|<auto>\d*|\[.*\]|color_[0-9a-f]+)\z/i
+        return unless self.class.displayable_material_name?(name)
         code = @material_cache[name] ||= Catalog.material_key(name)
         @materials[product][code] = name unless code.empty?
+      end
+
+      # SketchUp may expose a painted face with an auto-generated color such
+      # as #FFFFFF. It is a display color, not a material code, so it must not
+      # become a "NO SPEC" line in the HUD.
+      def self.displayable_material_name?(value)
+        name = value.to_s.strip
+        return false if name.empty?
+        return false if name =~ /\A(?:white|red|black|green|blue|yellow|gr[ae]y|<auto>\d*|\[.*\]|color_[0-9a-f]+)\z/i
+        return false if name =~ /\A#[0-9a-f]{3,8}\z/i
+        return false if name =~ /\Argba?\([^)]*\)\z/i
+
+        true
       end
 
       def visible_products(view)
