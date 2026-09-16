@@ -1743,6 +1743,11 @@ module MH
       end
 
       def material_hud_right_reserved_width(view)
+        if defined?(::MH::MaterialHUD) && ::MH::MaterialHUD.respond_to?(:right_reserved_width)
+          reserve = ::MH::MaterialHUD.right_reserved_width(view).to_i
+          return reserve if reserve > 0
+        end
+
         return 0 unless defined?(::MH_Thongke)
         visible = ::MH_Thongke.respond_to?(:material_overlay_visible?) && ::MH_Thongke.material_overlay_visible?
         return 0 unless visible

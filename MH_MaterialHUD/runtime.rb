@@ -4,12 +4,26 @@ module MH
     class << self
       attr_reader :data, :last_refresh_ms, :index, :tool
 
+      PANEL_WIDTH = 460
+
       def mode
         @mode ||= 'view'
       end
 
       def visible?
         !!(@overlay && @overlay_model == Sketchup.active_model && @overlay.enabled?)
+      end
+
+      # Other viewport HUDs use this to keep their bottom/right content out of
+      # the Material HUD panel. It also works before the panel has drawn once.
+      def right_reserved_width(view)
+        return 0 unless visible? && view
+
+        panel_width = @panel_rect ? @panel_rect[2].to_i : PANEL_WIDTH
+        reserve = panel_width + 32
+        [reserve, (view.vpwidth.to_f * 0.55).to_i].min
+      rescue
+        0
       end
 
       def set_mode(value)

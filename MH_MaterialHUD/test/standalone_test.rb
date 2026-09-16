@@ -152,6 +152,22 @@ class MaterialHudStandaloneTest < Minitest::Test
     assert HUD::ModelIndex.displayable_material_name?('MDFCA.AC.LAM.L8304')
   end
 
+  def test_superimp_can_reserve_the_right_side_when_hud_is_visible
+    view = Struct.new(:vpwidth).new(1200)
+    model = Object.new
+    Sketchup.active_model = model
+    overlay = Object.new
+    def overlay.enabled?; true; end
+    HUD.instance_variable_set(:@overlay, overlay)
+    HUD.instance_variable_set(:@overlay_model, model)
+    HUD.instance_variable_set(:@panel_rect, nil)
+    assert_equal 492, HUD.right_reserved_width(view)
+    HUD.instance_variable_set(:@panel_rect, [708, 400, 400, 300])
+    assert_equal 432, HUD.right_reserved_width(view)
+    HUD.instance_variable_set(:@overlay_model, Object.new)
+    assert_equal 0, HUD.right_reserved_width(view)
+  end
+
   def test_saved_approval_does_not_match_other_product_or_any_target
     approvals = HUD::Acceptances.new({ 'SP05|VL|MDFCA.PANEL||' => { 'action' => 'accept' } })
     assert approvals.accepted?('SP05', 'MDFCA.PANEL', '')
