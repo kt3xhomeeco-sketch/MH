@@ -82,7 +82,7 @@ class MaterialHudStandaloneTest < Minitest::Test
       'Excel_G' => 'L8304 KEding'
     )]
     result = Catalog.new(snapshot(rows)).section('SP03', {}, 0).first
-    assert_equal 'MẶT VÁCH | GỖ MDFCA AC E1 PHỦ LAMINATE | L8304 KEding', result[:note]
+    assert_equal 'MẶT VÁCH GỖ MDFCA AC E1 PHỦ LAMINATE L8304 KEding', result[:note]
   end
 
   def test_same_count_reload_does_not_keep_old_codes

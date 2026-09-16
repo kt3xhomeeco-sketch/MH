@@ -40,7 +40,7 @@ module MH
         return direct unless direct.empty?
 
         parts = %w[Excel_E Excel_F Excel_G].map { |key| row[key].to_s.strip }.reject(&:empty?)
-        return parts.join(' | ') unless parts.empty?
+        return parts.join(' ') unless parts.empty?
 
         (row['ghi_chu'] || row['Ghi_chu']).to_s.strip
       end

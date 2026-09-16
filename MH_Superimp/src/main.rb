@@ -1576,13 +1576,14 @@ module MH
         fallback_thickness = current_hud_thickness_tokens
         rows = Array(connector.hud_material_rows_for_context(context)).map do |row|
           code = (row['material_code'] || row[:material_code]).to_s.strip
-          sub = (row['sub_text'] || row[:sub_text]).to_s.strip
           material_specification = (row['material_specification'] || row[:material_specification]).to_s.strip
           thick = Array(row['thickness_tokens'] || row[:thickness_tokens]).map(&:to_s)
           selected_option_index = (row['selected_option_index'] || row[:selected_option_index]).to_i
           selected_row = row['selected'] || row[:selected]
           thick = fallback_thickness if thick.all? { |value| value.to_s.empty? }
-          [product, sub, material_specification] + thick + [{
+          # Cột chữ nét đơn sau mã SP hiển thị quy cách E/F/G. Mã vật liệu
+          # trở lại ô lựa chọn in đậm để giữ đúng cách nhận biết khi thao tác.
+          [product, material_specification, code] + thick + [{
             material_code: code,
             selected_option_index: selected_option_index,
             selected: selected_row ? true : false
@@ -1628,9 +1629,8 @@ module MH
         material = current_hud_material_code if material.empty?
         tokens = Array(src[:hud_tokens] || src['hud_tokens']).map(&:to_s)
         tokens = [format_hud_number(src[:panel_thickness_mm] || src['panel_thickness_mm'])] if tokens.empty?
-        sub = hud_material_sub_text(product, material, registry_context)
         specification = hud_material_specification(product, material, registry_context)
-        [product, sub, specification] + tokens + [{ material_code: material, selected_option_index: 0, selected: true }]
+        [product, specification, material] + tokens + [{ material_code: material, selected_option_index: 0, selected: true }]
       end
 
       def current_hud_material_code

@@ -867,7 +867,7 @@ module MH
           'Excel_E' => spec_e,
           'Excel_F' => spec_f,
           'Excel_G' => spec_g,
-          'Quy_cach_vat_lieu' => [spec_e, spec_f, spec_g].reject(&:empty?).join(' | ')
+          'Quy_cach_vat_lieu' => [spec_e, spec_f, spec_g].reject(&:empty?).join(' ')
         }
       end
 

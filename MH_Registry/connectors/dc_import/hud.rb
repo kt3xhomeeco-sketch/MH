@@ -239,7 +239,7 @@ module MH
             row_value(row, :Excel_E, 'Excel_E'),
             row_value(row, :Excel_F, 'Excel_F'),
             row_value(row, :Excel_G, 'Excel_G')
-          ].map(&:to_s).map(&:strip).reject(&:empty?).join(' | ')
+          ].map(&:to_s).map(&:strip).reject(&:empty?).join(' ')
         end
 
         def row_value(row, *keys)
