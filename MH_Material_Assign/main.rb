@@ -2080,7 +2080,17 @@ module MH
       connector = MH::RegistryApp::Connector.get('material_assign')
       return false unless connector && connector.available?
 
-      # 1. Thử path đã nhớ trước đó
+      # 1. Nguồn chung runtime: Registry luôn trả JSON dữ liệu mới nhất trong
+      # SPEC/Data (do MH Thongke Desktop tạo). Không lấy Excel/path cũ trước.
+      runtime_json = (MH::RegistryApp.last_mvl_json_path rescue '').to_s.strip
+      if !runtime_json.empty? && File.exist?(runtime_json) && connector.respond_to?(:load_from_json)
+        connector.load_from_json(runtime_json)
+        connector.mark_loaded_data(runtime_json) if connector.respond_to?(:mark_loaded_data)
+        connector.clear_material_names_cache if connector.respond_to?(:clear_material_names_cache)
+        return true if @excel_data.length > 0
+      end
+
+      # 2. Thử path Excel đã nhớ trước đó (tương thích file cũ)
       registry_path = (MH::RegistryApp.last_mvl_input_path rescue nil).to_s.strip
       paths = [restore_last_excel_path, registry_path].map { |path| path.to_s.strip }.reject(&:empty?).uniq
       paths.each do |path|
@@ -2090,10 +2100,10 @@ module MH
         return true if result && result['ok'] && @excel_data.length > 0
       end
 
-      # 2. Scan SPEC/Data/ tìm JSON mới nhất
+      # 3. Scan SPEC/Data/ tìm JSON mới nhất
       spec_data = MH::RegistryApp.spec_data_dir rescue nil
       if spec_data && Dir.exist?(spec_data)
-        jsons = Dir.glob(File.join(spec_data, '*.json')).sort_by { |f| File.mtime(f) }.reverse
+        jsons = Dir.glob("#{spec_data.to_s.tr('\\\\', '/')}/*.json").sort_by { |f| File.mtime(f) }.reverse
         jsons.each do |json_path|
           begin
             import_json(json_path)
@@ -2111,10 +2121,10 @@ module MH
         end
       end
 
-      # 3. Scan SPEC/ tìm xlsx mới nhất
+      # 4. Scan SPEC/ tìm xlsx mới nhất
       spec = MH::RegistryApp.spec_dir rescue nil
       if spec && Dir.exist?(spec)
-        xlsxs = Dir.glob(File.join(spec, '*.xlsx')).sort_by { |f| File.mtime(f) }.reverse
+        xlsxs = Dir.glob("#{spec.to_s.tr('\\\\', '/')}/*.xlsx").sort_by { |f| File.mtime(f) }.reverse
         xlsxs.each do |xlsx_path|
           begin
             do_import(xlsx_path)
