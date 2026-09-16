@@ -1277,7 +1277,7 @@ module MH
     end
 
     # JSON runtime là nguồn nạp nhanh. Lưu path trong metadata của công trình để
-    # lần sau không phải dò file mới nhất trong SPEC/Data (dễ nhầm dữ liệu cũ).
+    # app mở lại không phải tự đọc Excel.
     def remember_mvl_json_path(path)
       path = path.to_s.strip
       return '' if path.empty?
@@ -1297,10 +1297,55 @@ module MH
       rescue
         ''
       end
+
+      # MH Thongke Desktop ghi JSON trực tiếp vào SPEC/Data và không ghi lại
+      # metadata của Registry. Vì vậy metadata có thể trỏ vào file của lần tạo
+      # cũ. Luôn ưu tiên file dữ liệu hợp lệ mới nhất của chính công trình.
+      latest_path = latest_runtime_project_json_path
+      return latest_path unless latest_path.empty?
       return project_path unless project_path.empty?
 
       input_path = last_mvl_input_path
       input_path.empty? ? '' : project_json_path(input_path).to_s
+    end
+
+    # Chỉ nhận JSON runtime có mảng dòng vật liệu; bỏ qua config JSON và payload
+    # tạm. Dùng khi Desktop đã tạo file mới nhưng Registry chưa được chọn Excel.
+    def latest_runtime_project_json_path(force: false)
+      data_dir = spec_data_dir.to_s
+      return '' if data_dir.empty? || !Dir.exist?(data_dir)
+
+      # Hàm này cũng là fallback cho các app khi chúng hỏi đường dẫn runtime.
+      # Không parse các JSON mỗi frame HUD; nút RELOAD truyền force để thấy file
+      # Desktop vừa ghi ngay lập tức.
+      now = Time.now.to_f
+      cached = @latest_runtime_json_cache
+      if !force && cached && cached[:dir] == data_dir && (now - cached[:checked_at].to_f) < 2.0
+        return cached[:path].to_s
+      end
+
+      # SketchUp Ruby trên Windows không glob được pattern pha dấu \\ và /.
+      # spec_data_dir có thể mang cả hai kiểu từ đường dẫn model, nên chuẩn hoá
+      # về / trước khi tạo wildcard.
+      data_pattern = data_dir.tr('\\', '/')
+      candidates = Dir.glob("#{data_pattern}/*.json").select do |path|
+        begin
+          rows = JSON.parse(File.read(path, encoding: 'UTF-8'))
+          Array(rows).any? do |row|
+            next false unless row.is_a?(Hash)
+            product = row['Ma_SP'] || row['ma_sp'] || row['Mã SP'] || row['product_code']
+            material = row['Ma_vat_lieu'] || row['ma_vat_lieu'] || row['Mã vật liệu'] || row['material_code']
+            !product.to_s.strip.empty? && !material.to_s.strip.empty?
+          end
+        rescue
+          false
+        end
+      end
+      selected = candidates.max_by { |path| File.mtime(path).to_f }
+      @latest_runtime_json_cache = { dir: data_dir, path: selected.to_s, checked_at: now }
+      selected.to_s
+    rescue
+      ''
     end
 
     def last_mvl_input_path
@@ -1620,7 +1665,11 @@ module MH
       # Khi UI đã chọn Excel, JSON cùng tên trong SPEC/Data là nguồn duy nhất
       # đúng cho công trình đó. Không được ưu tiên last_mvl_json_path, vì nó có
       # thể thuộc lần chạy/công trình trước và làm các app hiển thị dữ liệu cũ.
-      json_path = project_json_path(input_path).to_s if json_path.empty? && !input_path.to_s.empty?
+      if json_path.empty? && !input_path.to_s.empty?
+        input_json_path = project_json_path(input_path).to_s
+        json_path = input_json_path if File.exist?(input_json_path)
+      end
+      json_path = latest_runtime_project_json_path(force: true) if json_path.empty?
       json_path = last_mvl_json_path.to_s.strip if json_path.empty?
       return { 'ok' => false, 'error' => 'Chua xac dinh duoc file JSON cua du an.' } if json_path.empty?
       return { 'ok' => false, 'error' => "File JSON khong ton tai: #{json_path}" } unless File.exist?(json_path)
@@ -1661,6 +1710,7 @@ module MH
       pipeline = Connector.get('dc_import_pipeline') rescue nil
       pipeline.clear_runtime_caches if pipeline && pipeline.respond_to?(:clear_runtime_caches)
       superimp_ok = refresh_open_superimp_material_hud
+      remember_mvl_json_path(json_path)
       Sketchup.active_model.active_view.invalidate if Sketchup.active_model
 
       {
