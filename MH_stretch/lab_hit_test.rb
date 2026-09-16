@@ -3,6 +3,7 @@
 module MH::Stretch
   class HitTest
     HANDLE_HIT_PX = 14
+    AXIS_HIT_PX = 9
     PLANE_GRIP_HIT_PX = 12
     PLANE_SIDE_HIT_PX = 12
     PLANE_SIDE_OFFSET_PX = 28
@@ -20,15 +21,16 @@ module MH::Stretch
       return nil if BoxModel.empty_bounds?(@bb)
 
       (@show_plane_grips && hit_plane_side_grip(x, y)) ||
-        hit_face_handle(x, y) ||
         hit_plane_grip(x, y) ||
+        hit_face_handle(x, y) ||
+        hit_axis_line(x, y) ||
         hit_plane_body(x, y)
     end
 
     def hit_handle(x, y)
       return nil if BoxModel.empty_bounds?(@bb)
 
-      hit_face_handle(x, y)
+      hit_face_handle(x, y) || hit_axis_line(x, y)
     end
 
     private
@@ -72,6 +74,27 @@ module MH::Stretch
       nil
     end
 
+    # A visible axis is also a grip.  Previously only its two endpoint cubes
+    # were clickable, which made selecting a thin or distant object needlessly
+    # precise.  Preserve the endpoint hit priority above so clicking a cube
+    # still selects that exact side; a line hit selects the nearer side.
+    def hit_axis_line(x, y)
+      handles = BoxModel.face_handles(@bb)
+      BoxModel::AXES.each do |axis|
+        minus = handles.find { |key, _| key[:axis] == axis && key[:side] == :minus }&.last
+        plus = handles.find { |key, _| key[:axis] == axis && key[:side] == :plus }&.last
+        next unless minus && plus
+
+        start = @view.screen_coords(minus)
+        finish = @view.screen_coords(plus)
+        distance, t = point_segment_distance(x, y, start.x, start.y, finish.x, finish.y)
+        next unless distance <= AXIS_HIT_PX * @ui_factor
+
+        return { kind: :handle, axis: axis, side: t < 0.5 ? :minus : :plus, hit: :axis }
+      end
+      nil
+    end
+
     def hit_plane_body(x, y)
       @planes.each do |plane|
         next unless plane[:usable]
@@ -110,6 +133,18 @@ module MH::Stretch
       px = ax + t * dx
       py = ay + t * dy
       Math.hypot(x - px, y - py)
+    end
+
+    def point_segment_distance(x, y, ax, ay, bx, by)
+      dx = bx - ax
+      dy = by - ay
+      len2 = dx * dx + dy * dy
+      return [Math.hypot(x - ax, y - ay), 0.0] if len2 <= 0
+
+      t = [0.0, [1.0, ((x - ax) * dx + (y - ay) * dy).to_f / len2].min].max
+      px = ax + t * dx
+      py = ay + t * dy
+      [Math.hypot(x - px, y - py), t]
     end
 
     def plane_side_grip_xy(plane, side)

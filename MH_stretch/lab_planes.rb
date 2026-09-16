@@ -93,6 +93,7 @@ module MH::Stretch
       return [] unless axis
 
       @planes.delete_if { |plane| plane[:kind] == :offset_auto && plane[:axis] != axis }
+      @planes.delete_if { |plane| plane[:kind] == :offset_division }
       count = count.to_i == 2 ? 2 : 1
       offset = [distance.to_f, 0.0].max
       min = BoxModel.axis_min(bb, axis)
@@ -127,6 +128,36 @@ module MH::Stretch
       offset_planes.first(specs.length)
     end
 
+    # Divides an axis into equal spans. A division count of 2 produces one
+    # center plane; a count of 3 produces planes at 1/3 and 2/3, and so on.
+    def sync_division_planes!(bb, axis, side, divisions)
+      return [] unless axis
+
+      count = [divisions.to_i, 2].max
+      @planes.delete_if { |plane| plane[:kind] == :offset_auto }
+      @planes.delete_if { |plane| plane[:kind] == :offset_division && plane[:axis] != axis }
+
+      min = BoxModel.axis_min(bb, axis)
+      span = BoxModel.axis_length(bb, axis)
+      positions = (1...count).map { |index| min + span * index.to_f / count }
+      planes = @planes.select { |plane| plane[:kind] == :offset_division && plane[:axis] == axis }
+      positions.each_with_index do |pos, index|
+        plane = planes[index]
+        if plane
+          plane[:pos] = BoxModel.clamp_pos(pos, bb, axis)
+          plane[:side] = side || :plus
+          plane[:usable] = BoxModel.usable_axis?(bb, axis)
+          plane[:hidden] = false
+        else
+          planes[index] = add(axis, pos, side, :offset_division, bb)
+        end
+      end
+
+      extra = planes.drop(positions.length)
+      @planes.delete_if { |plane| extra.include?(plane) } unless extra.empty?
+      planes.first(positions.length)
+    end
+
     def clear_hidden_defaults!
       @planes.delete_if { |plane| plane[:kind] == :hidden_default }
     end
@@ -140,7 +171,7 @@ module MH::Stretch
     end
 
     def clear_offset_planes!
-      @planes.delete_if { |plane| plane[:kind] == :offset_auto }
+      @planes.delete_if { |plane| [:offset_auto, :offset_division].include?(plane[:kind]) }
     end
 
     def retain_axis!(axis)
