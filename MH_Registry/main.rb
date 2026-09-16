@@ -888,6 +888,19 @@ module MH
       false
     end
 
+    # Luồng reload JSON không được nạp source, thư viện hay menu Superimp.
+    # Chỉ HUD/tool đang mở cần bỏ cache vật liệu để đọc bộ dữ liệu mới.
+    def refresh_open_superimp_material_hud
+      return false unless defined?(MH::Superimp)
+
+      refreshed = MH::Superimp.refresh_material_runtime if MH::Superimp.respond_to?(:refresh_material_runtime)
+      Sketchup.active_model.active_view.invalidate if Sketchup.active_model
+      !!refreshed
+    rescue => e
+      dbg("[MH_Registry] refresh open Superimp HUD error: #{e.class}: #{e.message}")
+      false
+    end
+
     def reload_registry_excel_runtime
       data = load_config(force_excel: true)
       Connector.notify_config_changed(data)
@@ -1581,9 +1594,9 @@ module MH
       { 'ok' => false, 'error' => e.message }
     end
 
-    # Nạp lại JSON runtime hiện có cho những app sử dụng mã vật liệu. Dùng
-    # trực tiếp connector Material Assign để VBO/HUD đang chạy nhận dữ liệu
-    # mới mà không cần hot-reload source code hoặc chạy lại Excel pipeline.
+    # Nạp lại JSON runtime hiện có cho app đang chạy. Đây là luồng nhẹ: đọc
+    # JSON một lần, không đọc XLSX, không nạp source Superimp và không dựng lại
+    # danh sách/menu Superimp (chúng không phụ thuộc JSON mã vật liệu).
     def reload_project_json_runtime(payload = {})
       payload = payload.is_a?(Hash) ? payload : { 'input' => payload }
       input_path = resolve_mvl_input_path(payload['input'] || payload[:input])
@@ -1601,11 +1614,19 @@ module MH
           reason: 'registry_reload_project_json_runtime'
         )
       end
+      runtime_rows = project_data && project_data[:ok] ? Array(project_data[:rows]) : nil
 
       material_connector = Connector.get('material_assign') rescue nil
       material_assign = if material_connector && material_connector.respond_to?(:available?) && material_connector.available?
         material_connector.reset_data_load_throttle if material_connector.respond_to?(:reset_data_load_throttle)
-        material_connector.load_from_json(json_path)
+        # Reuse the rows just parsed by ProjectData. The previous path called
+        # load_from_json here, parsing the exact same file a second time.
+        if runtime_rows
+          material_connector.load_from_rows(runtime_rows)
+          material_connector.mark_loaded_data(json_path) if material_connector.respond_to?(:mark_loaded_data)
+        else
+          material_connector.load_from_json(json_path)
+        end
         material_connector.clear_material_names_cache if material_connector.respond_to?(:clear_material_names_cache)
         {
           'ok' => true,
@@ -1620,9 +1641,8 @@ module MH
 
       pipeline = Connector.get('dc_import_pipeline') rescue nil
       pipeline.clear_runtime_caches if pipeline && pipeline.respond_to?(:clear_runtime_caches)
-      superimp_ok = refresh_superimp_material_runtime
+      superimp_ok = refresh_open_superimp_material_hud
       Sketchup.active_model.active_view.invalidate if Sketchup.active_model
-      remember_mvl_json_path(json_path)
 
       {
         'ok' => true,
