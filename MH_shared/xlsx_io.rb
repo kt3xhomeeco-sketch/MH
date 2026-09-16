@@ -62,6 +62,108 @@ module MH
       end
     end
 
+    # Đọc rút gọn sheet đầu tiên cho các luồng chỉ cần vài cột (vd Ma_SP,
+    # Ma_vat_lieu). Khác với read/read_sheet, hàm này không dựng DOM REXML,
+    # không normalize đến cột cuối sheet và không giải mã các ô ngoài cột cần.
+    # Rất quan trọng với file Excel bị dính format đến XFD.
+    #
+    # header_aliases: { 'Ma_SP' => ['Mã SP', ...], 'Ma_vat_lieu' => [...] }
+    # header_normalizer: proc biến header/alias về cùng một key để so sánh.
+    # Trả { sheet:, header_row:, rows: [{ 'Ma_SP' => '...', ... }] }.
+    def read_first_sheet_selected_columns(path, header_aliases, header_normalizer:, header_row_limit: 50,
+                                         relative_columns: {})
+      raise Error, "Khong tim thay file: #{path}" unless File.exist?(path)
+
+      alias_lookup = {}
+      header_aliases.each do |key, aliases|
+        Array(aliases).each { |name| alias_lookup[header_normalizer.call(name)] = key.to_s }
+      end
+
+      # Mở trực tiếp từ path. Một số RubyZip đi kèm SketchUp không tương thích
+      # ổn định với StringIO ở open_buffer (undefined method [] for StringIO).
+      ::Zip::File.open(path) do |zip|
+        entries = index_entries(zip)
+        shared = parse_shared_strings(read_entry(zip, entries['xl/sharedstrings.xml']))
+        sheet = workbook_sheets(zip, entries).first
+        raise Error, 'File Excel khong co worksheet.' unless sheet
+
+        sheet_name, target = sheet
+        xml = read_entry(zip, entries[target.downcase])
+        raise Error, "Khong doc duoc worksheet: #{sheet_name}" unless xml
+
+        selected_columns = {}
+        selected_cell_pattern = nil
+        output_rows = []
+        header_row = nil
+        row_number = 0
+
+        xml.to_enum(:scan, /<row\b[^>]*>(.*?)<\/row>/m).each do
+          row_xml = Regexp.last_match(1)
+          row_number += 1
+          cells = row_xml.to_enum(:scan, /<c\b([^>]*)(?:\/>|>(.*?)<\/c>)/m)
+
+          if header_row.nil?
+            found = {}
+            cells.each do
+              attrs = Regexp.last_match(1)
+              body = Regexp.last_match(2)
+              col = raw_cell_column(attrs)
+              next if col.nil?
+
+              value = raw_cell_value(attrs, body, shared)
+              key = alias_lookup[header_normalizer.call(value)]
+              found[col] = key if key
+            end
+            if found.values.uniq.length == header_aliases.keys.length
+              selected_columns = found
+              # A generated MH workbook keeps its runtime helper columns (Ma_SP,
+              # Ma_vat_lieu) to the right of the human-facing material columns.
+              # Read nearby columns by a fixed offset without parsing the whole
+              # sheet, including intentionally blank/merged headers such as F.
+              relative_columns.each do |anchor_key, offsets|
+                # A sheet can contain both its visible "MÃ SP" column and the
+                # generated runtime "Ma_SP" helper column. The helper is the
+                # rightmost match, and its offsets point back to E/F/G.
+                anchor_col = found.select { |_col, key| key == anchor_key.to_s }.keys.max
+                next unless anchor_col
+
+                offsets.each do |offset, output_key|
+                  selected_columns[anchor_col + offset.to_i] = output_key.to_s
+                end
+              end
+              header_row = row_number
+              selected_letters = selected_columns.keys.map { |col| col_letter(col) }
+              selected_source = Regexp.union(selected_letters).source
+              selected_cell_pattern = Regexp.new(
+                '<c\\b(?=[^>]*\\br=["\'](?:' + selected_source + ')\\d+["\'])([^>]*)(?:/>|>(.*?)</c>)',
+                Regexp::MULTILINE
+              )
+            elsif row_number >= header_row_limit
+              break
+            end
+            next
+          end
+
+          compact = {}
+          row_xml.to_enum(:scan, selected_cell_pattern).each do
+            attrs = Regexp.last_match(1)
+            body = Regexp.last_match(2)
+            key = selected_columns[raw_cell_column(attrs)]
+            next unless key
+
+            compact[key] = raw_cell_value(attrs, body, shared).to_s.strip
+          end
+          output_rows << compact unless compact.empty?
+        end
+
+        {
+          'sheet' => sheet_name.to_s,
+          'header_row' => header_row,
+          'rows' => output_rows
+        }
+      end
+    end
+
     def sheet_names(path)
       ::Zip::File.open(path) do |zip|
         entries = index_entries(zip)
@@ -85,6 +187,34 @@ module MH
       data = entry.get_input_stream.read
       data.force_encoding('UTF-8')
       data
+    end
+
+    # attr của cell (vd: r="K7" t="s") -> index cột 0-based.
+    def raw_cell_column(attrs)
+      ref = attrs.to_s[/\br=["']([A-Za-z]+)\d+["']/, 1]
+      ref ? col_index(ref) : nil
+    end
+
+    # Chỉ gọi cho header và các cột đã chọn. Hỗ trợ shared string, inline
+    # string và giá trị/formula đã tính sẵn trong .xlsx.
+    def raw_cell_value(attrs, body, shared)
+      return '' if body.nil? || body.empty?
+
+      type = attrs.to_s[/\bt=["']([^"']+)["']/, 1]
+      case type
+      when 's'
+        index = body[/<v[^>]*>(.*?)<\/v>/m, 1]
+        index ? shared[index.to_i].to_s : ''
+      when 'inlineStr'
+        body.scan(/<t[^>]*>(.*?)<\/t>/m).flatten.map { |text| xml_unescape(text) }.join
+      else
+        xml_unescape(body[/<v[^>]*>(.*?)<\/v>/m, 1].to_s)
+      end
+    end
+
+    def xml_unescape(value)
+      value.to_s.gsub('&lt;', '<').gsub('&gt;', '>').gsub('&quot;', '"')
+        .gsub('&apos;', "'").gsub('&amp;', '&')
     end
 
     # Lấy danh sách [name, target_path] từ workbook.xml + workbook.xml.rels.

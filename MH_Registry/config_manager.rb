@@ -823,12 +823,22 @@ module MH
           'Ma_SP' => PROJECT_JSON_HEADER_ALIASES['Ma_SP'],
           'Ma_vat_lieu' => PROJECT_JSON_HEADER_ALIASES['Ma_vat_lieu']
         },
-        header_normalizer: method(:project_json_header_normalize)
+        header_normalizer: method(:project_json_header_normalize),
+        # In the Excel produced by MH Thongke Desktop, E/F/G are the material
+        # specification and I/K are helper columns used to make the JSON.
+        # F deliberately has no separate header because E:F is a merged heading.
+        relative_columns: {
+          'Ma_SP' => {
+            -4 => 'Excel_E',
+            -3 => 'Excel_F',
+            -2 => 'Excel_G'
+          }
+        }
       )
       return { 'ok' => false, 'error' => 'Khong tim thay cot Ma SP va Ma vat lieu trong file Excel.' } unless selected['header_row']
 
-      # JSON runtime cố ý chỉ giữ dữ liệu cần cho chọn/gán vật liệu theo SP.
-      # Không copy mọi cột từ Excel để tránh file dữ liệu lớn và parse thừa.
+      # JSON runtime chỉ giữ mã và quy cách dùng bởi các HUD. Không copy toàn bộ
+      # Excel để tránh file dữ liệu lớn và parse thừa.
       current_product = ''
       data = Array(selected['rows']).filter_map do |row|
         ma_sp = row['Ma_SP'].to_s.strip
@@ -846,7 +856,19 @@ module MH
           ma_sp =~ /\A[A-Z]+\d+[A-Z]?(?:\.\d+)?\z/i
         end
         next unless product_ok || !ma_vl.empty?
-        { 'Ma_SP' => ma_sp, 'Ma_vat_lieu' => ma_vl }
+        spec_e = row['Excel_E'].to_s.strip
+        spec_f = row['Excel_F'].to_s.strip
+        spec_g = row['Excel_G'].to_s.strip
+        {
+          'Ma_SP' => ma_sp,
+          'Ma_vat_lieu' => ma_vl,
+          # Keep individual source values for later app features and one
+          # display-ready field so every MH HUD uses the exact same wording.
+          'Excel_E' => spec_e,
+          'Excel_F' => spec_f,
+          'Excel_G' => spec_g,
+          'Quy_cach_vat_lieu' => [spec_e, spec_f, spec_g].reject(&:empty?).join(' | ')
+        }
       end
 
       require 'fileutils'

@@ -30,32 +30,34 @@ module MH
         data = MaterialHUD.data || {}
         rows = Array(data[:rows])
         width = [460, view.vpwidth.to_i].min
-        capacity = [[(view.vpheight.to_i - 70) / 26, 1].max, 15].min
+        row_height = 38
+        capacity = [[(view.vpheight.to_i - 70) / row_height, 1].max, 12].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
         shown = rows.drop(offset).first(capacity)
-        height = 51 + [shown.size, 1].max * 26
+        height = 51 + [shown.size, 1].max * row_height
         x, y = OverlayEngine.panel_origin(view, width, height, anchor: :bottom_right)
         MaterialHUD.panel_rect = [x, y, width, height]
         rect(view, x, y, width, height, :panel)
         rect(view, x + 10, y + 10, width - 20, 20, :header)
         text(view, x + 16, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true)
-        text(view, x + 286, y + 14, 'GHI CHÚ', color: :white)
+        text(view, x + 190, y + 14, 'QUY CÁCH VẬT LIỆU', color: :white, size: 6)
         text(view, x + 366, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
         row_y = y + 30
         if shown.empty?
           text(view, x + 16, row_y + 6, truncate(data[:message], 60))
         else
           shown.each do |row|
-            rect(view, x + 10, row_y, width - 20, 26, row[:type] == :product ? :product : :row)
-            text(view, x + 16, row_y + 3, truncate(row[:name], 40), bold: row[:type] == :product)
+            rect(view, x + 10, row_y, width - 20, row_height, row[:type] == :product ? :product : :row)
+            text(view, x + 16, row_y + 10, truncate(row[:name], 25), bold: row[:type] == :product)
             unless row[:type] == :product
-              text(view, x + 16, row_y + 15, truncate(row[:target], 57), size: 6)
-              text(view, x + 286, row_y + 6, truncate(row[:note], 12))
+              lines = wrap(row[:note], 38, 2)
+              text(view, x + 190, row_y + 5, lines[0], size: 6)
+              text(view, x + 190, row_y + 18, lines[1], size: 6) if lines[1]
               status = row[:status].to_s
-              rect(view, x + 365, row_y + 4, 74, 18, @colors.key?(status) ? status : :header)
-              text(view, x + 371, row_y + 7, status, color: :white, size: 7, bold: true)
+              rect(view, x + 365, row_y + 10, 74, 18, @colors.key?(status) ? status : :header)
+              text(view, x + 371, row_y + 13, status, color: :white, size: 7, bold: true)
             end
-            row_y += 26
+            row_y += row_height
           end
         end
         footer = rows.size > capacity ? "#{offset + 1}–#{offset + shown.size} / #{rows.size} | Lăn chuột trên bảng để xem tiếp" : 'Click chọn đối tượng | Chuột phải: JSON / chế độ'
@@ -67,6 +69,23 @@ module MH
       def truncate(value, length)
         value = value.to_s
         value.size > length ? value[0, length - 1] + '…' : value
+      end
+
+      def wrap(value, length, limit)
+        words = value.to_s.gsub('|', ' | ').split
+        return [''] if words.empty?
+
+        lines = ['']
+        words.each do |word|
+          candidate = lines.last.empty? ? word : "#{lines.last} #{word}"
+          if candidate.length <= length || lines.length >= limit
+            lines[-1] = candidate
+          else
+            lines << word
+          end
+        end
+        lines[-1] = truncate(lines[-1], length) if lines[-1].length > length
+        lines
       end
 
       def rect(view, x, y, width, height, color)

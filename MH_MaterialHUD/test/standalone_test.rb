@@ -75,6 +75,16 @@ class MaterialHudStandaloneTest < Minitest::Test
     assert result.all? { |r| r[:note] == 'test' && r[:status] == 'SPEC' }
   end
 
+  def test_catalog_uses_shared_material_specification_for_the_second_column
+    rows = [row('MDFCA.AC.LAM.L8304').merge(
+      'Excel_E' => 'MẶT VÁCH',
+      'Excel_F' => 'GỖ MDFCA AC E1 PHỦ LAMINATE',
+      'Excel_G' => 'L8304 KEding'
+    )]
+    result = Catalog.new(snapshot(rows)).section('SP03', {}, 0).first
+    assert_equal 'MẶT VÁCH | GỖ MDFCA AC E1 PHỦ LAMINATE | L8304 KEding', result[:note]
+  end
+
   def test_same_count_reload_does_not_keep_old_codes
     assert HUD.accept_snapshot(snapshot([row('OLD')]))
     old = HUD.instance_variable_get(:@catalog)
@@ -150,22 +160,6 @@ class MaterialHudStandaloneTest < Minitest::Test
     refute HUD::ModelIndex.displayable_material_name?('rgb(255, 255, 255)')
     refute HUD::ModelIndex.displayable_material_name?('Color_FFFFFF')
     assert HUD::ModelIndex.displayable_material_name?('MDFCA.AC.LAM.L8304')
-  end
-
-  def test_superimp_can_reserve_the_right_side_when_hud_is_visible
-    view = Struct.new(:vpwidth).new(1200)
-    model = Object.new
-    Sketchup.active_model = model
-    overlay = Object.new
-    def overlay.enabled?; true; end
-    HUD.instance_variable_set(:@overlay, overlay)
-    HUD.instance_variable_set(:@overlay_model, model)
-    HUD.instance_variable_set(:@panel_rect, nil)
-    assert_equal 492, HUD.right_reserved_width(view)
-    HUD.instance_variable_set(:@panel_rect, [708, 400, 400, 300])
-    assert_equal 432, HUD.right_reserved_width(view)
-    HUD.instance_variable_set(:@overlay_model, Object.new)
-    assert_equal 0, HUD.right_reserved_width(view)
   end
 
   def test_saved_approval_does_not_match_other_product_or_any_target

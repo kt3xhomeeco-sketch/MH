@@ -26,7 +26,12 @@ module MH
           return {} unless row
 
           text = hud_mini_import_sub_text_from_row(row)
-          result = { 'detail' => '', 'finish' => '', 'text' => text.to_s.strip }
+          result = {
+            'detail' => '',
+            'finish' => '',
+            'text' => text.to_s.strip,
+            'material_specification' => hud_material_specification_from_row(row)
+          }
           @hud_detail_finish_cache[cache_key] = result.dup
           result
         rescue => e
@@ -118,10 +123,12 @@ module MH
           rows = codes.map do |code|
             tokens = thickness_options_for_material_code_or_context(code, context).map { |option| hud_thickness_option_label(option) }
             selected = !selected_key.empty? && material_code_key(code) == selected_key
+            hud_data = hud_detail_finish_for_context(context, code)
             {
               'product_code' => product,
               'material_code' => code,
-              'sub_text' => hud_detail_finish_for_context(context, code)['text'].to_s,
+              'sub_text' => hud_data['text'].to_s,
+              'material_specification' => hud_data['material_specification'].to_s,
               'thickness_tokens' => tokens,
               'selected_option_index' => selected ? selection['option_index'].to_i : -1,
               'selected' => selected
@@ -222,6 +229,17 @@ module MH
 
           parts = Array(row_value(row, :display_sub_parts, 'display_sub_parts')).map(&:to_s).map(&:strip).reject(&:empty?)
           parts.join(' ')
+        end
+
+        def hud_material_specification_from_row(row)
+          direct = row_value(row, :Quy_cach_vat_lieu, 'Quy_cach_vat_lieu', :quy_cach_vat_lieu, 'quy_cach_vat_lieu').to_s.strip
+          return direct unless direct.empty?
+
+          [
+            row_value(row, :Excel_E, 'Excel_E'),
+            row_value(row, :Excel_F, 'Excel_F'),
+            row_value(row, :Excel_G, 'Excel_G')
+          ].map(&:to_s).map(&:strip).reject(&:empty?).join(' | ')
         end
 
         def row_value(row, *keys)

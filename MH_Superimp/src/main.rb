@@ -1577,16 +1577,21 @@ module MH
         rows = Array(connector.hud_material_rows_for_context(context)).map do |row|
           code = (row['material_code'] || row[:material_code]).to_s.strip
           sub = (row['sub_text'] || row[:sub_text]).to_s.strip
+          material_specification = (row['material_specification'] || row[:material_specification]).to_s.strip
           thick = Array(row['thickness_tokens'] || row[:thickness_tokens]).map(&:to_s)
           selected_option_index = (row['selected_option_index'] || row[:selected_option_index]).to_i
           selected_row = row['selected'] || row[:selected]
           thick = fallback_thickness if thick.all? { |value| value.to_s.empty? }
-          [product, sub, code] + thick + [{ selected_option_index: selected_option_index, selected: selected_row ? true : false }]
+          [product, sub, material_specification] + thick + [{
+            material_code: code,
+            selected_option_index: selected_option_index,
+            selected: selected_row ? true : false
+          }]
         end
         if quick_thickness_profile?
           quick_row = quick_material_profile_row(product)
-          quick_code = quick_row[2].to_s
-          rows.reject! { |row| row[2].to_s == quick_code } unless quick_code.empty?
+          quick_code = hud_row_meta(quick_row)[:material_code].to_s
+          rows.reject! { |row| hud_row_meta(row)[:material_code].to_s == quick_code } unless quick_code.empty?
           rows.unshift(quick_row)
         end
         rows = rows.reject { |row| row.all? { |value| value.to_s.empty? } }
@@ -1624,7 +1629,8 @@ module MH
         tokens = Array(src[:hud_tokens] || src['hud_tokens']).map(&:to_s)
         tokens = [format_hud_number(src[:panel_thickness_mm] || src['panel_thickness_mm'])] if tokens.empty?
         sub = hud_material_sub_text(product, material, registry_context)
-        [product, sub, material] + tokens + [{ selected_option_index: 0, selected: true }]
+        specification = hud_material_specification(product, material, registry_context)
+        [product, sub, specification] + tokens + [{ material_code: material, selected_option_index: 0, selected: true }]
       end
 
       def current_hud_material_code
@@ -1670,6 +1676,19 @@ module MH
         ''
       end
 
+      def hud_material_specification(product, material, context = nil)
+        return '' if product.to_s.strip.empty? || material.to_s.strip.empty?
+        return '' unless defined?(MH::RegistryApp::Connector)
+
+        connector = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
+        return '' unless connector && connector.respond_to?(:hud_detail_finish_for_context)
+
+        result = connector.hud_detail_finish_for_context(context || registry_context, material)
+        (result['material_specification'] || result[:material_specification]).to_s.strip
+      rescue
+        ''
+      end
+
       def draw_material_profile_hud(view)
         rows = material_profile_rows
         rows = [material_profile_tokens] if rows.empty?
@@ -1707,7 +1726,8 @@ module MH
           x = start_x
           line_start_x = start_x
           line_end_x = start_x
-          row_code = tokens[2].to_s.strip
+          row_code = meta[:material_code].to_s.strip
+          row_code = tokens[2].to_s.strip if row_code.empty?
           row_selected = meta[:selected] == true ||
                          (!any_selected && !selected_code.empty? && row_code.upcase == selected_code.upcase)
           (0...columns.length).each do |index|
@@ -1743,11 +1763,6 @@ module MH
       end
 
       def material_hud_right_reserved_width(view)
-        if defined?(::MH::MaterialHUD) && ::MH::MaterialHUD.respond_to?(:right_reserved_width)
-          reserve = ::MH::MaterialHUD.right_reserved_width(view).to_i
-          return reserve if reserve > 0
-        end
-
         return 0 unless defined?(::MH_Thongke)
         visible = ::MH_Thongke.respond_to?(:material_overlay_visible?) && ::MH_Thongke.material_overlay_visible?
         return 0 unless visible

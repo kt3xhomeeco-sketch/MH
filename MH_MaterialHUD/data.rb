@@ -21,7 +21,7 @@ module MH
               @products[product] << {
                 name: code, key: self.class.material_key(code),
                 spec: (row['spec'] || row['Spec']).to_s,
-                note: (row['ghi_chu'] || row['Ghi_chu']).to_s
+                note: self.class.material_specification(row)
               }
             end
           end
@@ -33,6 +33,16 @@ module MH
         parts = MaterialCode.strip_surface_variant(MaterialCode.without_thickness(value)).split('.')
         parts.reject! { |part| part == 'VER' } if parts.any? { |part| part != 'VER' && part.start_with?('VER') }
         parts.join('.')
+      end
+
+      def self.material_specification(row)
+        direct = (row['Quy_cach_vat_lieu'] || row['quy_cach_vat_lieu']).to_s.strip
+        return direct unless direct.empty?
+
+        parts = %w[Excel_E Excel_F Excel_G].map { |key| row[key].to_s.strip }.reject(&:empty?)
+        return parts.join(' | ') unless parts.empty?
+
+        (row['ghi_chu'] || row['Ghi_chu']).to_s.strip
       end
 
       def self.matches?(left, right)
