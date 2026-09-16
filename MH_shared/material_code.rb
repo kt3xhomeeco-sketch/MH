@@ -74,6 +74,7 @@ module MH
     end
 
     def rules
+      return @rules_snapshot if @rules_snapshot
       return @rules_override if @rules_override
 
       base = if defined?(MH::Registry) && MH::Registry.respond_to?(:material_code_rules)
@@ -88,6 +89,16 @@ module MH
       merged
     rescue
       @rules_override || DEFAULT_RULES
+    end
+
+    # Reuse one rule set during a synchronous batch; the next batch reads fresh
+    # settings. Nested callers and exceptions restore the previous scope.
+    def with_rules_snapshot
+      previous = @rules_snapshot
+      @rules_snapshot = rules unless previous
+      yield
+    ensure
+      @rules_snapshot = previous
     end
 
     def split(value)

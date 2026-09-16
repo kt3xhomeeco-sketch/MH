@@ -270,13 +270,15 @@ module MH_Thongke
 
   def self.info_hud_restore_tool_soon
     return false unless info_hud_visible?
+    return false if defined?(MH::MaterialHUD) && MH::MaterialHUD.tool_active?
     return false if @info_hud_disable_restore
     return false if @info_hud_restore_timer_pending
 
     @info_hud_restore_timer_pending = true
     UI.start_timer(0.15, false) do
       @info_hud_restore_timer_pending = false
-      activate_info_hud_tool(true) if info_hud_visible? && !@info_hud_disable_restore
+      hud_owns_keyboard = defined?(MH::MaterialHUD) && MH::MaterialHUD.tool_active?
+      activate_info_hud_tool(true) if info_hud_visible? && !@info_hud_disable_restore && !hud_owns_keyboard
     end
     true
   rescue => e

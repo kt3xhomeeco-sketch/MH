@@ -1,0 +1,34 @@
+# encoding: UTF-8
+require 'sketchup.rb'
+require File.expand_path('../MH_shared.rb', __dir__)
+
+module MH
+  module MaterialHUD
+    stop_timers if respond_to?(:stop_timers)
+    %w[acceptances data model_index runtime viewport].each { |file| load File.join(__dir__, "#{file}.rb") }
+    migrate_acceptances
+
+    ModelHub.subscribe(:material_hud,
+      on_selection: ->(_) { schedule_refresh if mode == 'select' },
+      on_view: ->(_) { schedule_refresh if mode == 'view' },
+      on_model: ->(_) { model_changed },
+      visible: -> { @overlay && @overlay.enabled? })
+
+    unless @menu_registered
+      menu = UI.menu('Extensions').add_submenu('MH Material HUD')
+      command = UI::Command.new('Material HUD — mở / kích hoạt Tab') { show }
+      command.tooltip = 'Material HUD độc lập — Tab: View / Select'
+      command.status_bar_text = 'Đọc JSON dùng chung, không chạy MH Thongke.'
+      command.small_icon = command.large_icon = File.join(__dir__, 'icon.svg')
+      menu.add_item(command)
+      menu.add_item('Tắt Material HUD') { hide }
+      menu.add_item('View / Select') { toggle_mode }
+      menu.add_item('Chọn JSON dùng chung...') { choose_json }
+      menu.add_item('Reload JSON') { reload_json }
+      @toolbar = UI::Toolbar.new('MH Material HUD')
+      @toolbar.add_item(command)
+      @toolbar.restore
+      @menu_registered = true
+    end
+  end
+end

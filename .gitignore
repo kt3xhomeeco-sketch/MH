@@ -49,6 +49,7 @@ _MH_Thongke_Desktop_OLD_*/
 
 # Generated/local project data
 MH_Thongke/data/
+MH_MaterialHUD/data/
 MH_Thongke/logs/
 MH_Thongke/engine/build/
 MH_Thongke/engine/dist/

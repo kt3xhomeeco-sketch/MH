@@ -30,7 +30,6 @@ module MH_Thongke
 
     unless @mini_material_hud_menu_registered
       MH::RegistryApp::Menu.add(app: 'Thongke', key: 'material_hud', label: 'Material HUD') {
-        MH_Thongke.reload_latest! if MH_Thongke.respond_to?(:reload_latest!)
         MH_Thongke.show_import_material_hud
       }
       @mini_material_hud_menu_registered = true

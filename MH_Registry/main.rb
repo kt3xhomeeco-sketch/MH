@@ -169,9 +169,9 @@ module MH
           MH_Thongke.force_show_import_mini_dialog(nil, true) if MH_Thongke.respond_to?(:force_show_import_mini_dialog)
         end
       end
-      Menu.add(app: 'Thongke', key: 'material_hud', label: 'Material HUD') do
-        load_app_file('MH_Thongke', 'main.rb') unless defined?(MH_Thongke)
-        MH_Thongke.show_import_material_hud if defined?(MH_Thongke) && MH_Thongke.respond_to?(:show_import_material_hud)
+      Menu.add(app: 'Thongke', key: 'material_hud', label: 'Material HUD (độc lập)') do
+        require File.join(Sketchup.find_support_file('Plugins'), 'MH_MaterialHUD', 'main.rb')
+        MH::MaterialHUD.show
       end
       Menu.add(app: 'Thongke', key: 'info_hud', label: 'Info HUD') do
         load_app_file('MH_Thongke', 'main.rb') unless defined?(MH_Thongke)
@@ -1710,6 +1710,7 @@ module MH
       pipeline = Connector.get('dc_import_pipeline') rescue nil
       pipeline.clear_runtime_caches if pipeline && pipeline.respond_to?(:clear_runtime_caches)
       superimp_ok = refresh_open_superimp_material_hud
+      material_hud = MH::MaterialHUD.reload_project_data(project_data) if defined?(MH::MaterialHUD)
       remember_mvl_json_path(json_path)
       Sketchup.active_model.active_view.invalidate if Sketchup.active_model
 
@@ -1724,6 +1725,7 @@ module MH
         } : nil,
         'material_assign' => material_assign,
         'superimp' => { 'ok' => !!superimp_ok },
+        'material_hud' => material_hud,
         'panel' => { 'ok' => true, 'action' => 'viewport_invalidated' }
       }
     rescue => e

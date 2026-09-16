@@ -187,7 +187,7 @@ module MH_Thongke
 
   def self.mini_context_product_codes(allow_slow_scan = false)
     if mini_product_source_mode == "select"
-      return selected_product_codes(true).select { |code| product_code_valid?(code) }
+      return selected_product_codes(allow_slow_scan).select { |code| product_code_valid?(code) }
     end
 
     products = visible_product_codes_from_view
@@ -230,7 +230,7 @@ module MH_Thongke
       return current_mini_products
     end
 
-    selected_products = selected_product_codes(true).select { |code| product_code_valid?(code) }
+    selected_products = selected_product_codes(allow_slow_scan).select { |code| product_code_valid?(code) }
     # STICKY: selection không có mã sản phẩm hợp lệ thì giữ bảng trước,
     # không xoá. Chỉ đổi khi chọn mã mới hợp lệ.
     set_mini_products(selected_products) unless selected_products.empty?
