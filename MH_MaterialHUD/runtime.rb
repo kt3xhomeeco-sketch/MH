@@ -66,6 +66,12 @@ module MH
         else
           ProjectData.ensure_loaded
         end
+        # Optional startup discovery only; no Registry app is loaded here.
+        # With Registry disabled, remembered paths / Choose JSON still work.
+        if !path && !snapshot[:ok] && defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:last_mvl_json_path)
+          discovered = MH::RegistryApp.last_mvl_json_path.to_s
+          snapshot = ProjectData.load_json(discovered, force: force, reason: 'material_hud_discovery') unless discovered.empty?
+        end
         accept_snapshot(snapshot)
       end
 
@@ -104,6 +110,12 @@ module MH
         ok = accept_snapshot(snapshot)
         refresh if visible?
         { 'ok' => ok, 'visible' => visible?, 'rows_count' => @catalog ? @catalog.row_count : 0 }
+      rescue => e
+        @catalog = nil
+        @source_error = e.message
+        @data = { rows: [], message: "Lỗi nạp JSON: #{e.message}" }
+        Sketchup.active_model.active_view.invalidate if visible?
+        { 'ok' => false, 'error' => e.message }
       end
 
       def model_changed

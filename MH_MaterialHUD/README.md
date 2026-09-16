@@ -15,6 +15,7 @@ dialog, bộ thống kê hoặc `final_stamped_report.json` của `MH_Thongke`.
 
 Dùng `MH::ProjectData`: JSON đang dùng chung trong model hoặc đường dẫn đã lưu
 trong model. Có thể chọn file trực tiếp, không cần bật Registry hay Thongke.
+Nếu Registry đang được nạp, HUD có thể hỏi đường dẫn JSON hiện hành khi model chưa lưu nguồn.
 Nút **RELOAD JSON** của Registry truyền snapshot đã đọc sang HUD, không parse lại file.
 JSON lỗi hoặc thuộc model khác sẽ xóa bảng cũ và báo lỗi, không quay về báo cáo cũ.
 
