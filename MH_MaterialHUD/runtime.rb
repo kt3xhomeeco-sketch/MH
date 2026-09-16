@@ -5,6 +5,8 @@ module MH
     # running SketchUp session. The standalone HUD no longer changes SuperImp's
     # layout.
     remove_const(:PANEL_WIDTH) if const_defined?(:PANEL_WIDTH, false)
+    MODE_ATTR_DICT = 'MH_MaterialHUD'.freeze unless const_defined?(:MODE_ATTR_DICT, false)
+    MODE_ATTR_KEY = 'display_mode'.freeze unless const_defined?(:MODE_ATTR_KEY, false)
 
     class << self
       attr_reader :data, :last_refresh_ms, :index, :tool
@@ -12,7 +14,7 @@ module MH
       remove_method(:right_reserved_width) if method_defined?(:right_reserved_width)
 
       def mode
-        @mode ||= 'view'
+        @mode ||= stored_mode
       end
 
       def visible?
@@ -21,6 +23,9 @@ module MH
 
       def set_mode(value)
         @mode = value.to_s == 'select' ? 'select' : 'view'
+        model = Sketchup.active_model
+        model.set_attribute(MODE_ATTR_DICT, MODE_ATTR_KEY, @mode) if model && model.respond_to?(:set_attribute)
+        Sketchup.write_default(MODE_ATTR_DICT, MODE_ATTR_KEY, @mode) if Sketchup.respond_to?(:write_default)
         @scroll = 0
         refresh if visible?
         Sketchup.status_text = "Material HUD: #{mode.upcase} | Tab: View / Select | Click: chọn | Esc: thoát công cụ"
@@ -59,12 +64,23 @@ module MH
         stop_timers
         @overlay.enabled = false if @overlay
         @overlay_model = model
+        @mode = stored_mode(model)
         @overlay = ViewportOverlay.new
         model.overlays.add(@overlay)
         @catalog = nil
         @index = nil
         @index_revision = 0
         @data = { rows: [], message: 'Đang nạp JSON...' }
+      end
+
+      def stored_mode(model = Sketchup.active_model)
+        saved = if model && model.respond_to?(:get_attribute)
+          model.get_attribute(MODE_ATTR_DICT, MODE_ATTR_KEY, nil)
+        end
+        saved = Sketchup.read_default(MODE_ATTR_DICT, MODE_ATTR_KEY, 'view') if saved.to_s.empty? && Sketchup.respond_to?(:read_default)
+        saved.to_s == 'select' ? 'select' : 'view'
+      rescue
+        'view'
       end
 
       def load_source(path = nil, force: false)

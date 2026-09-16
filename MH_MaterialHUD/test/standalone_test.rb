@@ -143,6 +143,18 @@ class MaterialHudStandaloneTest < Minitest::Test
     refute tool.onKeyDown(65, 1, 0, nil)
   end
 
+  def test_mode_is_saved_and_restored_from_the_model
+    model = Object.new
+    values = {}
+    model.define_singleton_method(:set_attribute) { |_dict, key, value| values[key] = value }
+    model.define_singleton_method(:get_attribute) { |_dict, key, fallback| values.fetch(key, fallback) }
+    Sketchup.active_model = model
+
+    HUD.set_mode('select')
+    HUD.instance_variable_set(:@mode, nil)
+    assert_equal 'select', HUD.mode
+  end
+
   def test_rules_snapshot_restores_after_nested_exception
     assert_raises(RuntimeError) do
       MH::MaterialCode.with_rules_snapshot do
