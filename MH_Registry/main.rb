@@ -893,7 +893,23 @@ module MH
     def refresh_open_superimp_material_hud
       return false unless defined?(MH::Superimp)
 
-      refreshed = MH::Superimp.refresh_material_runtime if MH::Superimp.respond_to?(:refresh_material_runtime)
+      # @active_tool của Superimp chỉ được gán lúc activate. Trong một số phiên
+      # SketchUp (ví dụ tool được khôi phục sau dialog), biến này có thể không
+      # còn trỏ tới tool đang vẽ HUD. Lấy tool thực tế từ model.tools trước để
+      # chắc chắn cache HUD của màn hình hiện tại được xóa.
+      active_tool = begin
+        model = Sketchup.active_model
+        model.tools.active_tool if model && model.respond_to?(:tools) && model.tools.respond_to?(:active_tool)
+      rescue
+        nil
+      end
+      registered_tool = MH::Superimp.active_tool if MH::Superimp.respond_to?(:active_tool)
+      tool = active_tool if active_tool && active_tool.respond_to?(:refresh_material_runtime)
+      tool ||= registered_tool if registered_tool && registered_tool.respond_to?(:refresh_material_runtime)
+      return false unless tool
+
+      MH::Superimp.active_tool = tool if MH::Superimp.respond_to?(:active_tool=)
+      refreshed = tool.refresh_material_runtime
       Sketchup.active_model.active_view.invalidate if Sketchup.active_model
       !!refreshed
     rescue => e
@@ -1601,8 +1617,11 @@ module MH
       payload = payload.is_a?(Hash) ? payload : { 'input' => payload }
       input_path = resolve_mvl_input_path(payload['input'] || payload[:input])
       json_path = (payload['json'] || payload[:json]).to_s.strip
-      json_path = last_mvl_json_path.to_s.strip if json_path.empty?
+      # Khi UI đã chọn Excel, JSON cùng tên trong SPEC/Data là nguồn duy nhất
+      # đúng cho công trình đó. Không được ưu tiên last_mvl_json_path, vì nó có
+      # thể thuộc lần chạy/công trình trước và làm các app hiển thị dữ liệu cũ.
       json_path = project_json_path(input_path).to_s if json_path.empty? && !input_path.to_s.empty?
+      json_path = last_mvl_json_path.to_s.strip if json_path.empty?
       return { 'ok' => false, 'error' => 'Chua xac dinh duoc file JSON cua du an.' } if json_path.empty?
       return { 'ok' => false, 'error' => "File JSON khong ton tai: #{json_path}" } unless File.exist?(json_path)
 
