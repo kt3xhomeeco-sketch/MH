@@ -188,7 +188,7 @@ module MH
           @scroll = 0 if (@data || {})[:products] != products
           rows = products.flat_map do |product|
             section = @catalog.section(product, @index.materials[product], @index_revision, complete: @index.complete)
-            [{ type: :product, name: product }] + section
+            [{ type: :product, name: product, product_name: @catalog.product_name(product) }] + section
           end
           message = if !@index.complete
             'Đang lập chỉ mục model...'

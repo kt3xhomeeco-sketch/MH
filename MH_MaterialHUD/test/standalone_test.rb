@@ -85,6 +85,12 @@ class MaterialHudStandaloneTest < Minitest::Test
     assert_equal 'MẶT VÁCH GỖ MDFCA AC E1 PHỦ LAMINATE L8304 KEding', result[:note]
   end
 
+  def test_catalog_keeps_product_name_from_shared_json
+    catalog = Catalog.new(snapshot([row('ASH', 'SP03').merge('Ten_SP' => 'VÁCH ỐP HÀNH LANG')]))
+    assert_equal 'VÁCH ỐP HÀNH LANG', catalog.product_name('SP03')
+    assert_equal 'VÁCH ỐP HÀNH LANG', catalog.section('SP03', {}, 0).first[:product_name]
+  end
+
   def test_same_count_reload_does_not_keep_old_codes
     assert HUD.accept_snapshot(snapshot([row('OLD')]))
     old = HUD.instance_variable_get(:@catalog)

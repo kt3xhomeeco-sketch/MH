@@ -831,7 +831,9 @@ module MH
           'Ma_SP' => {
             -4 => 'Excel_E',
             -3 => 'Excel_F',
-            -2 => 'Excel_G'
+            -2 => 'Excel_G',
+            # J is the generated workbook's product-name helper column.
+            1 => 'Ten_SP'
           }
         }
       )
@@ -843,6 +845,7 @@ module MH
       data = Array(selected['rows']).filter_map do |row|
         ma_sp = row['Ma_SP'].to_s.strip
         ma_vl = row['Ma_vat_lieu'].to_s.strip
+        ten_sp = row['Ten_SP'].to_s.strip
         next if ma_sp.empty? && ma_vl.empty?
 
         # Excel thường merge ô Ma_SP: các dòng chi tiết phía dưới có VL nhưng SP
@@ -861,6 +864,7 @@ module MH
         spec_g = row['Excel_G'].to_s.strip
         {
           'Ma_SP' => ma_sp,
+          'Ten_SP' => ten_sp,
           'Ma_vat_lieu' => ma_vl,
           # Keep individual source values for later app features and one
           # display-ready field so every MH HUD uses the exact same wording.

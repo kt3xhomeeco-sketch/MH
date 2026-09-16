@@ -10,16 +10,20 @@ module MH
         @path = snapshot[:json_path].to_s
         @row_count = snapshot[:rows_count].to_i
         @products = Hash.new { |hash, key| hash[key] = [] }
+        @product_names = {}
         @sections = {}
         MaterialCode.with_rules_snapshot do
           @acceptances = Acceptances.load
           Array(snapshot[:rows]).each do |row|
             product = ProductContext.base(ProjectData.product_value(row))
             next if product.empty?
+            product_name = (row['Ten_SP'] || row['ten_sp'] || row['Tên SP']).to_s.strip
+            @product_names[product] = product_name unless product_name.empty?
             raw = ['Ma_vat_lieu', 'ma_vat_lieu', 'material_code', 'Mã vật liệu'].map { |key| row[key].to_s.strip }.find { |v| !v.empty? }
             MaterialCode.split(raw).each do |code|
               @products[product] << {
                 name: code, key: self.class.material_key(code),
+                product_name: @product_names[product].to_s,
                 spec: (row['spec'] || row['Spec']).to_s,
                 note: self.class.material_specification(row)
               }
@@ -33,6 +37,10 @@ module MH
         parts = MaterialCode.strip_surface_variant(MaterialCode.without_thickness(value)).split('.')
         parts.reject! { |part| part == 'VER' } if parts.any? { |part| part != 'VER' && part.start_with?('VER') }
         parts.join('.')
+      end
+
+      def product_name(product)
+        @product_names[product].to_s
       end
 
       def self.material_specification(row)
@@ -60,13 +68,13 @@ module MH
         rows = @products.fetch(product, []).map do |row|
           matches = materials.keys.select { |code| self.class.matches?(row[:key], code) }
           matches.each { |code| used[code] = true }
-          { type: :item, name: row[:name], target: row[:spec], note: row[:note],
+          { type: :item, name: row[:name], product_name: row[:product_name], target: row[:spec], note: row[:note],
             status: !complete ? '…' : matches.any? || @acceptances.accepted?(product, '', row[:key], row[:spec]) ? 'OK' : 'SPEC' }
         end
         if complete
           materials.each do |code, name|
             next if used[code]
-            rows << { type: :item, name: name, target: '', note: '', status: @acceptances.accepted?(product, code, '') ? 'OK' : 'NO SPEC' }
+            rows << { type: :item, name: name, product_name: product_name(product), target: '', note: '', status: @acceptances.accepted?(product, code, '') ? 'OK' : 'NO SPEC' }
           end
         end
         @sections[key] = rows

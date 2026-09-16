@@ -29,7 +29,7 @@ module MH
       def draw(view)
         data = MaterialHUD.data || {}
         rows = Array(data[:rows])
-        width = [460, view.vpwidth.to_i].min
+        width = [640, view.vpwidth.to_i].min
         row_height = 38
         capacity = [[(view.vpheight.to_i - 70) / row_height, 1].max, 12].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
@@ -39,23 +39,25 @@ module MH
         MaterialHUD.panel_rect = [x, y, width, height]
         rect(view, x, y, width, height, :panel)
         rect(view, x + 10, y + 10, width - 20, 20, :header)
-        text(view, x + 16, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true)
-        text(view, x + 190, y + 14, 'QUY CÁCH VẬT LIỆU', color: :white, size: 6)
-        text(view, x + 366, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
+        text(view, x + 16, y + 14, 'TÊN SẢN PHẨM', color: :white, bold: true, size: 7)
+        text(view, x + 150, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true, size: 7)
+        text(view, x + 290, y + 14, 'QUY CÁCH VẬT LIỆU', color: :white, size: 6)
+        text(view, x + 552, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
         row_y = y + 30
         if shown.empty?
           text(view, x + 16, row_y + 6, truncate(data[:message], 60))
         else
           shown.each do |row|
             rect(view, x + 10, row_y, width - 20, row_height, row[:type] == :product ? :product : :row)
-            text(view, x + 16, row_y + 10, truncate(row[:name], 25), bold: row[:type] == :product)
+            text(view, x + 16, row_y + 10, truncate(row[:product_name], 19), bold: row[:type] == :product, size: 7)
+            text(view, x + 150, row_y + 10, truncate(row[:name], 19), bold: row[:type] == :product, size: 7)
             unless row[:type] == :product
-              lines = wrap(row[:note], 38, 2)
-              text(view, x + 190, row_y + 5, lines[0], size: 6)
-              text(view, x + 190, row_y + 18, lines[1], size: 6) if lines[1]
+              lines = wrap(row[:note], 48, 2)
+              text(view, x + 290, row_y + 5, lines[0], size: 6)
+              text(view, x + 290, row_y + 18, lines[1], size: 6) if lines[1]
               status = row[:status].to_s
-              rect(view, x + 365, row_y + 10, 74, 18, @colors.key?(status) ? status : :header)
-              text(view, x + 371, row_y + 13, status, color: :white, size: 7, bold: true)
+              rect(view, x + 550, row_y + 10, 74, 18, @colors.key?(status) ? status : :header)
+              text(view, x + 556, row_y + 13, status, color: :white, size: 7, bold: true)
             end
             row_y += row_height
           end
