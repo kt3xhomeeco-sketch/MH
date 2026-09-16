@@ -15,6 +15,7 @@ require 'json'
 module MH
   module RegistryApp
     PATH = File.dirname(__FILE__) unless defined?(self::PATH)
+    MATERIAL_CODE_LIBRARY_PATH = File.join(File.dirname(PATH), 'MH_shared', 'data', 'material_code_library.xlsx') unless defined?(self::MATERIAL_CODE_LIBRARY_PATH)
     DEFAULTS_KEY = 'MH_Registry' unless defined?(self::DEFAULTS_KEY)
     LAST_MVL_INPUT_KEY = 'LastMVLInputPath' unless defined?(self::LAST_MVL_INPUT_KEY)
     DEBUG = false unless const_defined?(:DEBUG, false)
@@ -386,8 +387,10 @@ module MH
       end
 
       dlg.on('autosave_config_json') do |deferred, config_data, global_data|
-        path = autosave_config_json(symbolize_safe(config_data))
+        config_data = symbolize_safe(config_data)
+        path = autosave_config_json(config_data)
         MH::Registry.save_global!(symbolize_safe(global_data)) if global_data.is_a?(Hash)
+        sync_project_config_registry(config_data)
         # JSON is the active configuration source. Refresh the DC Import cache
         # and the currently running Superimp tool so Manual material codes take
         # effect immediately, without performing the slower Excel save.
@@ -446,35 +449,49 @@ module MH
     def attach_config_callbacks(dlg)
       dlg.on('load_config') do |deferred|
         data = load_config
-        deferred.resolve({ 'ok' => true, 'data' => data, 'path' => config_path })
+        active_path = File.exist?(config_json_path) ? config_json_path : config_path
+        deferred.resolve({ 'ok' => true, 'data' => data, 'path' => active_path })
+      end
+
+      dlg.on('reload_config_excel') do |deferred|
+        begin
+          data = reload_registry_excel_runtime
+          deferred.resolve({ 'ok' => true, 'data' => data, 'path' => config_path })
+        rescue => e
+          deferred.resolve({ 'ok' => false, 'error' => e.message })
+        end
       end
 
       dlg.on('save_config') do |deferred, data|
         begin
-          save_config(symbolize_safe(data))
-          proj = MH::Registry.project
-          # Product-code structure now lives in global product_code_rules.
-          # Keep legacy project suggestions empty so older prefix/module lists
-          # cannot shadow the rule edited in Control Panel.
-          proj['sub_prefix_suggestions'] = []
-          proj['prefix_suggestions']     = []
-          proj['suffix_suggestions']     = data['suffix'] || []
-          proj['modul_suggestions']      = []
-          proj['name_separators']        = data['separators'] || {}
-          proj.delete('ma_vat_lieu_project')
-          proj.delete('ma_vat_lieu_rules')
-          MH::Registry.save_project!(proj)
+          data = symbolize_safe(data)
+          save_config(data)
+          sync_project_config_registry(data)
           Connector.notify_config_changed(load_config)
           refresh_superimp_material_runtime
-          deferred.resolve({ 'ok' => true, 'path' => config_path })
+          deferred.resolve({ 'ok' => true, 'path' => config_json_path })
+        rescue => e
+          deferred.resolve({ 'ok' => false, 'error' => e.message })
+        end
+      end
+
+      dlg.on('export_config_excel') do |deferred, data, global_data|
+        begin
+          data = symbolize_safe(data)
+          exported = export_config_excel(data)
+          MH::Registry.save_global!(symbolize_safe(global_data)) if global_data.is_a?(Hash)
+          sync_project_config_registry(data)
+          Connector.notify_config_changed(load_config)
+          refresh_superimp_material_runtime
+          deferred.resolve({ 'ok' => true }.merge(exported))
         rescue => e
           deferred.resolve({ 'ok' => false, 'error' => e.message })
         end
       end
 
       dlg.on('open_config_folder') do |deferred|
-        path = config_path
-        create_default_config unless File.exist?(path)
+        path = File.exist?(config_json_path) ? config_json_path : config_path
+        create_default_config unless File.exist?(path) || File.exist?(config_json_path)
         UI.openURL("file:///#{File.dirname(path).tr('\\', '/')}")
         deferred.resolve({ 'ok' => true })
       end
@@ -484,10 +501,13 @@ module MH
     def attach_mvl_callbacks(dlg)
       dlg.on('get_mvl_input_path') do |deferred|
         path = last_mvl_input_path
+        json_path = last_mvl_json_path
         deferred.resolve({
           'ok' => !path.empty?,
           'path' => path,
-          'exists' => !path.empty? && File.exist?(path)
+          'exists' => !path.empty? && File.exist?(path),
+          'json_path' => json_path,
+          'json_exists' => !json_path.empty? && File.exist?(json_path)
         })
       end
 
@@ -643,6 +663,15 @@ module MH
 
       dlg.on('reload_mvl_excel') do |deferred, payload|
         deferred.resolve(reload_mvl_excel_pipeline(payload))
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+
+      # File Excel có thể được chỉnh bằng tay ngoài SketchUp. Nút này chỉ đồng
+      # bộ lại JSON dữ liệu của công trình hiện tại, không chạy lại pipeline
+      # sinh mã vật liệu và cũng không thay đổi file Excel nguồn.
+      dlg.on('sync_project_json_from_excel') do |deferred, payload|
+        deferred.resolve(sync_project_json_from_excel(payload))
       rescue => e
         deferred.resolve({ 'ok' => false, 'error' => e.message })
       end
@@ -856,6 +885,22 @@ module MH
       Connector.notify_config_changed(data)
       refresh_superimp_material_runtime
       data
+    end
+
+    # Metadata dự án cần được cập nhật cùng config dù lưu JSON hay xuất Excel.
+    # Các rule thật nằm ở global registry; các key cũ chỉ để tương thích tool cũ.
+    def sync_project_config_registry(data)
+      return unless defined?(MH::Registry)
+
+      proj = MH::Registry.project
+      proj['sub_prefix_suggestions'] = []
+      proj['prefix_suggestions']     = []
+      proj['suffix_suggestions']     = data['suffix'] || []
+      proj['modul_suggestions']      = []
+      proj['name_separators']        = data['separators'] || {}
+      proj.delete('ma_vat_lieu_project')
+      proj.delete('ma_vat_lieu_rules')
+      MH::Registry.save_project!(proj)
     end
 
     def excel_material_types_preview(input_path = nil)
@@ -1154,6 +1199,7 @@ module MH
       model = (Sketchup.active_model rescue nil)
       mpath = (model && model.path).to_s
       mvl_input_path = last_mvl_input_path
+      mvl_json_path = last_mvl_json_path
       {
         'global'        => MH::Registry.global,
         'project'       => MH::Registry.project,
@@ -1162,6 +1208,8 @@ module MH
         'project_path'  => MH::Registry.project_path,
         'mvl_input_path' => mvl_input_path,
         'mvl_input_exists' => !mvl_input_path.empty? && File.exist?(mvl_input_path),
+        'mvl_json_path' => mvl_json_path,
+        'mvl_json_exists' => !mvl_json_path.empty? && File.exist?(mvl_json_path),
         'module_templates' => MH::Registry.module_templates
       }
     end
@@ -1189,6 +1237,33 @@ module MH
       end
 
       path
+    end
+
+    # JSON runtime là nguồn nạp nhanh. Lưu path trong metadata của công trình để
+    # lần sau không phải dò file mới nhất trong SPEC/Data (dễ nhầm dữ liệu cũ).
+    def remember_mvl_json_path(path)
+      path = path.to_s.strip
+      return '' if path.empty?
+
+      begin
+        project = MH::Registry.project
+        project['last_mvl_json_path'] = path
+        MH::Registry.save_project!(project)
+      rescue
+      end
+      path
+    end
+
+    def last_mvl_json_path
+      project_path = begin
+        MH::Registry.project['last_mvl_json_path'].to_s.strip
+      rescue
+        ''
+      end
+      return project_path unless project_path.empty?
+
+      input_path = last_mvl_input_path
+      input_path.empty? ? '' : project_json_path(input_path).to_s
     end
 
     def last_mvl_input_path
@@ -1263,6 +1338,10 @@ module MH
       path.empty? ? last_mvl_input_path : path
     end
 
+    def material_code_library_path
+      MATERIAL_CODE_LIBRARY_PATH
+    end
+
     def run_mvl_pipeline(payload = {})
       payload = payload.is_a?(Hash) ? payload : {}
       input_path = resolve_mvl_input_path(payload['input'])
@@ -1279,17 +1358,10 @@ module MH
         dbg("[MH_Registry] Config auto-saved before run_mvl")
       end
 
-      data = load_config
-      mvl = data['ma_vat_lieu'] || []
-      if mvl.empty?
-        return { 'ok' => false, 'error' => 'Bang mapping ma vat lieu trong. Them du lieu truoc.' }
+      library_path = material_code_library_path
+      unless File.exist?(library_path)
+        return { 'ok' => false, 'error' => "Khong tim thay thu vien ma vat lieu XLSX: #{library_path}" }
       end
-
-      lib_rows = [['gia_tri', 'gia_tri_map', 'nhom', 'thu_tu']] + mvl.map { |r|
-        [r['gia_tri'], r['gia_tri_map'], r['nhom'], r['thu_tu']]
-      }
-      temp_lib = File.join(PATH, '_temp_library.xlsx')
-      safe_write_xlsx(temp_lib, { 'mapping' => lib_rows })
 
       if project_xlsx_path(input_path)
         ensure_spec_dirs
@@ -1302,14 +1374,12 @@ module MH
       son_flag = include_son ? '--include-son-code' : '--no-son-code'
       python_exe = find_python
       unless python_exe
-        File.delete(temp_lib) if File.exist?(temp_lib)
         return { 'ok' => false, 'error' => 'Khong tim thay Python. Cai Python 3.' }
       end
-      cmd = %("#{python_exe}" "#{py_script}" --input "#{input_path}" --output "#{output_path}" --library "#{temp_lib}" #{son_flag})
+      cmd = %("#{python_exe}" "#{py_script}" --input "#{input_path}" --output "#{output_path}" --library "#{library_path}" #{son_flag})
 
       result = `#{cmd} 2>&1`
       exit_code = $?.exitstatus
-      File.delete(temp_lib) if File.exist?(temp_lib)
 
       unless exit_code == 0 || File.exist?(output_path)
         return { 'ok' => false, 'error' => "Python exit #{exit_code}", 'log' => result.to_s.strip }
@@ -1319,6 +1389,7 @@ module MH
       if json_path
         ensure_spec_dirs
         export_xlsx_to_json(output_path, json_path)
+        remember_mvl_json_path(json_path) if File.exist?(json_path)
         if defined?(MH::ProjectData) && File.exist?(json_path)
           MH::ProjectData.load_json(json_path, source_path: output_path, force: true, reason: 'registry_generate')
         end
@@ -1394,6 +1465,7 @@ module MH
       if json_path
         ensure_spec_dirs
         export_xlsx_to_json(output_path, json_path)
+        remember_mvl_json_path(json_path) if File.exist?(json_path)
         if defined?(MH::ProjectData) && File.exist?(json_path)
           MH::ProjectData.load_json(json_path, source_path: output_path, force: true, reason: 'registry_reload_excel')
         end
@@ -1442,6 +1514,63 @@ module MH
       }
     rescue => e
       { 'ok' => false, 'error' => e.message, 'backtrace' => e.backtrace }
+    end
+
+    # Chuyển Excel đã chọn thành JSON runtime riêng của công trình hiện tại:
+    # {project}/SPEC/Data/{excel_basename}.json. Đây là đường nạp chính cho
+    # Material Assign và SuperImp, nên thao tác này không cần xuất/tạo lại XLSX.
+    def sync_project_json_from_excel(payload = {})
+      payload = payload.is_a?(Hash) ? payload : { 'input' => payload }
+      input_path = resolve_mvl_input_path(payload['input'] || payload[:input])
+      return { 'ok' => false, 'error' => 'Chua chon file Excel.' } if input_path.to_s.empty?
+      return { 'ok' => false, 'error' => "File Excel khong ton tai: #{input_path}" } unless File.exist?(input_path)
+
+      json_path = project_json_path(input_path)
+      return { 'ok' => false, 'error' => 'Model chua duoc luu; khong xac dinh duoc thu muc du an.' } if json_path.to_s.empty?
+
+      ensure_spec_dirs
+      converted = export_xlsx_to_json(input_path, json_path)
+      return converted unless converted && converted['ok']
+
+      project_data = nil
+      if defined?(MH::ProjectData) && File.exist?(json_path)
+        project_data = MH::ProjectData.load_json(
+          json_path,
+          source_path: input_path,
+          force: true,
+          reason: 'registry_manual_excel_json_sync'
+        )
+      end
+
+      # Nạp đúng JSON vừa tạo. load_data ưu tiên ProjectData/JSON trước XLSX.
+      material_ready = Connector.dispatch('material_assign', :ensure_available)
+      material_assign = if material_ready
+        Connector.dispatch('material_assign', :load_data, input_path)
+      else
+        { 'ok' => false, 'error' => 'Khong nap duoc MH_Material_Assign.' }
+      end
+
+      pipeline = Connector.get('dc_import_pipeline') rescue nil
+      pipeline.clear_runtime_caches if pipeline && pipeline.respond_to?(:clear_runtime_caches)
+      refresh_superimp_material_runtime
+      remember_mvl_input_path(input_path)
+      remember_mvl_json_path(json_path)
+
+      {
+        'ok' => true,
+        'excel' => input_path,
+        'json' => json_path,
+        'rows_count' => converted['rows_count'].to_i,
+        'sheet' => converted['sheet'].to_s,
+        'project_data' => project_data && project_data[:ok] ? {
+          'ok' => true,
+          'version' => project_data[:version],
+          'rows_count' => project_data[:rows_count]
+        } : nil,
+        'material_assign' => material_assign
+      }
+    rescue => e
+      { 'ok' => false, 'error' => e.message }
     end
 
     def project_thongke_import_json_path(input_path = nil)

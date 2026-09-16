@@ -20,6 +20,7 @@ module MH
   module Registry
     SCHEMA_VERSION = '1.0'.freeze
     GLOBAL_FILENAME = 'global_registry.json'.freeze
+    MATERIAL_CODE_LIBRARY_FILENAME = 'material_code_library.xlsx'.freeze
     PROJECT_FILENAME = 'MH_project_registry.json'.freeze
 
     @cache = {} # path => { mtime:, data: }
@@ -41,6 +42,10 @@ module MH
 
     def global_path
       File.join(data_dir, GLOBAL_FILENAME)
+    end
+
+    def material_code_library_path
+      File.join(data_dir, MATERIAL_CODE_LIBRARY_FILENAME)
     end
 
     # Thư mục của model hiện tại (hoặc model truyền vào). "" nếu chưa lưu.
@@ -106,7 +111,7 @@ module MH
         'invalid_materials' => [],
         'material_code_rules' => {},
         'product_code_rules' => {},
-        'material_code_mappings' => [],
+        'name_read_rules' => [],
         'module_templates' => [],
         'detail_aliases' => {},
         'column_aliases' => {},
@@ -151,6 +156,7 @@ module MH
 
     def reload!
       @cache.clear
+      @material_library_cache = nil
       true
     end
 
@@ -159,13 +165,83 @@ module MH
     def materials;          Array(global['materials']); end
     def thickness_mappings; Array(global['thickness_mappings']); end
     def invalid_materials;  Array(global['invalid_materials']); end
-    def material_code_rules(model = nil)
-      deep_merge_hash(Hash(global['material_code_rules'] || {}), Hash(project(model)['material_code_rules'] || {}))
+    def material_code_library_mappings
+      path = material_code_library_path
+      return [] unless File.exist?(path) && defined?(MH::XlsxIO)
+
+      mtime = File.mtime(path).to_f
+      cached = @material_library_cache
+      return cached[:rows] if cached && cached[:mtime] == mtime
+
+      sheets = MH::XlsxIO.read(path)
+      rows = sheets.detect { |name, _| name.to_s.downcase == 'mapping' }&.last || sheets.values.first || []
+      header_index = nil
+      headers = {}
+      Array(rows).first(24).each_with_index do |row, index|
+        candidate = Array(row).each_with_index.each_with_object({}) do |(value, col_index), out|
+          out[material_code_library_key(value)] = col_index
+        end
+        if material_code_library_column(candidate, 'tu khoa trong excel', 'gia tri', 'gia_tri', 'raw value', 'raw_value', 'input') &&
+           material_code_library_column(candidate, 'ma tao ra', 'gia tri map', 'gia_tri_map', 'mapping', 'ma map', 'ma_map')
+          header_index = index
+          headers = candidate
+          break
+        end
+      end
+      raw_col = material_code_library_column(headers, 'tu khoa trong excel', 'gia tri', 'gia_tri', 'raw value', 'raw_value', 'input')
+      mapped_col = material_code_library_column(headers, 'ma tao ra', 'gia tri map', 'gia_tri_map', 'mapping', 'ma map', 'ma_map')
+      group_col = material_code_library_column(headers, 'nhom', 'group')
+      enabled_col = material_code_library_column(headers, 'dang dung', 'enabled', 'active')
+      result = if header_index && raw_col && mapped_col
+                 Array(rows).drop(header_index + 1).each_with_object([]) do |row, output|
+                   raw = row[raw_col].to_s.strip
+                   mapped = row[mapped_col].to_s.strip
+                   enabled = enabled_col ? material_code_library_key(row[enabled_col]) : ''
+                   next if raw.empty? || mapped.empty? || %w[0 false no khong inactive off].include?(enabled)
+
+                   group = group_col ? row[group_col].to_s.strip.sub(/\A\s*[1-4]\s+/, '') : ''
+                   output << { 'gia_tri' => raw, 'gia_tri_map' => mapped, 'nhom' => group }
+                 end
+               else
+                 []
+               end
+      @material_library_cache = { mtime: mtime, rows: result }
+      result
+    rescue => e
+      warn "[MH::Registry] Khong doc duoc material_code_library.xlsx: #{e.message}"
+      []
+    end
+
+    def material_code_library_key(value)
+      text = value.to_s.strip
+      text = MH::Text.fold(text) if defined?(MH::Text) && MH::Text.respond_to?(:fold)
+      text.downcase.gsub(/\s+/, ' ')
+    rescue
+      value.to_s.strip.downcase
+    end
+
+    def material_code_library_column(headers, *aliases)
+      aliases.each do |name|
+        column = headers[material_code_library_key(name)]
+        return column unless column.nil?
+      end
+      nil
+    end
+
+    def material_code_rules(_model = nil)
+      # Material-code grammar is global by design.  Keeping a project overlay
+      # created two active rule sources and made saved UI changes ambiguous.
+      rules = Hash(global['material_code_rules'] || {}).dup
+      mappings = material_code_library_mappings
+      rules['mappings'] = mappings unless mappings.empty?
+      rules
     end
     def product_code_rules(model = nil)
       deep_merge_hash(Hash(global['product_code_rules'] || {}), Hash(project(model)['product_code_rules'] || {}))
     end
-    def material_code_mappings; Array(global['material_code_mappings']); end
+    # Compatibility accessor for older callers.  Its data is now nested in the
+    # single material_code_rules contract, never in a parallel registry key.
+    def material_code_mappings; Array(material_code_rules['mappings']); end
     def module_templates;   Array(global['module_templates']); end
     def detail_aliases;     Hash(global['detail_aliases'] || {}); end
     def column_aliases;     Hash(global['column_aliases'] || {}); end

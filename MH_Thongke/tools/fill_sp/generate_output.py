@@ -23,6 +23,7 @@ def normalize_text(v):
     s = norm(v).lower()
     s = unicodedata.normalize('NFD', s)
     s = ''.join(ch for ch in s if unicodedata.category(ch) != 'Mn')
+    s = s.replace('đ', 'd')
     return ' '.join(s.split())
 
 
@@ -35,27 +36,95 @@ def is_section_header(ma_sp_raw, ten_sp_raw, c5, c6, c7):
     return upper_name.startswith('PHÒNG') or upper_name.startswith('WC') or upper_name == 'SẢNH'
 
 
+def find_header_row(ws, required_columns, max_rows=24):
+    for row_num in range(1, min(ws.max_row, max_rows) + 1):
+        header = {normalize_text(ws.cell(row_num, c).value): c for c in range(1, ws.max_column + 1)}
+        resolved = {}
+        for key, aliases in required_columns.items():
+            resolved[key] = next((header.get(alias) for alias in aliases if header.get(alias)), None)
+        if all(resolved.values()):
+            return row_num, header, resolved
+    return None, {}, {}
+
+
+def normalized_group(value):
+    return re.sub(r'^\s*[1-4]\s+', '', normalize_text(value)).strip()
+
+
+def is_disabled(value):
+    return normalize_text(value) in ('0', 'false', 'no', 'khong', 'inactive', 'off')
+
+
+def source_columns(value, fallback=('F', 'G')):
+    columns = re.findall(r'\b[A-Z]{1,3}\b', str(value or '').upper())
+    result = []
+    for column in columns:
+        number = 0
+        for letter in column:
+            number = (number * 26) + (ord(letter) - ord('A') + 1)
+        if 1 <= number <= 16384 and column not in result:
+            result.append(column)
+    return result or list(fallback)
+
+
+def source_column_number(column):
+    number = 0
+    for letter in str(column or '').upper():
+        number = (number * 26) + (ord(letter) - ord('A') + 1)
+    return number
+
+
+def library_generation_rules(wb):
+    rules = {'segment_separator': '.', 'multi_separator': '&', 'source_columns': ['F', 'G']}
+    if 'material_code_rules' not in wb.sheetnames:
+        return rules
+
+    ws = wb['material_code_rules']
+    row_num, _header, columns = find_header_row(ws, {
+        'name': ('quy tac', 'rule'),
+        'value': ('gia tri', 'value')
+    })
+    if not row_num:
+        return rules
+
+    for r in range(row_num + 1, ws.max_row + 1):
+        name = normalize_text(ws.cell(r, columns['name']).value)
+        value = norm(ws.cell(r, columns['value']).value)
+        if name == 'dau ghep cac phan' and value:
+            rules['segment_separator'] = value
+        elif name == 'dau ngan nhieu vat lieu' and value:
+            rules['multi_separator'] = value
+        elif name in ('cot excel doc de tao ma', 'cot du lieu doc de tao ma', 'cot nguon tao ma'):
+            rules['source_columns'] = source_columns(value)
+    return rules
+
+
 def load_mapping(path):
     wb = load_workbook(path, data_only=True)
-    ws = wb[wb.sheetnames[0]]
-    header = {normalize_text(ws.cell(1, c).value): c for c in range(1, ws.max_column + 1)}
+    ws = wb['mapping'] if 'mapping' in wb.sheetnames else wb[wb.sheetnames[0]]
+    header_row, header, columns = find_header_row(ws, {
+        'raw': ('tu khoa trong excel', 'gia tri', 'gia_tri', 'raw value', 'raw_value', 'input'),
+        'mapped': ('ma tao ra', 'gia tri map', 'gia_tri_map', 'mapping', 'ma map', 'ma_map')
+    })
+    if not header_row:
+        raise ValueError('Sheet mapping phải có cột `Từ khóa trong Excel` và `Mã tạo ra`.')
 
-    raw_col = header.get('gia tri') or header.get('gia_tri') or header.get('raw value') or header.get('raw_value') or header.get('input')
-    map_col = header.get('gia tri map') or header.get('gia_tri_map') or header.get('mapping') or header.get('ma map') or header.get('ma_map')
+    raw_col = columns['raw']
+    map_col = columns['mapped']
     group_col = header.get('nhom') or header.get('group')
+    enabled_col = header.get('dang dung') or header.get('enabled') or header.get('active')
     order_col = header.get('thu tu') or header.get('thu_tu') or header.get('order')
 
-    if not (raw_col and map_col):
-        raise ValueError('library.xlsx phải có cột `gia_tri` và `gia_tri_map` (tùy chọn: `nhom`, `thu_tu`).')
-
     rules = []
-    for r in range(2, ws.max_row + 1):
+    for r in range(header_row + 1, ws.max_row + 1):
         raw_text = norm(ws.cell(r, raw_col).value)
         mapped = norm(ws.cell(r, map_col).value)
         if not raw_text or not mapped:
             continue
+        if enabled_col and is_disabled(ws.cell(r, enabled_col).value):
+            continue
 
-        group_name = normalize_text(ws.cell(r, group_col).value) if group_col else ''
+        group_name = normalized_group(ws.cell(r, group_col).value) if group_col else ''
         order_raw = ws.cell(r, order_col).value if order_col else None
         try:
             order_val = int(order_raw) if order_raw is not None and str(order_raw).strip() != '' else None
@@ -79,17 +148,20 @@ def load_mapping(path):
             })
 
     rules.sort(key=lambda x: len(x['raw_norm']), reverse=True)
-    return rules
+    return rules, library_generation_rules(wb)
 
 
 def group_rank(g):
+    g = normalized_group(g)
     if g in ('chat lieu', 'chat_lieu', 'material'):
         return 0
     if g in ('nha cung cap', 'nha_cung_cap', 'supplier'):
         return 1
-    if g in ('be mat', 'be_mat', 'ma vat lieu', 'ma_vat_lieu', 'surface', 'code'):
+    if g in ('be mat', 'be_mat', 'surface'):
         return 2
-    return 3
+    if g in ('ma vat lieu', 'ma_vat_lieu', 'material code', 'finish code', 'code'):
+        return 3
+    return 4
 
 
 def remove_redundant_material_codes(codes):
@@ -124,14 +196,29 @@ def span_covered(span, covered_spans):
     return any(start >= a and end <= b for a, b in covered_spans)
 
 
-def extract_dynamic_surface_code(src_norm):
-    # LAMINATE MÃ 4512A / LAMINATE MÃ LK 4512A => LK.4512A
+def extract_dynamic_surface_codes(src_norm):
+    """Đọc mã LK/MS nằm trong mô tả và trả về một token hoàn chỉnh.
+
+    Ví dụ: ``Laminate LK 1201 T`` -> ``LK1201T``.  Không tách thành
+    ``LK.1201T`` vì Desktop và Material Assign dùng một mã hoàn thiện liền.
+    """
+    codes = []
+    for match in re.finditer(r'\b(MS|LK)\s*([A-Z0-9]+)(?:\s+([A-Z0-9]+))?', src_norm, flags=re.IGNORECASE):
+        first = match.group(2).upper()
+        second = match.group(3).upper() if match.group(3) else ''
+        if not re.search(r'\d', first) and not re.search(r'\d', second):
+            continue
+        code = f"{match.group(1).upper()}{first}{second}"
+        if code not in codes:
+            codes.append(code)
+
+    if codes:
+        return codes
+
+    # Mô tả cũ không ghi rõ prefix LK/MS.
     m = re.search(r'laminate\s+ma\s+([a-z]{1,3}\s*)?([a-z0-9]{3,10})', src_norm, flags=re.IGNORECASE)
     if m:
-        raw = m.group(2).upper()
-        return ('LK', raw)
-
-    # PHỦ MELAMIN/MELAMINE MÃ 230PL / MÃ MS 230PL / MÃ MS 446 FR / MÃ MS230PL => MS.230PL
+        codes.append(f"LK{m.group(2).upper()}")
     m = re.search(r'melamin(?:e)?.*?\sma\s+([a-z]{1,3}\s*)?([a-z0-9]{2,10})(?:\s+([a-z]{1,4}))?', src_norm, flags=re.IGNORECASE)
     if m:
         raw = m.group(2).upper()
@@ -139,8 +226,8 @@ def extract_dynamic_surface_code(src_norm):
             raw = f"{raw}{m.group(3).upper()}"
         if raw.startswith('MS') and len(raw) > 2:
             raw = raw[2:]
-        return ('MS', raw)
-    return ('', '')
+        codes.append(f"MS{raw}")
+    return list(dict.fromkeys(codes))
 
 
 def extract_dynamic_veneer_codes(src_norm):
@@ -186,7 +273,7 @@ def extract_son_code(ht_text):
     return ''
 
 
-def build_ma_vat_lieu(qc_text, ht_text, rules, include_son_code=False):
+def build_ma_vat_lieu(qc_text, ht_text, rules, include_son_code=False, segment_separator='.', multi_separator='&'):
     src_norm = normalize_text(f"{norm(qc_text)} {norm(ht_text)}")
     if not src_norm:
         return ''
@@ -223,108 +310,52 @@ def build_ma_vat_lieu(qc_text, ht_text, rules, include_son_code=False):
     material_codes = [x['mapped'] for x in material_rules]
     supplier_codes = [x['mapped'] for x in found if group_rank(x['group']) == 1 and x['mapped']]
     surface_codes = [x['mapped'] for x in found if group_rank(x['group']) == 2 and x['mapped']]
+    finish_codes = [x['mapped'] for x in found if group_rank(x['group']) == 3 and x['mapped']]
 
     material_codes = remove_redundant_material_codes(material_codes)
     material_codes = list(dict.fromkeys(material_codes))
     supplier_codes = list(dict.fromkeys(supplier_codes))
     surface_codes = remove_redundant_surface_codes(list(dict.fromkeys(surface_codes)))
+    finish_codes = remove_redundant_surface_codes(list(dict.fromkeys(finish_codes)))
 
     # Mã động cho laminate / melamine (không cần khai báo trong library)
-    dyn_prefix, dyn_code = extract_dynamic_surface_code(src_norm)
-    if dyn_prefix == 'LK':
-        if 'LK' not in surface_codes:
-            surface_codes.insert(0, 'LK')
-        if dyn_code:
-            surface_codes = [c for c in surface_codes if c != dyn_code]
-            surface_codes.append(dyn_code)
-    elif dyn_prefix == 'MS':
-        if 'MS' not in surface_codes:
-            surface_codes.insert(0, 'MS')
-        if dyn_code:
-            surface_codes = [c for c in surface_codes if c != dyn_code]
-            surface_codes.append(dyn_code)
+    for dyn_code in extract_dynamic_surface_codes(src_norm):
+        prefix = dyn_code[:2]
+        # Khi có mã chi tiết LK/MS, giữ LAM/MEL khai báo trong thư viện nhưng
+        # thay mọi mã động cùng prefix bằng token hoàn chỉnh mới nhất.
+        finish_codes = [c for c in finish_codes if not c.upper().startswith(prefix)]
+        finish_codes.append(dyn_code)
 
     veneer_codes = extract_dynamic_veneer_codes(src_norm)
     for code in veneer_codes:
-        if code not in surface_codes:
-            surface_codes.append(code)
+        if code not in surface_codes and code not in finish_codes:
+            finish_codes.append(code)
     surface_codes = remove_redundant_surface_codes(list(dict.fromkeys(surface_codes)))
+    finish_codes = remove_redundant_surface_codes(list(dict.fromkeys(finish_codes)))
 
     # TẦN BÌ KẾT HỢP PLYWOOD => TANBI & PLY
     if len(material_codes) >= 2:
-        left = ' & '.join(material_codes)
+        left = f' {multi_separator} '.join(material_codes)
     elif len(material_codes) == 1:
         left = material_codes[0]
     else:
         left = ''
 
-    right_parts = supplier_codes + surface_codes
-    son_code = extract_son_code(ht_text) if include_son_code else ''
-    if son_code:
+    right_parts = supplier_codes + surface_codes + finish_codes
+    son_code = extract_son_code(ht_text or qc_text) if include_son_code else ''
+    # "Sơn" có thể đã được mapping thành SON. Không nối thêm lần nữa.
+    if son_code and normalize_text(son_code) not in [normalize_text(code) for code in right_parts]:
         right_parts.append(son_code)
 
     if right_parts:
-        right = '.'.join(right_parts)
-        return f"{left}.{right}" if left else right
+        right = segment_separator.join(right_parts)
+        return f"{left}{segment_separator}{right}" if left else right
     return left
 
 
-def join_unique_values(values):
-    result = []
-    seen = set()
-    for value in values:
-        text = norm(value)
-        if not text:
-            continue
-        key = normalize_text(text)
-        if key in seen:
-            continue
-        seen.add(key)
-        result.append(text)
-    return ', '.join(result)
-
-
-def merge_material_rows(ws):
-    groups = {}
-    rows_to_delete = []
-
-    for r in range(DATA_START_ROW, ws.max_row + 1):
-        ma_sp = norm(ws.cell(r, 9).value)
-        detail = norm(ws.cell(r, 5).value)
-        qc_text = norm(ws.cell(r, 6).value)
-        ht_text = norm(ws.cell(r, 7).value)
-        ma_vat_lieu = norm(ws.cell(r, 11).value)
-
-        if not (ma_sp and detail and qc_text and ht_text and ma_vat_lieu):
-            continue
-
-        key = (
-            normalize_text(ma_sp),
-            normalize_text(qc_text),
-            normalize_text(ht_text),
-            normalize_text(ma_vat_lieu),
-        )
-
-        if key not in groups:
-            groups[key] = {'row': r, 'details': [detail]}
-            continue
-
-        groups[key]['details'].append(detail)
-        rows_to_delete.append(r)
-
-    for group in groups.values():
-        merged_detail = join_unique_values(group['details'])
-        if merged_detail:
-            ws.cell(group['row'], 5, merged_detail)
-
-    for r in sorted(rows_to_delete, reverse=True):
-        ws.delete_rows(r, 1)
-
-    return len(rows_to_delete)
-
-
 def fill_file(input_xlsx, output_xlsx, lib_xlsx, include_son_code=True):
-    rules = load_mapping(lib_xlsx)
+    rules, library_rules = load_mapping(lib_xlsx)
+    material_source_columns = source_columns(library_rules.get('source_columns'))
 
     wb = load_workbook(input_xlsx)
     ws = wb[wb.sheetnames[0]]
@@ -364,10 +395,23 @@ def fill_file(input_xlsx, output_xlsx, lib_xlsx, include_son_code=True):
         ws.cell(r, 9, current_ma_sp or None)
         ws.cell(r, 10, current_ten_sp or None)
 
-        mvl = build_ma_vat_lieu(c6, c7, rules, include_son_code=include_son_code)
+        material_source = ' '.join(
+            norm(ws.cell(r, source_column_number(column)).value)
+            for column in material_source_columns
+            if norm(ws.cell(r, source_column_number(column)).value)
+        )
+        mvl = build_ma_vat_lieu(
+            material_source,
+            '',
+            rules,
+            include_son_code=include_son_code,
+            segment_separator=library_rules['segment_separator'],
+            multi_separator=library_rules['multi_separator']
+        )
         ws.cell(r, 11, mvl or None)
 
-    merge_material_rows(ws)
+    # Keep every source row intact.  Generated codes are filled per row; rows
+    # with the same column F/value must not be merged or deleted.
     wb.save(output_xlsx)
 
 

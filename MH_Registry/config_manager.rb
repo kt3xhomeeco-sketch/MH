@@ -2,7 +2,7 @@
 #
 # MH_Registry / config_manager.rb
 # ---------------------------------------------------------------------------
-# Đọc/ghi Config.xlsx — tập trung tất cả logic config vào 1 file.
+# JSON là nguồn cấu hình chạy chính; Config.xlsx chỉ dùng để nhập/xuất thủ công.
 # Được require từ main.rb.
 # ---------------------------------------------------------------------------
 
@@ -258,7 +258,6 @@ module MH
       product_rules = config_hash_value(data, 'product_code_rules')
       product_rules = default_product_code_rules_from_config(data) unless product_rules.is_a?(Hash) && !product_rules.empty?
       material_rules = config_hash_value(data, 'material_code_rules')
-      material_mappings = config_hash_value(data, 'ma_vat_lieu_global') || config_hash_value(data, 'ma_vat_lieu')
       changed = false
       global = MH::Registry.global
 
@@ -266,12 +265,20 @@ module MH
         global['product_code_rules'] = json_clone(product_rules)
         changed = true
       end
-      if material_rules.is_a?(Hash) && !material_rules.empty?
-        global['material_code_rules'] = json_clone(material_rules)
+      read_rules = config_hash_value(data, 'name_read_rules')
+      if read_rules.is_a?(Array)
+        global['name_read_rules'] = json_clone(read_rules)
         changed = true
       end
-      if material_mappings.is_a?(Array)
-        global['material_code_mappings'] = json_clone(material_mappings)
+      if material_rules.is_a?(Hash) && !material_rules.empty?
+        material_rules = json_clone(material_rules)
+        # Mapping đã có nguồn duy nhất là material_code_library.xlsx.  Registry
+        # chỉ giữ ngữ pháp/nhóm bề mặt cần cho Material Assign và các app cũ.
+        material_rules.delete('mappings')
+        sync_material_surface_groups!(material_rules)
+        global['material_code_rules'] = material_rules
+        # Migrate away the legacy parallel source on every normal save.
+        global.delete('material_code_mappings')
         changed = true
       end
 
@@ -280,6 +287,55 @@ module MH
     rescue => e
       dbg("[MH_Registry] sync registry rules error: #{e.class}: #{e.message}") if respond_to?(:dbg)
       false
+    end
+
+    # A surface token is a semantic rule, not merely a dictionary value.  The
+    # mapping board supplies its canonical token; align the matching surface
+    # group with that token so Melamine -> MEL cannot still be classified as MS.
+    def sync_material_surface_groups!(rules)
+      mappings = Array(rules['mappings'])
+      groups = rules['surface_groups']
+      return rules unless groups.is_a?(Hash)
+
+      grouped_members = Hash.new { |hash, key| hash[key] = [] }
+      mappings.each do |row|
+        row = row.is_a?(Hash) ? row : {}
+        next unless comparable_config_token(row['nhom'] || row['layer'] || row['key'] || row['group']) == 'BE_MAT'
+
+        source = row['gia_tri'].to_s.strip
+        canonical = row['gia_tri_map'].to_s.strip.upcase
+        next if canonical.empty?
+
+        matched_key = groups.keys.find do |key|
+          rule = groups[key].is_a?(Hash) ? groups[key] : {}
+          members = Array(rule['members']).map { |member| comparable_config_token(member) }
+          comparable_config_token(key) == comparable_config_token(canonical) ||
+            members.include?(comparable_config_token(canonical)) ||
+            members.include?(comparable_config_token(source)) ||
+            comparable_config_token(rule['label']) == comparable_config_token(source)
+        end
+        next unless matched_key
+
+        grouped_members[matched_key] << canonical
+      end
+
+      grouped_members.each do |old_key, members|
+        rule = groups.delete(old_key)
+        next unless rule.is_a?(Hash)
+
+        members = members.uniq
+        # Keep the old key only when it remains the canonical token.  This is
+        # what turns the legacy MS card into MEL after the user changes it.
+        new_key = members.include?(old_key.to_s.upcase) ? old_key.to_s.upcase : members.first
+        rule['members'] = members
+        groups[new_key] = rule
+      end
+      rules['surface_groups'] = groups
+      rules
+    end
+
+    def comparable_config_token(value)
+      value.to_s.strip.upcase.gsub(/\s+/, ' ')
     end
 
     def settings_facade_available?
@@ -346,8 +402,10 @@ module MH
 
     def load_config(force_excel: false)
       path = config_path
-      create_default_config unless File.exist?(path)
       return load_config_json if File.exist?(config_json_path) && !force_excel
+      # Chỉ cần workbook khi đang nhập/migrate từ Excel.  Các lần mở app sau
+      # sẽ quay về ngay từ JSON ở trên, không tạo hay đọc Excel nữa.
+      create_default_config unless File.exist?(path)
 
       sub_prefix = []
       prefix = []
@@ -391,7 +449,10 @@ module MH
           all['ma_vat_lieu'].drop(1).each do |row|
             gt  = (row[0] || '').to_s.strip
             gtm = (row[1] || '').to_s.strip
-            next if gt.empty? || gtm.empty?
+            # Keep canonical-only rows created from the material-code
+            # structure. The user can fill gia_tri (input alias) later in
+            # MH Control Panel; discard only completely empty rows.
+            next if gt.empty? && gtm.empty?
             ma_vat_lieu << {
               'gia_tri'     => gt,
               'gia_tri_map' => gtm,
@@ -487,14 +548,27 @@ module MH
       data
     end
 
-    def save_config(data)
+    # Lưu cấu hình khi dùng app: chỉ JSON.  Ghi hai workbook XLSX rất tốn thời
+    # gian vì ExcelBridge phải đóng gói lại toàn bộ sheet/XML; chỉ làm việc đó
+    # khi người dùng yêu cầu xuất Excel.
+    def save_config(data, export_excel: false)
       scrub_removed_config_keys(data)
       synchronize_suffix_sources!(data)
       sync_registry_rules_from_config!(data)
-      ensure_superimp_library_data!(data)
       persist_project_settings!(data)
       apply_project_settings!(data)
-      write_config_json(data, source: 'save_config')
+      if export_excel
+        write_config_json(data, source: 'excel_export')
+      else
+        write_registry_json(config_json_path, {
+          'schema_version' => 1,
+          'source' => 'save_json',
+          'updated_at' => Time.now.utc.iso8601,
+          'data' => data
+        })
+      end
+      return config_json_path unless export_excel
+
       save_superimp_library(data)
 
       seps = data['separators'] || {}
@@ -540,6 +614,16 @@ module MH
         )
       })
       config_path
+    end
+
+    # Xuất bản snapshot XLSX tương thích cho người cần chỉnh/sao lưu bằng
+    # Excel. Đây là thao tác chủ động, không được gọi trên luồng Save thường.
+    def export_config_excel(data)
+      save_config(data, export_excel: true)
+      {
+        'config_path' => config_path,
+        'superimp_library_path' => superimp_library_path
+      }
     end
 
     def load_superimp_library_sheets(config_sheets = nil)
@@ -709,66 +793,98 @@ module MH
       end
     end
 
-    # Đọc xlsx output (có header) → ghi JSON (Array<Hash>)
-    # Tự tìm header row bằng cách tìm dòng chứa "Ma_SP" hoặc "MÃ SP".
-    HEADER_MARKERS = %w[Ma_SP Ma_vat_lieu MÃ\ SP].freeze
+    # Đọc xlsx output (có header) → ghi JSON (Array<Hash>).
+    # JSON là nguồn chạy của SuperImp/Material Assign, nên phải giữ key chuẩn
+    # cho SP và VL ngay tại điểm chuyển đổi, không phụ thuộc vào tên cột Excel.
+    PROJECT_JSON_HEADER_ALIASES = {
+      'Ma_SP' => [
+        'Ma_SP', 'ma_sp', 'Mã SP', 'MÃ SP', 'Ma SP', 'MASP',
+        'Mã sản phẩm', 'MÃ SẢN PHẨM', 'Ma san pham', 'Product Code', 'SP'
+      ],
+      'Ten_SP' => [
+        'Ten_SP', 'ten_sp', 'Tên SP', 'TÊN SP', 'Ten SP',
+        'Tên sản phẩm', 'Ten san pham', 'Product Name'
+      ],
+      'Ma_vat_lieu' => [
+        'Ma_vat_lieu', 'ma_vat_lieu', 'ma_vl', 'Mã vật liệu', 'MÃ VẬT LIỆU',
+        'Ma vat lieu', 'Mã VL', 'Ma VL', 'MaVL', 'Material Code', 'Material', 'VL'
+      ],
+      'Ten_chi_tiet' => [
+        'Ten_chi_tiet', 'ten_chi_tiet', 'Tên chi tiết', 'TÊN CHI TIẾT',
+        'Quy cách vật liệu', 'QUY CÁCH VẬT LIỆU', 'Quy cach vat lieu',
+        'Detail Name', 'Detail'
+      ]
+    }.freeze
 
     def export_xlsx_to_json(xlsx_path, json_path)
-      sheets = MH::ExcelBridge.read_all(xlsx_path)
-      sheet_name = sheets.keys.first
-      rows = sheets[sheet_name] || []
-      return if rows.length < 2
+      selected = MH::XlsxIO.read_first_sheet_selected_columns(
+        xlsx_path,
+        {
+          'Ma_SP' => PROJECT_JSON_HEADER_ALIASES['Ma_SP'],
+          'Ma_vat_lieu' => PROJECT_JSON_HEADER_ALIASES['Ma_vat_lieu']
+        },
+        header_normalizer: method(:project_json_header_normalize)
+      )
+      return { 'ok' => false, 'error' => 'Khong tim thay cot Ma SP va Ma vat lieu trong file Excel.' } unless selected['header_row']
 
-      # Tìm header row
-      header_idx = find_header_row(rows)
-      return if header_idx.nil?
+      # JSON runtime cố ý chỉ giữ dữ liệu cần cho chọn/gán vật liệu theo SP.
+      # Không copy mọi cột từ Excel để tránh file dữ liệu lớn và parse thừa.
+      current_product = ''
+      data = Array(selected['rows']).filter_map do |row|
+        ma_sp = row['Ma_SP'].to_s.strip
+        ma_vl = row['Ma_vat_lieu'].to_s.strip
+        next if ma_sp.empty? && ma_vl.empty?
 
-      headers = rows[header_idx].map { |h| h.to_s.strip }
-      # Skip sub-header row nếu có (dòng toàn số "1","2","3"...)
-      data_start = header_idx + 1
-      if data_start < rows.length
-        sub = rows[data_start].map { |c| c.to_s.strip }
-        data_start += 1 if sub.all? { |c| c =~ /^\d*$/ }
-      end
-
-      data = rows[data_start..].filter_map do |row|
-        h = {}
-        empty = true
-        headers.each_with_index do |key, i|
-          next if key.empty?
-          v = (row[i] || '').to_s.strip
-          h[key] = v
-          empty = false unless v.empty?
-        end
-        next if empty
-        # Chỉ giữ rows có Ma_SP hợp lệ theo NameGrammar/ProductContext hoặc Ma_vat_lieu
-        ma_sp = (h['Ma_SP'] || '').strip
-        ma_vl = (h['Ma_vat_lieu'] || '').strip
+        # Excel thường merge ô Ma_SP: các dòng chi tiết phía dưới có VL nhưng SP
+        # trống. Fill-down ở JSON để cả SuperImp lẫn Material Assign chọn được
+        # danh sách vật liệu theo đúng SP.
+        current_product = ma_sp unless ma_sp.empty?
+        ma_sp = current_product if ma_sp.empty? && !current_product.empty?
         product_ok = if defined?(MH::ProductContext) && MH::ProductContext.respond_to?(:valid?)
           MH::ProductContext.valid?(ma_sp)
         else
           ma_sp =~ /\A[A-Z]+\d+[A-Z]?(?:\.\d+)?\z/i
         end
         next unless product_ok || !ma_vl.empty?
-        h
+        { 'Ma_SP' => ma_sp, 'Ma_vat_lieu' => ma_vl }
       end
 
       require 'fileutils'
       FileUtils.mkdir_p(File.dirname(json_path))
       File.write(json_path, JSON.pretty_generate(data), encoding: 'UTF-8')
       dbg("[MH_Registry] Exported #{data.length} rows to #{json_path}") if respond_to?(:dbg)
+      { 'ok' => true, 'path' => json_path, 'rows_count' => data.length, 'sheet' => selected['sheet'].to_s }
     rescue => e
       dbg("[MH_Registry] export_xlsx_to_json error: #{e.message}") if respond_to?(:dbg)
+      { 'ok' => false, 'error' => e.message }
     end
 
     def find_header_row(rows)
       rows.each_with_index do |row, i|
-        cells = row.map { |c| c.to_s.strip.upcase }
-        if HEADER_MARKERS.any? { |m| cells.any? { |c| c.include?(m.upcase) } }
+        if row.any? { |cell| project_json_header_key(cell) == 'Ma_SP' }
           return i
         end
       end
       nil
+    end
+
+    def project_json_header_key(value)
+      text = value.to_s.strip
+      return nil if text.empty?
+
+      normalized = project_json_header_normalize(text)
+      PROJECT_JSON_HEADER_ALIASES.each do |key, aliases|
+        return key if aliases.any? { |item| project_json_header_normalize(item) == normalized }
+      end
+      nil
+    end
+
+    def project_json_header_normalize(value)
+      text = value.to_s.strip
+      text = MH::Text.fold(text) if defined?(MH::Text) && MH::Text.respond_to?(:fold)
+      text.downcase.gsub(/[^a-z0-9]+/, '')
+    rescue
+      value.to_s.strip.downcase.gsub(/[^a-z0-9]+/, '')
     end
 
     def find_python

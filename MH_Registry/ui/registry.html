@@ -52,8 +52,10 @@
         <h3>File thống kê</h3>
         <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
           <button class="btn" id="btnChooseInput">Chọn file...</button>
+          <button class="btn" id="btnSyncProjectJson" title="Đọc lại file Excel đã chọn và cập nhật JSON riêng của công trình">Cập nhật JSON dự án</button>
           <span id="mvlInputPath" style="color:#aaa;font-size:12px">(chưa chọn)</span>
         </div>
+        <p class="hint" style="margin:8px 0 0">Sau khi chỉnh Excel bằng tay, bấm “Cập nhật JSON dự án” để nạp lại dữ liệu cho Material Assign và SuperImp.</p>
       </div>
 
       <!-- 2. Đánh dấu sản phẩm -->
@@ -80,6 +82,7 @@
           <button class="btn" id="btnReloadMVLExcel">Reload Excel</button>
           <button class="btn" id="btnOpenOutput" style="display:none">Mở file output</button>
         </div>
+        <p class="hint" style="margin:8px 0 0">Thư viện dùng để tạo mã: <code>MH_shared/data/material_code_library.xlsx</code>. Mã gốc không chứa 1M/2M.</p>
         <div id="mvlLog" style="margin-top:8px;font-size:12px;color:#aaa;white-space:pre-wrap;max-height:120px;overflow:auto"></div>
       </div>
 
@@ -189,7 +192,8 @@
         <div class="panel-actions">
           <button class="btn" id="btnOpenConfigFolder">Mở thư mục</button>
           <button class="btn" id="btnReloadConfig">Tải từ Excel</button>
-          <button class="btn primary" id="btnSaveConfig">Lưu → Excel + Registry</button>
+          <button class="btn" id="btnExportConfigExcel">Xuất Excel</button>
+          <button class="btn primary" id="btnSaveConfig">Lưu JSON</button>
         </div>
       </div>
 
@@ -221,6 +225,19 @@
         <textarea id="nc_suffix" rows="8" hidden></textarea>
       </div>
 
+      <div class="card name-read-rules-card" style="margin-bottom:12px">
+        <div class="panel-head">
+          <div>
+            <h3>Quy tắc đọc mở rộng</h3>
+            <p class="hint">Chỉ dùng khi đọc tên đã có; không dùng để tạo mã mới. Mỗi nhóm tự có dấu tách phía sau, và có thể chọn product_code, module_no/modul_no, suffix, part…</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn xs" id="btnAddNameReadRule" type="button">+ quy tắc</button>
+          </div>
+        </div>
+        <div id="name_read_rules_builder"></div>
+      </div>
+
       <div hidden>
         <input id="nc_sep_sub_prefix" value="-" />
         <input id="nc_sep_prefix" value="_" />
@@ -250,7 +267,8 @@
         <div class="panel-actions">
           <button class="btn" id="btnOpenConfigFolder2">Mở thư mục</button>
           <button class="btn" id="btnReloadConfig2">Tải từ Excel</button>
-          <button class="btn primary" id="btnSaveConfig2">Lưu → Excel + Registry</button>
+          <button class="btn" id="btnExportConfigExcel2">Xuất Excel</button>
+          <button class="btn primary" id="btnSaveConfig2">Lưu JSON</button>
         </div>
       </div>
 
@@ -281,7 +299,7 @@
           <div class="mcr-test-head">
             <div>
               <h4>Cấu trúc theo ô mã</h4>
-              <p class="hint">Ô trên là tên lớp mã; kéo thả để đổi thứ tự. Danh sách dưới mỗi cột là thư viện giá trị của lớp đó.</p>
+              <p class="hint">Ô trên là tên lớp mã; kéo thả để đổi thứ tự. Danh sách dưới mỗi cột là thư viện giá trị của lớp đó. Khi lưu, mã thêm vào các ô <code>chat_lieu</code>, <code>nha_cung_cap</code>, <code>be_mat</code> sẽ tạo dòng trong Từ điển mã vật liệu với mã ở cột <code>Mã chuẩn</code>; cột <code>Giá trị nhập</code> để mày tự khai alias.</p>
             </div>
             <button class="btn xs" id="btnAddMcrTestCell" type="button">+ ô</button>
           </div>
@@ -310,14 +328,10 @@
       <div class="card mh-mapping-card">
         <div class="panel-head">
           <div>
-            <h3>Từ điển mã vật liệu</h3>
-            <p class="hint"><code>Từ điển</code> chỉ chuẩn hóa token/alias từng lớp. Parent độ dày lấy từ khung <code>Parent</code> trong bảng cấu trúc mã vật liệu: mã ngoài parent fallback về parent gần nhất, các parent không fallback lẫn nhau.</p>
-          </div>
-          <div class="panel-actions">
-            <button class="btn" data-add="ma_vat_lieu_global">+ Thêm dòng</button>
+            <h3>Thư viện mã vật liệu</h3>
+            <p class="hint">Nguồn duy nhất để tạo mã là <code>MH_shared/data/material_code_library.xlsx</code>. Sửa sheet <code>mapping</code> và <code>material_code_rules</code> trong file đó; Registry không còn lưu bảng ánh xạ riêng.</p>
           </div>
         </div>
-        <div id="tbl_ma_vat_lieu_global"></div>
       </div>
 
       <div class="panel-head" style="margin-top:12px">
