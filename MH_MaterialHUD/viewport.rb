@@ -30,7 +30,7 @@ module MH
         data = MaterialHUD.data || {}
         rows = Array(data[:rows])
         width = [640, view.vpwidth.to_i].min
-        row_height = 38
+        row_height = 30
         capacity = [[(view.vpheight.to_i - 70) / row_height, 1].max, 12].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
         shown = rows.drop(offset).first(capacity)
@@ -49,15 +49,15 @@ module MH
         else
           shown.each do |row|
             rect(view, x + 10, row_y, width - 20, row_height, row[:type] == :product ? :product : :row)
-            text(view, x + 16, row_y + 10, truncate(row[:product_name], 19), bold: row[:type] == :product, size: 7)
-            text(view, x + 150, row_y + 10, truncate(row[:name], 19), bold: row[:type] == :product, size: 7)
+            text(view, x + 16, row_y + 7, truncate(row[:product_name], 19), bold: row[:type] == :product, size: 7)
+            text(view, x + 150, row_y + 7, truncate(row[:name], 19), bold: row[:type] == :product, size: 7)
             unless row[:type] == :product
               lines = wrap(row[:note], 48, 2)
-              text(view, x + 290, row_y + 5, lines[0], size: 6)
-              text(view, x + 290, row_y + 18, lines[1], size: 6) if lines[1]
+              text(view, x + 290, row_y + 3, lines[0], size: 6)
+              text(view, x + 290, row_y + 13, lines[1], size: 6) if lines[1]
               status = row[:status].to_s
-              rect(view, x + 550, row_y + 10, 74, 18, @colors.key?(status) ? status : :header)
-              text(view, x + 556, row_y + 13, status, color: :white, size: 7, bold: true)
+              rect(view, x + 550, row_y + 6, 74, 18, @colors.key?(status) ? status : :header)
+              text(view, x + 556, row_y + 9, status, color: :white, size: 7, bold: true)
             end
             row_y += row_height
           end
