@@ -8,7 +8,7 @@ module MH
   module Highlight
     EXTENSION_NAME = 'MH Highlight'.freeze
     EXTENSION_FILE = File.join('MH_highlight', 'main').freeze
-    EXTENSION_VERSION = '1.0.0'.freeze
+    EXTENSION_VERSION = '1.5.0'.freeze
 
     unless file_loaded?(__FILE__)
       extension = SketchupExtension.new(EXTENSION_NAME, EXTENSION_FILE)
