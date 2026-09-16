@@ -4954,6 +4954,35 @@
     });
   }
 
+  function reloadProjectJsonRuntime() {
+    status('Đang nạp lại JSON cho các app MH…');
+    $('mvlLog').textContent = 'Đang nạp lại JSON (không đọc Excel)...';
+    $('btnReloadProjectJson').disabled = true;
+    Bridge.get('reload_project_json_runtime', { input: mvlInputPath }).then(function (r) {
+      $('btnReloadProjectJson').disabled = false;
+      if (r && r.ok) {
+        var log = 'Đã reload JSON: ' + r.json + '\n' + (r.rows_count || 0) + ' dòng dữ liệu.';
+        if (r.material_assign && r.material_assign.ok) {
+          log += '\nMH Assign: ' + r.material_assign.count + ' dòng đã nạp từ JSON.';
+          $('maDataCount').textContent = r.material_assign.count + ' dòng đã load';
+          $('maSection').style.display = '';
+        } else if (r.material_assign && r.material_assign.error) {
+          log += '\nMH Assign: ' + r.material_assign.error;
+        }
+        log += '\nSuperimp/HUD: ' + (r.superimp && r.superimp.ok ? 'đã làm mới.' : 'không đang mở.');
+        log += '\nMH Panel/VBO: viewport đã làm mới.';
+        $('mvlLog').textContent = log;
+        status('Đã reload JSON cho app MH!', 'ok');
+      } else {
+        $('mvlLog').textContent = 'Lỗi reload JSON: ' + (r && r.error || '');
+        status('Lỗi reload JSON', 'err');
+      }
+    }).catch(function (err) {
+      $('btnReloadProjectJson').disabled = false;
+      $('mvlLog').textContent = 'Lỗi reload JSON: ' + (err && err.message || err || '');
+      status('Lỗi reload JSON', 'err');
+    });
+  }
   function markProducts() {
     var start = $('markStart') ? $('markStart').value : '';
     var end = $('markEnd') ? $('markEnd').value : '';
@@ -5432,6 +5461,7 @@
     on('btnCreateBinding', 'click', createBinding);
     on('btnChooseInput', 'click', chooseMVLInput);
     on('btnMarkProducts', 'click', markProducts);
+    on('btnReloadProjectJson', 'click', reloadProjectJsonRuntime);
     on('btnMarkProductsAuto', 'click', markProductsAuto);
     on('btnRunMVL', 'click', runMVL);
     on('btnReloadMVLExcel', 'click', reloadMVLExcel);

@@ -676,6 +676,14 @@ module MH
         deferred.resolve({ 'ok' => false, 'error' => e.message })
       end
 
+      # JSON do MH Thongke Desktop tạo đã đúng schema runtime. Callback này chỉ
+      # nạp lại JSON vào các app đang chạy, tuyệt đối không đọc hay ghi Excel.
+      dlg.on('reload_project_json_runtime') do |deferred, payload|
+        deferred.resolve(reload_project_json_runtime(payload))
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+
       dlg.on('open_mvl_output') do |deferred, path|
         if path && File.exist?(path)
           UI.openURL("file:///#{path.tr('\\', '/')}")
@@ -1568,6 +1576,66 @@ module MH
           'rows_count' => project_data[:rows_count]
         } : nil,
         'material_assign' => material_assign
+      }
+    rescue => e
+      { 'ok' => false, 'error' => e.message }
+    end
+
+    # Nạp lại JSON runtime hiện có cho những app sử dụng mã vật liệu. Dùng
+    # trực tiếp connector Material Assign để VBO/HUD đang chạy nhận dữ liệu
+    # mới mà không cần hot-reload source code hoặc chạy lại Excel pipeline.
+    def reload_project_json_runtime(payload = {})
+      payload = payload.is_a?(Hash) ? payload : { 'input' => payload }
+      input_path = resolve_mvl_input_path(payload['input'] || payload[:input])
+      json_path = (payload['json'] || payload[:json]).to_s.strip
+      json_path = last_mvl_json_path.to_s.strip if json_path.empty?
+      json_path = project_json_path(input_path).to_s if json_path.empty? && !input_path.to_s.empty?
+      return { 'ok' => false, 'error' => 'Chua xac dinh duoc file JSON cua du an.' } if json_path.empty?
+      return { 'ok' => false, 'error' => "File JSON khong ton tai: #{json_path}" } unless File.exist?(json_path)
+
+      project_data = if defined?(MH::ProjectData)
+        MH::ProjectData.load_json(
+          json_path,
+          source_path: input_path,
+          force: true,
+          reason: 'registry_reload_project_json_runtime'
+        )
+      end
+
+      material_connector = Connector.get('material_assign') rescue nil
+      material_assign = if material_connector && material_connector.respond_to?(:available?) && material_connector.available?
+        material_connector.reset_data_load_throttle if material_connector.respond_to?(:reset_data_load_throttle)
+        material_connector.load_from_json(json_path)
+        material_connector.clear_material_names_cache if material_connector.respond_to?(:clear_material_names_cache)
+        {
+          'ok' => true,
+          'count' => Array(MH::MaterialApp.excel_data).length,
+          'source' => 'json',
+          'json_path' => json_path
+        }
+      else
+        { 'ok' => false, 'error' => 'Khong nap duoc MH_Material_Assign.' }
+      end
+      rows_count = defined?(MH::MaterialApp) ? Array(MH::MaterialApp.excel_data).length : 0
+
+      pipeline = Connector.get('dc_import_pipeline') rescue nil
+      pipeline.clear_runtime_caches if pipeline && pipeline.respond_to?(:clear_runtime_caches)
+      superimp_ok = refresh_superimp_material_runtime
+      Sketchup.active_model.active_view.invalidate if Sketchup.active_model
+      remember_mvl_json_path(json_path)
+
+      {
+        'ok' => true,
+        'json' => json_path,
+        'rows_count' => rows_count,
+        'project_data' => project_data && project_data[:ok] ? {
+          'ok' => true,
+          'version' => project_data[:version],
+          'rows_count' => project_data[:rows_count]
+        } : nil,
+        'material_assign' => material_assign,
+        'superimp' => { 'ok' => !!superimp_ok },
+        'panel' => { 'ok' => true, 'action' => 'viewport_invalidated' }
       }
     rescue => e
       { 'ok' => false, 'error' => e.message }
