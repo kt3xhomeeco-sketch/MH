@@ -92,7 +92,6 @@ module MH
         raise Error, "Khong doc duoc worksheet: #{sheet_name}" unless xml
 
         selected_columns = {}
-        selected_cell_pattern = nil
         output_rows = []
         header_row = nil
         row_number = 0
@@ -132,12 +131,6 @@ module MH
                 end
               end
               header_row = row_number
-              selected_letters = selected_columns.keys.map { |col| col_letter(col) }
-              selected_source = Regexp.union(selected_letters).source
-              selected_cell_pattern = Regexp.new(
-                '<c\\b(?=[^>]*\\br=["\'](?:' + selected_source + ')\\d+["\'])([^>]*)(?:/>|>(.*?)</c>)',
-                Regexp::MULTILINE
-              )
             elsif row_number >= header_row_limit
               break
             end
@@ -145,7 +138,12 @@ module MH
           end
 
           compact = {}
-          row_xml.to_enum(:scan, selected_cell_pattern).each do
+          # Do not pre-filter with a column-letter regexp here. Some generated
+          # Excel files place valid shared-string cells (notably E: the detail
+          # role such as "CÁNH, MẶT LỘ") after a blank/merged cell, which the
+          # restrictive matcher can skip. The sheet is still streamed one row
+          # at a time; we only decode cells whose column is selected.
+          row_xml.to_enum(:scan, /<c\b([^>]*)(?:\/>|>(.*?)<\/c>)/m).each do
             attrs = Regexp.last_match(1)
             body = Regexp.last_match(2)
             key = selected_columns[raw_cell_column(attrs)]
