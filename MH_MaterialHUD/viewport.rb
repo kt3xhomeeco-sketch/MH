@@ -34,7 +34,7 @@ module MH
         capacity = [[(view.vpheight.to_i - 70) / row_height, 1].max, 12].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
         shown = rows.drop(offset).first(capacity)
-        height = 51 + [shown.size, 1].max * row_height
+        height = 40 + [shown.size, 1].max * row_height
         x, y = OverlayEngine.panel_origin(view, width, height, anchor: :bottom_right)
         MaterialHUD.panel_rect = [x, y, width, height]
         rect(view, x, y, width, height, :panel)
@@ -62,8 +62,6 @@ module MH
             row_y += row_height
           end
         end
-        footer = rows.size > capacity ? "#{offset + 1}–#{offset + shown.size} / #{rows.size} | Lăn chuột trên bảng để xem tiếp" : 'Click chọn đối tượng | Chuột phải: JSON / chế độ'
-        text(view, x + 10, y + height - 15, footer, size: 7)
       rescue => e
         puts "[MH Material HUD draw] #{e.message}"
       end
