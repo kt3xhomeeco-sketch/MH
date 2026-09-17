@@ -84,8 +84,16 @@ module MH
       end
 
       def load_source(path = nil, force: false)
+        # Registry records the exact project JSON it has just generated/reloaded.
+        # Prefer that shared runtime file over ProjectData's older model fallback,
+        # otherwise HUD can reopen on a legacy JSON with only material codes.
+        registry_json = if !path && defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:last_mvl_json_path)
+          MH::RegistryApp.last_mvl_json_path.to_s.strip
+        end
         snapshot = if path
           ProjectData.load_json(path, force: force, reason: 'material_hud')
+        elsif !registry_json.to_s.empty? && File.exist?(registry_json)
+          ProjectData.load_json(registry_json, force: force, reason: 'material_hud_registry_runtime')
         else
           ProjectData.ensure_loaded
         end
