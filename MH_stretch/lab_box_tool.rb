@@ -1514,7 +1514,9 @@ module MH::Stretch
         )
       end
 
-      return [] if @no_plane_mode && operation && operation[:box_grip]
+      if @no_plane_mode && operation && operation[:box_grip]
+        return scale_preview_segments(operation[:axis], amount, operation[:side])
+      end
 
       plane = operation && @planes.by_id(operation[:id] || operation[:plane_id])
       planes = operation_stretch_planes(operation, plane)
@@ -1525,6 +1527,35 @@ module MH::Stretch
         stretch_bundle(operation, plane, planes),
         amount
       )
+    end
+
+    # Native SketchUp-scale mode has no cut plane to preview. Draw the
+    # transformed bounding-box edges, anchored at the opposite endpoint.
+    def scale_preview_segments(axis, delta, side = :plus)
+      return [] unless axis && @bb && !BoxModel.empty_bounds?(@bb)
+
+      current = BoxModel.axis_length(@bb, axis).to_f
+      signed_delta = side == :minus ? -delta.to_f : delta.to_f
+      target = current + signed_delta
+      return [] if current <= BoxModel::MIN_LEN || target <= BoxModel::MIN_LEN
+      return [] if signed_delta.abs <= StretchOperation::MIN_AMOUNT
+
+      factor = target / current
+      pivot = side == :minus ? BoxModel.axis_max(@bb, axis) : BoxModel.axis_min(@bb, axis)
+      origin = axis_point(@bb.center, axis, pivot)
+      scales = case axis
+               when :x then [factor, 1.0, 1.0]
+               when :y then [1.0, factor, 1.0]
+               else [1.0, 1.0, factor]
+               end
+      transform = Geom::Transformation.scaling(origin, *scales)
+      corners = BoxModel.corners(@bb).map { |point| point.transform(transform) }
+      [[0, 1], [1, 3], [3, 2], [2, 0],
+       [4, 5], [5, 7], [7, 6], [6, 4],
+       [0, 4], [1, 5], [3, 7], [2, 6]].map { |a, b| [corners[a], corners[b]] }
+    rescue => error
+      warn "MH Stretch scale preview failed: #{error.message}"
+      []
     end
 
     def build_grip_operation(axis, side, plane, cuts: nil)
