@@ -1328,20 +1328,33 @@ module MH
       # spec_data_dir có thể mang cả hai kiểu từ đường dẫn model, nên chuẩn hoá
       # về / trước khi tạo wildcard.
       data_pattern = data_dir.tr('\\', '/')
-      candidates = Dir.glob("#{data_pattern}/*.json").select do |path|
+      candidates = Dir.glob("#{data_pattern}/*.json").filter_map do |path|
         begin
           rows = JSON.parse(File.read(path, encoding: 'UTF-8'))
-          Array(rows).any? do |row|
+          has_material_rows = Array(rows).any? do |row|
             next false unless row.is_a?(Hash)
             product = row['Ma_SP'] || row['ma_sp'] || row['Mã SP'] || row['product_code']
             material = row['Ma_vat_lieu'] || row['ma_vat_lieu'] || row['Mã vật liệu'] || row['material_code']
             !product.to_s.strip.empty? && !material.to_s.strip.empty?
           end
+          has_material_rows ? [path, Array(rows)] : nil
         rescue
-          false
+          nil
         end
       end
-      selected = candidates.max_by { |path| File.mtime(path).to_f }
+      # The Desktop-generated JSON retains product name and E/F/G material
+      # specification. Prefer it over a newer legacy JSON that has codes only;
+      # otherwise the HUD silently loses its first and specification columns.
+      selected = candidates.max_by do |path, rows|
+        rich_rows = rows.count do |row|
+          next false unless row.is_a?(Hash)
+          name = row['Ten_SP'] || row['ten_sp'] || row['Tên SP']
+          spec = row['Quy_cach_vat_lieu'] || row['quy_cach_vat_lieu'] || row['Excel_E'] || row['Excel_F'] || row['Excel_G']
+          !name.to_s.strip.empty? && !spec.to_s.strip.empty?
+        end
+        [rich_rows.positive? ? 1 : 0, rich_rows, File.mtime(path).to_f]
+      end
+      selected = selected && selected[0]
       @latest_runtime_json_cache = { dir: data_dir, path: selected.to_s, checked_at: now }
       selected.to_s
     rescue
