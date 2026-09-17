@@ -100,7 +100,7 @@ module MH
         xml.to_enum(:scan, /<row\b[^>]*>(.*?)<\/row>/m).each do
           row_xml = Regexp.last_match(1)
           row_number += 1
-          cells = row_xml.to_enum(:scan, /<c\b([^>]*)(?:\/>|>(.*?)<\/c>)/m)
+          cells = row_xml.to_enum(:scan, /<c\b([^>]*?)(?:\/>|>(.*?)<\/c>)/m)
 
           if header_row.nil?
             found = {}
@@ -138,7 +138,7 @@ module MH
               # costly scan of every formatted cell through XFD.
               selected_source = selected_columns.keys.map { |col| Regexp.escape(col_letter(col)) }.join('|')
               selected_cell_pattern = Regexp.new(
-                '<c\\b([^>]*\\br=["\'](?:' + selected_source + ')\\d+["\'][^>]*)(?:/>|>(.*?)</c>)',
+                '<c\\b([^>]*?\\br=["\'](?:' + selected_source + ')\\d+["\'][^>]*?)(?:/>|>(.*?)</c>)',
                 Regexp::MULTILINE
               )
             elsif row_number >= header_row_limit
