@@ -92,6 +92,7 @@ module MH
         raise Error, "Khong doc duoc worksheet: #{sheet_name}" unless xml
 
         selected_columns = {}
+        selected_cell_pattern = nil
         output_rows = []
         header_row = nil
         row_number = 0
@@ -131,6 +132,15 @@ module MH
                 end
               end
               header_row = row_number
+              # Stream only the selected columns. The previous lookahead form
+              # could skip a valid E cell after blank/merged cells; matching
+              # the cell reference directly preserves E/F/G while avoiding a
+              # costly scan of every formatted cell through XFD.
+              selected_source = selected_columns.keys.map { |col| Regexp.escape(col_letter(col)) }.join('|')
+              selected_cell_pattern = Regexp.new(
+                '<c\\b([^>]*\\br=["\'](?:' + selected_source + ')\\d+["\'][^>]*)(?:/>|>(.*?)</c>)',
+                Regexp::MULTILINE
+              )
             elsif row_number >= header_row_limit
               break
             end
@@ -138,12 +148,7 @@ module MH
           end
 
           compact = {}
-          # Do not pre-filter with a column-letter regexp here. Some generated
-          # Excel files place valid shared-string cells (notably E: the detail
-          # role such as "CÁNH, MẶT LỘ") after a blank/merged cell, which the
-          # restrictive matcher can skip. The sheet is still streamed one row
-          # at a time; we only decode cells whose column is selected.
-          row_xml.to_enum(:scan, /<c\b([^>]*)(?:\/>|>(.*?)<\/c>)/m).each do
+          row_xml.to_enum(:scan, selected_cell_pattern).each do
             attrs = Regexp.last_match(1)
             body = Regexp.last_match(2)
             key = selected_columns[raw_cell_column(attrs)]
