@@ -50,7 +50,9 @@ module MH
           shown.each do |row|
             rect(view, x + 10, row_y, width - 20, row_height, row[:type] == :product ? :product : :row)
             text(view, x + 16, row_y + 5, truncate(row[:product_name], 19), bold: row[:type] == :product, size: 7)
-            text(view, x + 150, row_y + 5, truncate(row[:name], 19), bold: row[:type] == :product, size: 7)
+            # The material-code column is 160 px wide. Its previous 19-character
+            # limit was left over from the old 140 px column and hid valid codes.
+            text(view, x + 150, row_y + 5, truncate(row[:name], 27), bold: row[:type] == :product, size: 7)
             unless row[:type] == :product
               lines = wrap(row[:note], 48, 2)
               text(view, x + 310, row_y + 2, lines[0], size: 6)
