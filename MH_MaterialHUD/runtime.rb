@@ -49,6 +49,7 @@ module MH
       def hide
         @overlay.enabled = false if @overlay
         stop_timers
+        @picked_path = @picked_selection_ids = nil
         @index = nil unless @index && @index.complete
         Sketchup.active_model.select_tool(nil) if @tool_active
         Sketchup.active_model.active_view.invalidate
@@ -205,6 +206,9 @@ module MH
             entities = Array(model.active_path) + model.selection.to_a
             direct = entities.flat_map { |entity| ProductContext.codes_for_entity(entity) }
               .map { |code| ProductContext.base(code) }.uniq
+          if direct.empty? && @index.respond_to?(:products_for_entity_path)
+            direct = products_from_last_pick(model.selection.to_a)
+          end
           direct.empty? && @index.respond_to?(:products_for_entities) ? @index.products_for_entities(entities) : direct
           end
         else
@@ -241,6 +245,25 @@ module MH
         UI.stop_timer(@index_timer) if @index_timer
         @refresh_timer = @index_timer = nil
         @index = nil if @index && !@index.complete
+      end
+
+      # Called by InteractionTool immediately after it updates SketchUp's
+      # selection. Keep this only while that exact selection remains active;
+      # normal SketchUp selections must never reuse a stale pick path.
+      def remember_pick_path(path, selected_entity)
+        @picked_path = Array(path).select { |entity| entity && entity.respond_to?(:valid?) && entity.valid? }
+        @picked_selection_ids = selected_entity && selected_entity.respond_to?(:entityID) ? [selected_entity.entityID] : []
+      rescue
+        @picked_path = @picked_selection_ids = nil
+      end
+
+      def products_from_last_pick(selection)
+        ids = Array(selection).filter_map { |entity| entity.entityID if entity.respond_to?(:entityID) }.sort
+        return [] unless @picked_path && @picked_selection_ids == ids
+
+        @index.products_for_entity_path(@picked_path)
+      rescue
+        []
       end
 
       def tool_active=(value)

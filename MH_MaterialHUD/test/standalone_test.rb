@@ -172,6 +172,15 @@ class MaterialHudStandaloneTest < Minitest::Test
     assert index.complete
   end
 
+  def test_pick_path_uses_mapped_parent_before_shared_child
+    index = HUD::ModelIndex.allocate
+    index.instance_variable_set(:@entity_products, { 10 => 'SP09', 20 => 'SP03' })
+    parent = Struct.new(:entityID).new(10)
+    child = Struct.new(:entityID).new(20)
+
+    assert_equal ['SP09'], index.products_for_entity_path([parent, child])
+  end
+
   def test_color_values_are_not_material_codes
     refute HUD::ModelIndex.displayable_material_name?('#FFFFFF')
     refute HUD::ModelIndex.displayable_material_name?('#FFFFF')

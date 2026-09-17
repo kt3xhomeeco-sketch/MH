@@ -142,6 +142,7 @@ module MH
         picker = view.pick_helper
         picker.do_pick(x, y)
         entity = picker.best_picked
+        pick_path = picker.path_at(0) rescue []
         selection = Sketchup.active_model.selection
         if (flags & CONSTRAIN_MODIFIER_MASK) != 0
           if entity && entity.valid?
@@ -151,6 +152,7 @@ module MH
           selection.clear
           selection.add(entity) if entity && entity.valid?
         end
+        MaterialHUD.remember_pick_path(pick_path, entity) if (flags & CONSTRAIN_MODIFIER_MASK) == 0
         MaterialHUD.schedule_refresh
       end
 

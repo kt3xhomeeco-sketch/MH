@@ -114,6 +114,21 @@ module MH
         []
       end
 
+      # PickHelper retains the full container path for a clicked face/component.
+      # Prefer the first mapped ancestor: it is the actual group instance in
+      # the model, while a nested definition entity can be shared by several
+      # products and therefore has no reliable standalone owner.
+      def products_for_entity_path(path)
+        Array(path).each do |entity|
+          next unless entity.respond_to?(:entityID)
+          code = @entity_products[entity.entityID].to_s
+          return [code] unless code.empty?
+        end
+        []
+      rescue
+        []
+      end
+
       def world_points(entity, transform)
         bounds = if entity.respond_to?(:definition) && entity.definition
           entity.definition.bounds
