@@ -202,8 +202,10 @@ module MH
           if model.selection.empty?
             []
           else
-            (Array(model.active_path) + model.selection.to_a).flat_map { |entity| ProductContext.codes_for_entity(entity) }
+            entities = Array(model.active_path) + model.selection.to_a
+            direct = entities.flat_map { |entity| ProductContext.codes_for_entity(entity) }
               .map { |code| ProductContext.base(code) }.uniq
+          direct.empty? && @index.respond_to?(:products_for_entities) ? @index.products_for_entities(entities) : direct
           end
         else
           @index.visible_products(Sketchup.active_model.active_view)

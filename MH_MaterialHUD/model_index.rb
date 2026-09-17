@@ -11,6 +11,9 @@ module MH
         @materials = Hash.new { |hash, key| hash[key] = {} }
         @code_cache = {}
         @material_cache = {}
+        @entity_products = {}
+        @view = model.active_view if model.respond_to?(:active_view)
+        @spatial_markers = self.class.spatial_markers(model.entities, @view)
         @complete = false
         @visited = 0
         @walker = Enumerator.new do |output|
@@ -38,6 +41,7 @@ module MH
           next unless entity.valid?
           next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Face)
           if entity.is_a?(Sketchup::Face)
+            @entity_products[entity.entityID] = product unless product.empty?
             collect_material(entity.material, product)
             collect_material(entity.back_material, product)
             next
@@ -46,12 +50,13 @@ module MH
           code = @code_cache.fetch(text) do
             @code_cache[text] = ProductContext.base(ProductContext.code_from_entity(entity))
           end
-          next_product = code.empty? ? product : code
           world = transform * entity.transformation
+          inferred = code.empty? && product.empty? ? inferred_product(world_points(entity, world)) : ''
+          next_product = code.empty? ? (inferred.empty? ? product : inferred) : code
           path = definitions.map { |entry| entry[1] } + [entity]
-          if !code.empty? && code != product
-            bounds = entity.definition.bounds
-            @items << { code: code, path: path, points: (0..7).map { |i| bounds.corner(i).transform(world) } }
+          @entity_products[entity.entityID] = next_product unless next_product.empty?
+          if (!code.empty? && code != product) || !inferred.empty?
+            @items << { code: next_product, path: path, points: world_points(entity, world), inferred: !inferred.empty? }
           end
           collect_material(entity.material, next_product)
           definition = entity.definition
@@ -66,6 +71,105 @@ module MH
         return unless self.class.displayable_material_name?(name)
         code = @material_cache[name] ||= Catalog.material_key(name)
         @materials[product][code] = name unless code.empty?
+      end
+
+      # Test-only spatial ownership: markers are named 3D Text groups (SP09,
+      # SP10, ...). Nothing is written to the model; the result exists only in
+      # this HUD index and is recalculated when the index is rebuilt.
+      def inferred_product(points)
+        return '' if @spatial_markers.empty? || points.empty? || !@view
+
+        screen = @view.screen_coords(average_point(points))
+        candidates = @spatial_markers.filter_map do |marker|
+          dx = screen.x.to_f - marker[:x]
+          dy = marker[:y] - screen.y.to_f
+          next if dy <= 0
+
+          distance = Math.sqrt(dx * dx + dy * dy)
+          radius = marker[:radius]
+          next if distance > radius
+          # The label owns a forward-facing wedge, not the whole circle. This
+          # rejects nearby details that sit beside/below a different marker.
+          next if dx.abs > dy * 1.25 + marker[:width] * 0.5
+
+          marker.merge(distance: distance)
+        end
+        return '' if candidates.empty?
+
+        candidates.sort_by! { |entry| entry[:distance] }
+        first, second = candidates[0], candidates[1]
+        # A component nearly equidistant to two labels remains unassigned for
+        # review instead of being silently attached to the wrong product.
+        return '' if second && (second[:distance] - first[:distance]).abs < [first[:width], second[:width]].min * 0.15
+
+        first[:code]
+      rescue
+        ''
+      end
+
+      def products_for_entities(entities)
+        Array(entities).filter_map { |entity| @entity_products[entity.entityID] if entity.respond_to?(:entityID) }
+          .uniq.sort_by { |code| ProductContext.sort_key(code) }
+      rescue
+        []
+      end
+
+      def world_points(entity, transform)
+        bounds = if entity.respond_to?(:definition) && entity.definition
+          entity.definition.bounds
+        elsif entity.respond_to?(:bounds)
+          entity.bounds
+        end
+        return [] unless bounds && !bounds.empty?
+
+        (0..7).map { |index| bounds.corner(index).transform(transform) }
+      rescue
+        []
+      end
+
+      def average_point(points)
+        size = points.length.to_f
+        Geom::Point3d.new(
+          points.sum(&:x) / size,
+          points.sum(&:y) / size,
+          points.sum(&:z) / size
+        )
+      end
+
+      def self.spatial_markers(entities, view)
+        return [] unless entities && view
+
+        entities.to_a.filter_map do |entity|
+          next unless entity.valid?
+          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+
+          code = ProductContext.base(ProductContext.code_from_entity(entity))
+          definition_name = entity.respond_to?(:definition) && entity.definition ? entity.definition.name.to_s : ''
+          next if code.empty? || definition_name !~ /\AText#/i
+
+          points = begin
+            # Entity#bounds is already expressed in model coordinates. Applying
+            # entity.transformation here moves a label twice and makes nearby
+            # details appear to belong to a different SP marker.
+            bounds = entity.bounds
+            (0..7).map { |index| bounds.corner(index) }
+          rescue
+            []
+          end
+          next if points.empty?
+
+          screen = points.map { |point| view.screen_coords(point) }
+          xs = screen.map(&:x)
+          ys = screen.map(&:y)
+          width = xs.max.to_f - xs.min.to_f
+          height = ys.max.to_f - ys.min.to_f
+          next if width <= 0 || height <= 0
+
+          { code: code, x: (xs.min + xs.max) * 0.5, y: (ys.min + ys.max) * 0.5,
+            width: width, radius: [width * 3.0, height * 4.0, 120.0].max }
+        end
+      rescue
+        []
       end
 
       # SketchUp may expose a painted face with an auto-generated color such
