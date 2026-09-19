@@ -6,6 +6,7 @@ module MH::Stretch
     DIMENSION_AXIS_KEYS = { 39 => :x, 40 => :y, 38 => :z }.freeze
     PREF_SECTION = 'MH::Stretch'.freeze
     PREF_PLANE_GRIPS = 'show_plane_grips'.freeze
+    PREF_PLANE_XRAY = 'plane_xray'.freeze
     PREF_DEFAULT_PLANE = 'show_default_plane'.freeze
     PREF_ALLOW_EXTRA_PLANES = 'allow_extra_planes'.freeze
     PREF_DC_REDRAW = 'dc_redraw_enabled'.freeze
@@ -45,6 +46,8 @@ module MH::Stretch
       @last_unique_selection_key = nil
       @show_plane_grips =
         Sketchup.read_default(PREF_SECTION, PREF_PLANE_GRIPS, true) != false
+      @plane_xray =
+        Sketchup.read_default(PREF_SECTION, PREF_PLANE_XRAY, true) != false
       @show_default_plane =
         Sketchup.read_default(PREF_SECTION, PREF_DEFAULT_PLANE, true) != false
       @allow_extra_planes =
@@ -273,6 +276,12 @@ module MH::Stretch
       settings.set_validation_proc(grip_item) do
         @show_plane_grips ? MF_CHECKED : MF_UNCHECKED
       end
+      xray_item = settings.add_item('Hiện plane xuyên vật thể') do
+        toggle_plane_xray
+      end
+      settings.set_validation_proc(xray_item) do
+        @plane_xray ? MF_CHECKED : MF_UNCHECKED
+      end
       plane_item = settings.add_item('Hiện plane mặc định ở giữa') do
         toggle_default_plane
       end
@@ -285,7 +294,7 @@ module MH::Stretch
       settings.set_validation_proc(extra_item) do
         @allow_extra_planes ? MF_CHECKED : MF_UNCHECKED
       end
-      redraw_item = settings.add_item('Tự redraw DC sau stretch') do
+      redraw_item = settings.add_item('Tự redraw DC sau Stretch/Scale') do
         toggle_dc_redraw
       end
       settings.set_validation_proc(redraw_item) do
@@ -336,6 +345,7 @@ module MH::Stretch
         @creation_preview,
         dimension_preview,
         @show_plane_grips,
+        @plane_xray,
         @dimension_hits,
         @hover_dimension_axis
       ).draw
@@ -538,6 +548,14 @@ module MH::Stretch
       )
       @creation_preview = nil
       @ip.clear unless @allow_extra_planes
+      Sketchup.active_model.active_view.invalidate
+    end
+
+    def toggle_plane_xray
+      @plane_xray = !@plane_xray
+      Sketchup.write_default(PREF_SECTION, PREF_PLANE_XRAY, @plane_xray)
+      Sketchup.status_text =
+        @plane_xray ? 'MH Stretch | Plane xuyên vật thể: bật' : 'MH Stretch | Plane xuyên vật thể: tắt'
       Sketchup.active_model.active_view.invalidate
     end
 
@@ -1364,6 +1382,8 @@ module MH::Stretch
         type: :plane,
         id: id,
         start: [x, y],
+        origin: BoxModel.plane_center(@bb, plane),
+        start_pos: plane[:pos].to_f,
         started: false
       }
     end
@@ -1441,9 +1461,6 @@ module MH::Stretch
         @pinned_plane_id = plane[:id]
       end
 
-      @ip.pick(view, x, y)
-      return unless @ip.valid?
-
       if plane[:kind] == :offset_auto
         @offset_planes_enabled = false
         Sketchup.write_default(PREF_SECTION, PREF_OFFSET_PLANES, false)
@@ -1452,7 +1469,21 @@ module MH::Stretch
         Sketchup.status_text = 'MH Stretch | Đã chuyển offset plane thành plane user.'
       end
       plane[:kind] = :user
-      plane[:pos] = BoxModel.clamp_pos(BoxModel.axis_value(@ip.position, plane[:axis]), @bb, plane[:axis])
+      # Do not use InputPoint here. It snaps to any face behind the overlay,
+      # making an otherwise visible plane very difficult to drag. Screen-axis
+      # projection gives a model-independent movement delta instead.
+      amount = screen_axis_drag_amount(
+        x,
+        y,
+        view,
+        @drag[:origin],
+        axis_vector(plane[:axis]),
+        :plus,
+        @drag[:start]
+      )
+      return if amount.nil?
+
+      plane[:pos] = BoxModel.clamp_pos(@drag[:start_pos] + amount, @bb, plane[:axis])
       @state.set_active(kind: :plane, id: plane[:id])
     end
 

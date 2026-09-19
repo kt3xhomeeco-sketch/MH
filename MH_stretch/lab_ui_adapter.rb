@@ -73,26 +73,95 @@ module MH::Stretch
       return [] unless defined?(MH::Redraw)
       return [] unless MH::Redraw.respond_to?(:dynamic_component?)
 
-      model.selection.to_a.select { |entity| MH::Redraw.dynamic_component?(entity) }
-    rescue
+      components = []
+      seen = {}
+      model.selection.to_a.each do |entity|
+        collect_dynamic_components(entity, components, seen)
+      end
+      components
+    rescue => error
+      warn "MH Stretch DC collection failed: #{error.class}: #{error.message}"
       []
     end
 
+    # Redrawing a Dynamic Component can be expensive. Process one component per
+    # UI turn so SketchUp continues repainting, and only inspect the selected
+    # entity tree instead of scanning the whole model.
     def schedule_redraw_dynamic_components(components, delay: 0.05, &after_redraw)
       components = components.to_a.select { |entity| entity && entity.valid? }
       return 0 if components.empty?
 
       UI.stop_timer(@redraw_timer_id) if @redraw_timer_id
+      @redraw_generation = @redraw_generation.to_i + 1
+      generation = @redraw_generation
       @redraw_timer_id = UI.start_timer(delay, false) do
         @redraw_timer_id = nil
-        redraw_dynamic_components(components)
-        after_redraw.call if after_redraw
+        redraw_dynamic_components_in_batches(components, generation, &after_redraw)
       end
       components.length
     rescue => error
       @redraw_timer_id = nil
       warn "MH Stretch redraw schedule failed: #{error.class}: #{error.message}"
       0
+    end
+
+    def collect_dynamic_components(entity, components, seen)
+      return unless entity && entity.valid?
+
+      key = entity.entityID
+      return if seen[key]
+
+      seen[key] = true
+      if MH::Redraw.dynamic_component?(entity)
+        components << entity
+        return
+      end
+
+      children =
+        if entity.is_a?(Sketchup::Group)
+          entity.entities
+        elsif entity.is_a?(Sketchup::ComponentInstance)
+          entity.definition.entities
+        end
+      children.each { |child| collect_dynamic_components(child, components, seen) } if children
+    rescue => error
+      warn "MH Stretch DC tree walk failed: #{error.class}: #{error.message}"
+    end
+
+    def redraw_dynamic_components_in_batches(components, generation, index = 0, &after_redraw)
+      return unless generation == @redraw_generation
+
+      component = components[index]
+      unless component && component.valid?
+        return finish_batched_redraw(components, generation, index + 1, &after_redraw)
+      end
+
+      dc_class = MH::Redraw.dynamic_component_class
+      unless dc_class && dc_class.respond_to?(:redraw_with_undo)
+        return finish_batched_redraw(components, generation, components.length, &after_redraw)
+      end
+
+      Sketchup.status_text = "MH Stretch | Redraw DC #{index + 1}/#{components.length}"
+      begin
+        dc_class.redraw_with_undo(component)
+      rescue => error
+        warn "MH Stretch redraw #{component.entityID} failed: #{error.class}: #{error.message}"
+      end
+      finish_batched_redraw(components, generation, index + 1, &after_redraw)
+    end
+
+    def finish_batched_redraw(components, generation, next_index, &after_redraw)
+      return unless generation == @redraw_generation
+
+      if next_index < components.length
+        @redraw_timer_id = UI.start_timer(0.0, false) do
+          @redraw_timer_id = nil
+          redraw_dynamic_components_in_batches(components, generation, next_index, &after_redraw)
+        end
+      else
+        @redraw_timer_id = nil
+        after_redraw.call if after_redraw
+      end
     end
 
     def redraw_dynamic_components(components)

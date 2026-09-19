@@ -118,7 +118,25 @@ module MH::Stretch
         nxt = poly[(index + 1) % poly.length]
         return true if point_line_distance(x, y, pt, nxt) <= PLANE_EDGE_HIT_PX * @ui_factor
       end
-      false
+      point_inside_polygon?(x, y, poly)
+    end
+
+    # The plane used to be selectable only along its border. Treat its whole
+    # projected face as a hit area, so dragging anywhere on the face moves it.
+    def point_inside_polygon?(x, y, poly)
+      inside = false
+      previous = poly.last
+      poly.each do |current|
+        xi, yi = current
+        xj, yj = previous
+        crosses_scanline = (yi > y) != (yj > y)
+        if crosses_scanline
+          crossing_x = (xj - xi) * (y - yi).to_f / (yj - yi) + xi
+          inside = !inside if x < crossing_x
+        end
+        previous = current
+      end
+      inside
     end
 
     def point_line_distance(x, y, a, b)

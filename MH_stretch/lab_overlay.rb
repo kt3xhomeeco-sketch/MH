@@ -6,6 +6,8 @@ module MH::Stretch
     SIDE_GRIP_OFFSET_PX = 28
     GRID_SIZE_PX = 40
     GRID_MAX_DIVISIONS = 24
+    PLANE_OUTLINE_WIDTH = 6
+    PLANE_GRID_WIDTH = 6
 
     def initialize(
       view,
@@ -16,6 +18,7 @@ module MH::Stretch
       creation_preview = nil,
       dimension_preview = nil,
       show_plane_grips = true,
+      plane_xray = true,
       dimension_hits = nil,
       hover_dimension_axis = nil
     )
@@ -27,6 +30,7 @@ module MH::Stretch
       @creation_preview = creation_preview
       @dimension_preview = dimension_preview
       @show_plane_grips = show_plane_grips
+      @plane_xray = plane_xray
       @dimension_hits = dimension_hits
       @hover_dimension_axis = hover_dimension_axis
       @ui_factor = ui_scale
@@ -68,8 +72,7 @@ module MH::Stretch
 
         move_hot =
           @state.hover[:kind] == :plane &&
-          @state.hover[:id] == plane[:id] &&
-          @state.hover[:hit] == :grip
+          @state.hover[:id] == plane[:id]
         border_color = Sketchup::Color.new(220, 45, 45)
         content_color =
           if move_hot
@@ -79,7 +82,9 @@ module MH::Stretch
           end
         pts = BoxModel.display_plane_points(@bb, plane)
 
+        # Keep the idle red plane visually quiet; the hover-yellow plane stays clear.
         alpha = move_hot ? 82 : 54
+        line_alpha = move_hot ? 255 : 215
         @view.drawing_color = Sketchup::Color.new(
           content_color.red,
           content_color.green,
@@ -88,30 +93,10 @@ module MH::Stretch
         )
         @view.draw(GL_QUADS, pts)
 
-        pts2 = pts.map { |pt| screen_point(pt) }
-        @view.line_stipple = ''
-        @view.line_width = 2 * @ui_factor
-        @view.drawing_color = Sketchup::Color.new(
-          border_color.red,
-          border_color.green,
-          border_color.blue,
-          235
-        )
-        @view.draw2d(GL_LINE_LOOP, pts2)
-        draw_plane_grid(plane, pts, content_color)
+        draw_plane_outline(pts, border_color, line_alpha)
+        draw_plane_grid(plane, pts, content_color, line_alpha)
 
-        center = screen_point(BoxModel.plane_center(@bb, plane))
-        draw_square(center[0], center[1], border_color, move_hot)
-        next unless @show_plane_grips
-
-        [:minus, :plus].each do |side|
-          sx, sy = plane_side_grip_xy(plane, side)
-          grip_hot =
-            @state.hover[:kind] == :plane_grip &&
-            @state.hover[:id] == plane[:id] &&
-            @state.hover[:side] == side
-          draw_diamond(sx, sy, border_color, grip_hot, side)
-        end
+        draw_plane_controls(plane, border_color, move_hot)
       end
     end
 
@@ -123,14 +108,51 @@ module MH::Stretch
       @view.drawing_color = Sketchup::Color.new(color.red, color.green, color.blue, 45)
       @view.draw(GL_QUADS, pts)
 
-      @view.line_stipple = '-'
-      @view.line_width = 2 * @ui_factor
-      @view.drawing_color = Sketchup::Color.new(color.red, color.green, color.blue, 255)
-      @view.draw2d(GL_LINE_LOOP, pts.map { |pt| screen_point(pt) })
+      draw_plane_outline(pts, color, 255, '-')
+    end
+
+    def draw_plane_outline(pts, color, alpha, stipple = '')
+      @view.line_stipple = stipple
+      @view.line_width = PLANE_OUTLINE_WIDTH * @ui_factor
+      @view.drawing_color = Sketchup::Color.new(color.red, color.green, color.blue, alpha)
+      if @plane_xray
+        @view.draw2d(GL_LINE_LOOP, pts.map { |point| screen_point(point) })
+      else
+        @view.draw(GL_LINE_LOOP, pts)
+      end
       @view.line_stipple = ''
     end
 
-    def draw_plane_grid(plane, pts, color)
+    def draw_plane_controls(plane, color, move_hot)
+      center = BoxModel.plane_center(@bb, plane)
+      if @plane_xray
+        screen_center = screen_point(center)
+        draw_square(screen_center[0], screen_center[1], color, move_hot)
+        return unless @show_plane_grips
+
+        [:minus, :plus].each do |side|
+          sx, sy = plane_side_grip_xy(plane, side)
+          grip_hot =
+            @state.hover[:kind] == :plane_grip &&
+            @state.hover[:id] == plane[:id] &&
+            @state.hover[:side] == side
+          draw_diamond(sx, sy, color, grip_hot, side)
+        end
+      else
+        # 3D points participate in SketchUp's depth test, so hidden plane
+        # controls are hidden as well instead of floating over the object.
+        size = ((move_hot ? GRIP_PX + 3 : GRIP_PX + 1) * @ui_factor).to_i
+        @view.draw_points([center], size, 1, color)
+        return unless @show_plane_grips
+
+        [:minus, :plus].each do |side|
+          point = plane_side_grip_point(plane, side, center)
+          @view.draw_points([point], (GRIP_PX * @ui_factor).to_i, 2, color)
+        end
+      end
+    end
+
+    def draw_plane_grid(plane, pts, color, alpha)
       center = BoxModel.plane_center(@bb, plane)
       grid_size = @view.pixels_to_model(GRID_SIZE_PX * @ui_factor, center)
       return unless grid_size && grid_size > 0
@@ -152,9 +174,13 @@ module MH::Stretch
       return if segments.empty?
 
       @view.line_stipple = '-'
-      @view.line_width = 2 * @ui_factor
-      @view.drawing_color = Sketchup::Color.new(color.red, color.green, color.blue, 235)
-      @view.draw2d(GL_LINES, segments.map { |point| screen_point(point) })
+      @view.line_width = PLANE_GRID_WIDTH * @ui_factor
+      @view.drawing_color = Sketchup::Color.new(color.red, color.green, color.blue, alpha)
+      if @plane_xray
+        @view.draw2d(GL_LINES, segments.map { |point| screen_point(point) })
+      else
+        @view.draw(GL_LINES, segments)
+      end
       @view.line_stipple = ''
     end
 
@@ -297,6 +323,11 @@ module MH::Stretch
 
       offset = SIDE_GRIP_OFFSET_PX * @ui_factor
       [c.x + dx / len * offset, c.y + dy / len * offset]
+    end
+
+    def plane_side_grip_point(plane, side, center)
+      distance = @view.pixels_to_model(SIDE_GRIP_OFFSET_PX * @ui_factor, center)
+      center.offset(side_axis_vector(plane[:axis], side), distance)
     end
 
     def side_axis_vector(axis, side)
