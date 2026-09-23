@@ -119,9 +119,12 @@ module MH::Stretch
         view.tooltip = 'Click để chọn object'
         update_status
       else
-        @hover_dimension_axis = dimension_axis_at(x, y)
+        axis_locked = ctrl_down?(flags) && @active_axis
+        @hover_dimension_axis = axis_locked ? nil : dimension_axis_at(x, y)
         hit =
-          unless @hover_dimension_axis
+          if axis_locked
+            locked_axis_hit
+          elsif !@hover_dimension_axis
             HitTest.new(
               view,
               @bb,
@@ -129,7 +132,7 @@ module MH::Stretch
               @show_plane_grips
             ).hit(x, y)
           end
-        activate_hovered_axis(hit) if hit && hit[:kind] == :handle && !pinned_plane?
+        activate_hovered_axis(hit) if !axis_locked && hit && hit[:kind] == :handle && !pinned_plane?
         @state.set_hover(hit)
         @cursor_xy = [x, y]
         if hit || @hover_dimension_axis
@@ -771,7 +774,14 @@ module MH::Stretch
         @show_plane_grips
       ).hit_handle(x, y)
 
-      axis = handle_hit ? handle_hit[:axis] : @active_axis
+      # Ctrl continues the axis already selected by hover/click.  Do not let a
+      # handle passed under the cursor replace that axis while Ctrl is held.
+      axis = @active_axis || (handle_hit && handle_hit[:axis])
+      # The target point is still picked normally below. Ignore only a handle
+      # from another axis, otherwise it would replace the locked drag source.
+      if @active_axis && handle_hit && handle_hit[:axis] != @active_axis
+        handle_hit = nil
+      end
       unless axis
         Sketchup.status_text = 'MH Stretch | Chọn grip trục trước khi dùng target.'
         return
@@ -779,7 +789,9 @@ module MH::Stretch
 
       @target_ip.clear
       reference_point =
-        if handle_hit
+        if @active_axis
+          grip_reference_point(@active_axis, @active_side)
+        elsif handle_hit
           grip_reference_point(handle_hit[:axis], handle_hit[:side])
         else
           grip_reference_point
@@ -959,6 +971,10 @@ module MH::Stretch
     end
 
     def snap_reference_point(view, x, y)
+      # Ctrl is an axis lock once an axis has been selected. Its snap reference
+      # must stay on that axis even while the cursor travels across another one.
+      return grip_reference_point(@active_axis, @active_side) if @active_axis
+
       handle = HitTest.new(
         view,
         @bb,
@@ -2319,6 +2335,15 @@ module MH::Stretch
       side = hit[:side] || :plus
       switch_axis(axis, side)
       @state.set_active(kind: :handle, axis: axis, side: side)
+    end
+
+    def locked_axis_hit
+      {
+        kind: :handle,
+        axis: @active_axis,
+        side: @active_side || :plus,
+        hit: :ctrl_locked
+      }
     end
 
     def pinned_plane?
