@@ -565,14 +565,22 @@ module MH
 
         def global_parent_material_keys(material_code)
           key = material_code_key(material_code)
-          parents = Array(@global_material_parent_keys).map { |item| item.to_s.strip.upcase }.reject(&:empty?)
-          return [] if key.empty? || parents.include?(key)
+          return [] if key.empty?
 
+          # The thickness library itself declares the valid groups.  Do not
+          # require each group to be duplicated in material_code_rules.parent_codes:
+          # a paint code such as PLY.AC.05YR-08/272-30 normalizes to
+          # PLY.AC.SON.05YR-08/272-30, whose nearest thickness group is
+          # PLY.AC.SON.  The old direct-parent check rejected that group unless
+          # it was also listed as a global parent, and then incorrectly fell
+          # back to another material in the same product.
           parts = key.split('.').map(&:strip).reject(&:empty?)
-          return [] if parts.length <= 1
+          return [] if parts.empty?
 
-          direct_parent = parts.first(parts.length - 1).join('.')
-          parents.include?(direct_parent) ? [direct_parent] : []
+          # Nearest parent first.  The caller only accepts a candidate that
+          # actually exists in @thickness_options_by_type, so this remains
+          # data-driven and cannot select an undeclared thickness group.
+          (parts.length - 1).downto(1).map { |length| parts.first(length).join('.') }
         rescue
           []
         end
