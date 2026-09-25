@@ -160,7 +160,9 @@ module MH
 
           code = ProductContext.base(ProductContext.code_from_entity(entity))
           definition_name = entity.respond_to?(:definition) && entity.definition ? entity.definition.name.to_s : ''
-          next if code.empty? || definition_name !~ /\AText#/i
+          # The first native 3D Text definition is named "Text"; every later
+          # copy becomes "Text#1", "Text#2", ... . Both are product markers.
+          next if code.empty? || definition_name !~ /\AText(?:#|\z)/i
 
           points = begin
             # Entity#bounds is already expressed in model coordinates. Applying
