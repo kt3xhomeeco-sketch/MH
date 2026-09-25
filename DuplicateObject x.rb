@@ -117,7 +117,55 @@ module CustomPlugins
           direction[1] * distance,
           direction[2] * distance
         )
-        entity.transform!(Geom::Transformation.translation(vector))
+        base_transformation = entity.transformation
+        translation = Geom::Transformation.translation(vector)
+        entity.transform!(translation)
+        bake_duplicate_translation(entity, base_transformation, translation)
+      end
+
+      # MH Stretch classifies a crossing Group from its local origin. A regular
+      # duplicate is moved by changing only its instance transformation, so its
+      # visual location and local origin disagree on the first stretch. Bake
+      # just the duplicate offset into the now-unique copy instead. It keeps
+      # the visual result identical while giving Stretch stable local bounds.
+      def bake_duplicate_translation(entity, base_transformation, translation)
+        return unless entity.respond_to?(:transformation=)
+        return if dynamic_component?(entity)
+
+        entities =
+          if entity.is_a?(Sketchup::Group)
+            entity.entities
+          elsif entity.is_a?(Sketchup::ComponentInstance)
+            entity.definition.entities
+          end
+        return unless entities
+
+        targets = entities.to_a
+        return if targets.empty?
+
+        local_translation = base_transformation.inverse * translation * base_transformation
+        transformed_contents = false
+        entities.transform_entities(local_translation, targets)
+        transformed_contents = true
+        entity.transformation = base_transformation
+      rescue StandardError => error
+        if transformed_contents
+          begin
+            entities.transform_entities(local_translation.inverse, targets)
+          rescue StandardError
+            # Keep the already-visible instance transform if the rollback itself fails.
+          end
+        end
+        puts "[#{PLUGIN_NAME}] Khong bake offset duplicate: #{error.message}"
+      end
+
+      def dynamic_component?(entity)
+        return false unless entity.is_a?(Sketchup::ComponentInstance)
+
+        !entity.attribute_dictionary('dynamic_attributes', false).nil? ||
+          !entity.definition.attribute_dictionary('dynamic_attributes', false).nil?
+      rescue StandardError
+        false
       end
 
       def offset_distance(entity, axis)
