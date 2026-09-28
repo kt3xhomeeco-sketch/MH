@@ -704,9 +704,11 @@ module MH::Stretch
       return if model.selection.empty?
 
       model.start_operation('MH Stretch Make Unique', true)
+      repaired = UiAdapter.repair_missing_dynamic_component_attributes(model)
       changed = UiAdapter.make_unique_selection(model)
       model.commit_operation
-      Sketchup.status_text = "MH Stretch | Make unique #{changed} object."
+      suffix = repaired.positive? ? ", repaired #{repaired} DC copy" : ''
+      Sketchup.status_text = "MH Stretch | Make unique #{changed} object#{suffix}."
       @last_unique_selection_key = selection_key(model.selection.to_a)
       refresh_actual_bounds
     rescue => error
@@ -729,11 +731,14 @@ module MH::Stretch
       return 0 unless selection.any? { |entity| PlaneVertexSelector.group_or_component?(entity) }
 
       model.start_operation('MH Stretch Auto Make Unique', true)
+      repaired = UiAdapter.repair_missing_dynamic_component_attributes(model)
       changed = UiAdapter.make_unique_selection(model)
       model.commit_operation
       @last_unique_selection_key = selection_key(model.selection.to_a)
-      Sketchup.status_text = "MH Stretch | Auto make unique #{changed} object." if changed.positive?
-      changed
+      if changed.positive? || repaired.positive?
+        Sketchup.status_text = "MH Stretch | Auto make unique #{changed}, repaired #{repaired} DC copy."
+      end
+      changed + repaired
     rescue => error
       model.abort_operation rescue nil
       warn "MH::Stretch auto make unique failed: #{error.class}: #{error.message}"

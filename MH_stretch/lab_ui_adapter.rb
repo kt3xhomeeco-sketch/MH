@@ -84,6 +84,48 @@ module MH::Stretch
       []
     end
 
+    # Curic Align can create a Dynamic Component instance without its instance
+    # dictionary. A later DC redraw then falls back to stale definition values.
+    # Recover its full instance metadata from a sibling before make_unique
+    # separates the selected copy from that sibling. Normal DC instances are
+    # untouched.
+    def repair_missing_dynamic_component_attributes(model)
+      dynamic_components_for_redraw(model).count do |component|
+        repair_missing_instance_attributes(component)
+      end
+    rescue => error
+      warn "MH Stretch DC copy repair failed: #{error.class}: #{error.message}"
+      0
+    end
+
+    def repair_missing_instance_attributes(component)
+      return false unless component && component.valid?
+      return false unless component.is_a?(Sketchup::ComponentInstance)
+
+      instance_dictionary = component.attribute_dictionary('dynamic_attributes', false)
+      return false if instance_dictionary
+
+      sibling = component.definition.instances.find do |candidate|
+        candidate != component && candidate.valid? &&
+          candidate.attribute_dictionary('dynamic_attributes', false)
+      end
+      return false unless sibling
+
+      # A copy made through some third-party tools can lose every instance
+      # dictionary, not just dynamic_attributes. DC reads supporting instance
+      # state as well, so restore the complete set just like a native
+      # add_instance/copy would preserve it.
+      sibling.attribute_dictionaries.each do |dictionary|
+        dictionary.each_pair do |key, value|
+          component.set_attribute(dictionary.name, key, value)
+        end
+      end
+      true
+    rescue => error
+      warn "MH Stretch DC instance repair #{component.entityID} failed: #{error.class}: #{error.message}"
+      false
+    end
+
     # Redrawing a Dynamic Component can be expensive. Process one component per
     # UI turn so SketchUp continues repainting, and only inspect the selected
     # entity tree instead of scanning the whole model.
