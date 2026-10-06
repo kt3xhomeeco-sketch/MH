@@ -2,15 +2,19 @@
 
 Tài liệu này ghi lại kết cấu kiến trúc, các tính năng và cơ chế hoạt động của plugin **MH DWG Clipboard Import** nhằm giúp AI và các nhà phát triển hiểu nhanh dự án để nâng cấp hoặc sửa lỗi mà không làm ảnh hưởng đến các tính năng hiện có.
 
-## Bản test đang hoạt động: 1.2.5 — đặt native theo chuột
+## Bản đang hoạt động: 1.2.6 — đặt native theo chuột + Tag MH_DWG
 
 Lệnh `Paste CAD From Clipboard` mặc định gọi `paste_from_clipboard(:native)`: chọn DWG mới nhất → `definitions.import` → chuẩn hóa min XYZ thành gốc definition → `model.place_component(defn, false)`. Bản vẽ đi theo chuột bằng công cụ native của SketchUp, click đặt một lần, Esc hủy. Không tự đặt sẵn vào model rồi yêu cầu Move.
 
-Nhánh native không dùng `RotatePlaceTool`, timer tạo instance, observer hay sửa Tag sau khi đặt. Vì vậy Ctrl/Shift/Alt xoay, Tab đổi neo riêng của MH_DWG và tự gán Tag `MH_DWG` tạm không áp dụng trong bản test. Không đổi active Tag của người dùng. Nhánh cũ còn trong code và có thể gọi rõ ràng `paste_from_clipboard(:custom)` để so sánh; không tự fallback sang nhánh cũ khi lỗi native.
+Nhánh native không dùng `RotatePlaceTool` hay timer tạo instance. Ctrl/Shift/Alt xoay và Tab đổi neo riêng của MH_DWG vẫn không áp dụng. 1.2.6 thêm `NativePlacementTagger` (ToolsObserver một lần): callback chỉ xếp một timer, khi native placement đã kết thúc và đang ở Select mới gán Tag `MH_DWG` cho các instance mới của đúng definition và đúng entities context. Không thay đổi active Tag, vị trí/góc xoay, geometry hay Tag của block con. Nếu Tag đã có thì dùng lại; nếu chưa thì tạo trong operation gán Tag.
 
-1.2.4 đã xác nhận min XYZ về 0 nhưng người dùng vẫn báo crash khi bật Move gốc; do đó chưa đủ bằng chứng kết luận tọa độ xa là nguyên nhân. 1.2.5 chỉ thay công cụ đặt, vẫn dùng `definitions.import`, không phải toàn bộ pipeline File > Import thủ công. Chưa xác nhận đã hết crash hoặc lag lần import đầu.
+Nếu người dùng bật Move/Orbit/tool khác ngay trước timer, chờ quay về Select rồi mới gán Tag, không cưỡng ép thoát tool. Esc không đặt gì, đối tượng Undo/xóa, definition/model không hợp lệ, đổi model/edit context, paste tiếp và reload đều không được phép gán nhầm. Observer/timer được tháo trước thao tác gán Tag và khi hủy; không có timer lặp hay observer quét toàn model. Gán Tag là operation Undo riêng (`Tag CAD MH_DWG`), không ghép trễ vào operation native/người dùng: Undo lần đầu bỏ Tag, lần tiếp theo mới Undo placement (nếu không có thao tác xen giữa).
 
-Các phần mô tả `RotatePlaceTool`, phím xoay, timer và Tag bên dưới áp dụng cho nhánh custom cũ, không phải lệnh Paste mặc định của 1.2.5.
+Nhánh cũ còn trong code và có thể gọi rõ ràng `paste_from_clipboard(:custom)` để so sánh; không tự fallback sang nhánh cũ khi lỗi native.
+
+1.2.4 đã xác nhận min XYZ về 0 nhưng người dùng vẫn báo crash khi bật Move gốc; do đó chưa đủ bằng chứng kết luận tọa độ xa là nguyên nhân. 1.2.5 chỉ thay công cụ đặt, vẫn dùng `definitions.import`, không phải toàn bộ pipeline File > Import thủ công. Ngày 2026-10-06 người dùng xác nhận bản 1.2.5 hoạt động không bị out; đã lưu commit `8ad18aa` trước khi thêm Tag. Độ ổn định của bản 1.2.6 vẫn cần test thực tế sau nâng cấp.
+
+Các phần mô tả `RotatePlaceTool`, phím xoay và timer tạo instance bên dưới áp dụng cho nhánh custom cũ, không phải lệnh Paste mặc định của 1.2.6.
 
 ---
 
@@ -23,7 +27,7 @@ Các phần mô tả `RotatePlaceTool`, phím xoay, timer và Tag bên dưới �
 
 * **`MH_DWG.rb`** (Ngoài cùng):
   - Khai báo extension `MH DWG Clipboard Import` với SketchUp.
-  - Cấu hình thông tin cơ bản: Tác giả (`MH`), phiên bản `1.2.5`, mô tả và đăng ký load file `MH_DWG/main.rb`.
+  - Cấu hình thông tin cơ bản: Tác giả (`MH`), phiên bản `1.2.6`, mô tả và đăng ký load file `MH_DWG/main.rb`.
 * **`MH_DWG/main.rb`** (Quan trọng nhất):
   - Quét hai kiểu file DWG tạm trong Temp: `A$C*.dwg` của AutoCAD và `.dwg` có `.tmp` cùng tên của VinaCAD; sau đó chọn file mới nhất.
   - Dùng `model.definitions.import` (SketchUp 2021.1+) với `preserve_origin: false`; không kích hoạt giao diện đặt instance của importer. Log thực tế cho thấy importer vẫn giữ tọa độ CAD ở xa trong 1.2.3. Bản 1.2.4 dịch toàn bộ hình học ở cấp root của definition mới chưa có instance về góc min XYZ, kiểm tra bounds trước khi cho đặt; không chỉnh definition của block con dùng chung.
@@ -84,7 +88,7 @@ graph TD
 > [!IMPORTANT]
 > - **Không bọc importer trong Operation**: Dùng `model.definitions.import` độc lập; operation chuẩn hóa definition chỉ bắt đầu sau khi importer đã trả về và kết thúc trước preview. Operation đặt instance cuối cùng cũng độc lập.
 > - **Không tạo instance tạm trong preview**: Giữ preview là dữ liệu nét; không quay lại luồng import instance → ẩn → biến đổi → hiện.
-> - **Nhánh native mặc định**: Kết thúc operation chuẩn hóa trước `place_component`. Không bọc placement native trong operation riêng, không thêm callback/observer sửa geometry hoặc Tag sau khi click. Từ chối definition rỗng trước placement (SketchUp 2025 có lỗi native khi đặt definition rỗng).
+> - **Nhánh native mặc định**: Kết thúc operation chuẩn hóa trước `place_component`. Không bọc placement native trong operation riêng. Không sửa model trực tiếp trong callback observer; gán Tag phải nằm ở callback timer sau khi tool native kết thúc và đang Select. Không chỉnh geometry, active Tag hoặc Tag của block con. Từ chối definition rỗng trước placement (SketchUp 2025 có lỗi native khi đặt definition rỗng).
 > - **Nhánh custom: Đặt ngoài Tool callback**: Thoát Tool và tạo instance ở hai callback riêng; kiểm tra model, edit path, definition và hủy timer khi context đổi.
 > - **Giới hạn Preview**: Số lượng đường nét vẽ preview trên màn hình được giới hạn tối đa là 12,000 segments (`collect_preview_segments`) để tránh làm giảm FPS của viewport khi import các file CAD cực lớn.
 
@@ -92,5 +96,5 @@ graph TD
 
 Chạy ngoài SketchUp: `ruby MH_DWG/tests/placement_test.rb`.
 Test mô phỏng kiểm tra thứ tự tạo instance sau khi thoát Tool, Esc, đổi model/tool/edit path, definition bị vô hiệu hóa, paste liên tiếp, tọa độ nested context và xoay.
-Test nhánh mặc định xác nhận gọi native placement một lần với `repeat: false`, góc min thành origin dù không có vertex ở đó, không có custom Tool/timer/instance/Tag mutation, hủy placement custom đang chờ, từ chối definition rỗng và không fallback nếu native placement lỗi. Các test này không mô phỏng được preview/Move native thực tế.
+Test nhánh mặc định xác nhận gọi native placement một lần với `repeat: false`, góc min thành origin dù không có vertex ở đó, không có custom Tool/timer tạo instance/Tag mutation trong preview, hủy placement custom đang chờ, từ chối definition rỗng và không fallback nếu native placement lỗi. Test Tag xác nhận callback không sửa model, gán đúng component ở timer riêng, giữ transform/active Tag/block con, tái sử dụng Tag, Esc/Undo/xóa/đổi context/model/paste tiếp không gán nhầm, chờ Move kết thúc và cleanup observer. Các test này không mô phỏng được preview/Move native thực tế.
 Test kiểm tra mỗi lần import nhận `preserve_origin: false`, importer vẫn trả về tọa độ ở xa thì chuẩn hóa về 0, không sửa child definition dùng chung/definition đã có instance, và abort nếu không dịch được. Cần import mới trong SketchUp, kiểm tra điểm đặt, Move/xoay và chờ sau thao tác để xác định bản test có hết lag/crash hay không.

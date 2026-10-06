@@ -81,6 +81,7 @@ module UI
 end
 
 module Sketchup
+  class ToolsObserver; end
   class << self
     attr_accessor :active_model
     def set_status_text(*); end
@@ -99,13 +100,15 @@ module Sketchup
   class Face; end
   class Group; end
   class ComponentInstance
-    attr_accessor :layer, :transformation
+    attr_accessor :layer, :transformation, :valid, :parent
     attr_reader :definition, :model
     def initialize(definition, model, transformation)
       @definition, @model, @transformation = definition, model, transformation
+      @valid = true
+      @parent = model
       definition.instances << self
     end
-    def valid?; true; end
+    def valid?; @valid; end
     def visible?; true; end
     def bounds
       bounds = Geom::BoundingBox.new
@@ -178,6 +181,7 @@ end
 
 class FakeEntities < Array
   def initialize(model); @model = model; super(); end
+  def parent; @model; end
   def add_instance(definition, transform)
     raise 'Geometry created while custom Tool active' if @model.tool
     instance = Sketchup::ComponentInstance.new(definition, @model, transform)
@@ -197,9 +201,28 @@ class FakeView
   def pickray(*); [point, Z_AXIS]; end
 end
 
+class FakeTools
+  attr_reader :active_tool_id, :observers
+  attr_accessor :observer_failure, :active_tool
+  def initialize
+    @active_tool_id = 0
+    @observers = []
+  end
+  def add_observer(observer)
+    return false if observer_failure
+    observers << observer
+    true
+  end
+  def remove_observer(observer); observers.delete(observer); true; end
+  def change(id)
+    @active_tool_id = id
+    observers.dup.each { |observer| observer.onActiveToolChanged(self, '', id) }
+  end
+end
+
 class FakeModel
   attr_reader :active_entities, :definitions, :layers, :active_view, :commits, :aborts, :tool, :operation, :native_placements
-  attr_accessor :active_path, :edit_transform
+  attr_accessor :active_path, :edit_transform, :valid, :active_layer
   def initialize
     @active_entities = FakeEntities.new(self)
     @definitions = FakeDefinitions.new(self)
@@ -209,13 +232,17 @@ class FakeModel
     @commits = 0
     @aborts = 0
     @native_placements = []
+    @tools = FakeTools.new
+    @valid = true
+    @active_layer = 'original_tag'
   end
-  def valid?; true; end
-  def tools; Struct.new(:active_tool_id).new(tool ? 1 : 0); end
+  def valid?; @valid; end
+  def tools; @tools; end
   def place_component(definition, repeat)
     raise 'Native placement inside an operation' if operation
     raise 'Native placement with custom Tool active' if tool
     native_placements << [definition, repeat]
+    tools.change(21013)
     self
   end
   def select_tool(tool)
@@ -223,13 +250,19 @@ class FakeModel
     @tool = tool
     old.deactivate(active_view) if old
     tool.activate if tool
+    tools.change(tool ? 1 : 0)
   end
   def start_operation(*)
     raise 'Nested operation' if @operation
+    @operation_entities = active_entities.to_a.dup
     @operation = true
   end
   def commit_operation; @operation = false; @commits += 1; end
-  def abort_operation; @operation = false; @aborts += 1; active_entities.clear; end
+  def abort_operation
+    @operation = false
+    @aborts += 1
+    active_entities.replace(@operation_entities || [])
+  end
 end
 
 require_relative '../main'
@@ -240,10 +273,16 @@ end
 
 class PlacementTest < Minitest::Test
   def setup
+    MH::DWG.instance_variable_get(:@native_tagger)&.cancel!
     UI.timers, UI.messages = {}, []
     @model = Sketchup.active_model = FakeModel.new
     MH::DWG.instance_variable_set(:@importing, false)
     MH::DWG.instance_variable_set(:@placement_tool, nil)
+    MH::DWG.instance_variable_set(:@native_tagger, nil)
+  end
+
+  def teardown
+    MH::DWG.instance_variable_get(:@native_tagger)&.cancel!
   end
 
   def paste_and_click
@@ -267,6 +306,214 @@ class PlacementTest < Minitest::Test
     assert_equal 0, @model.commits
     refute @model.operation
     refute MH::DWG.instance_variable_get(:@importing)
+  end
+
+  def native_instance(definition = @model.definitions.definition)
+    instance = Sketchup::ComponentInstance.new(definition, @model,
+      Geom::Transformation.translation(Geom::Point3d.new(100, 200, 0)))
+    @model.active_entities << instance
+    instance
+  end
+
+  def test_native_tag_assignment_is_deferred_and_preserves_geometry_and_active_tag
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    transform = instance.transformation
+    bounds_before = instance.definition.bounds.max
+    @model.tools.change(21022)
+    assert_nil instance.layer
+    assert_empty @model.layers
+    assert_equal 0, @model.commits
+    UI.tick
+    assert_equal 'MH_DWG', instance.layer
+    assert_same transform, instance.transformation
+    assert_equal bounds_before, instance.definition.bounds.max
+    assert_equal 'original_tag', @model.active_layer
+    assert_equal [instance], @model.active_entities
+    assert_equal 1, @model.commits
+    assert_empty @model.tools.observers
+    assert_empty UI.timers
+  end
+
+  def test_native_tag_reuses_existing_tag_and_does_not_retag_nested_blocks
+    existing_tag = @model.layers['MH_DWG'] = Object.new
+    child = Sketchup::ComponentInstance.new(FakeDefinition.new, @model, IDENTITY)
+    child.layer = 'CAD original tag'
+    @model.definitions.import_definition = FakeDefinition.new([child])
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    UI.tick
+    assert_same existing_tag, instance.layer
+    assert_equal 'CAD original tag', child.layer
+    assert_equal 1, @model.layers.length
+  end
+
+  def test_native_escape_without_placement_does_not_create_tag_and_detaches
+    MH::DWG.paste_from_clipboard
+    @model.tools.change(21022)
+    UI.tick
+    assert_empty @model.layers
+    assert_empty @model.active_entities
+    assert_equal 0, @model.commits
+    assert_empty @model.tools.observers
+    assert_empty UI.timers
+  end
+
+  def test_native_tag_waits_while_move_is_active_without_closing_its_operation
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    @model.tools.change(21048)
+    @model.start_operation('Native Move', true)
+    UI.tick
+    assert_nil instance.layer
+    assert @model.operation
+    assert_equal 0, @model.commits
+    @model.commit_operation
+    @model.tools.change(21022)
+    UI.tick
+    assert_equal 'MH_DWG', instance.layer
+    assert_equal 2, @model.commits
+    assert_empty @model.tools.observers
+  end
+
+  def test_native_tag_does_not_modify_an_undone_or_deleted_instance
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    instance.valid = false
+    @model.active_entities.delete(instance)
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.layers
+    assert_equal 0, @model.commits
+    assert_empty @model.tools.observers
+  end
+
+  def test_native_tag_does_not_touch_unrelated_components_or_existing_instances
+    definition = FakeDefinition.new
+    old = native_instance(definition)
+    old.layer = 'old tag'
+    unrelated = native_instance(FakeDefinition.new)
+    unrelated.layer = 'unrelated tag'
+    tagger = MH::DWG::NativePlacementTagger.new(@model, definition)
+    @model.tools.change(21013)
+    tagger.arm!
+    recent = native_instance(definition)
+    @model.tools.change(21022)
+    UI.tick
+    assert_equal 'old tag', old.layer
+    assert_equal 'unrelated tag', unrelated.layer
+    assert_equal 'MH_DWG', recent.layer
+    assert_empty @model.tools.observers
+  end
+
+  def test_native_tag_cancelled_on_new_paste_does_not_retag_previous_import
+    MH::DWG.paste_from_clipboard
+    old = native_instance
+    @model.tools.change(21022)
+    MH::DWG.paste_from_clipboard
+    UI.tick
+    assert_nil old.layer
+    assert_empty @model.layers
+    assert_equal 1, @model.tools.observers.length
+    assert_equal 2, @model.native_placements.length
+  end
+
+  def test_native_tag_cancels_when_model_or_edit_context_changes
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    @model.active_path = [Object.new]
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.tools.observers
+    assert_empty @model.layers
+  end
+
+  def test_native_tag_cancels_when_active_model_changes
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    Sketchup.active_model = FakeModel.new
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.tools.observers
+    assert_empty @model.layers
+    assert_empty Sketchup.active_model.layers
+  end
+
+  def test_native_tag_cancels_when_definition_or_model_becomes_invalid
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    instance.definition.valid = false
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.tools.observers
+    assert_empty @model.layers
+  end
+
+  def test_native_tag_rejects_instance_in_another_entities_context
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    instance.parent = FakeDefinition.new
+    @model.tools.change(21022)
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.layers
+    assert_empty @model.tools.observers
+  end
+
+  def test_native_tag_observer_registration_failure_is_reported_without_placement
+    @model.tools.observer_failure = true
+    MH::DWG.paste_from_clipboard
+    assert_empty @model.native_placements
+    assert_empty @model.tools.observers
+    assert_empty UI.timers
+    assert_match(/Không theo dõi được công cụ đặt CAD/, UI.messages.last)
+    refute MH::DWG.instance_variable_get(:@importing)
+  end
+
+  def test_native_tag_failure_aborts_only_tag_operation_without_removing_placed_cad
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    def instance.layer=(_); raise 'Simulated tag failure'; end
+    @model.tools.change(21022)
+    UI.tick
+    assert_equal [instance], @model.active_entities
+    assert_equal 1, @model.aborts
+    refute @model.operation
+    assert_empty @model.tools.observers
+    assert_empty UI.timers
+    assert_match(/Simulated tag failure/, UI.messages.last)
+  end
+
+  def test_native_tag_does_not_mutate_while_ruby_tool_is_active_with_zero_id
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.active_tool = Object.new
+    @model.tools.change(0)
+    UI.tick
+    assert_nil instance.layer
+    assert_equal 0, @model.commits
+    @model.tools.active_tool = nil
+    @model.tools.change(21022)
+    UI.tick
+    assert_equal 'MH_DWG', instance.layer
+    assert_empty @model.tools.observers
+  end
+
+  def test_native_tag_cancels_if_model_is_closed_before_timer
+    MH::DWG.paste_from_clipboard
+    instance = native_instance
+    @model.tools.change(21022)
+    @model.valid = false
+    UI.tick
+    assert_nil instance.layer
+    assert_empty @model.tools.observers
+    assert_empty UI.timers
   end
 
   def test_native_mouse_anchor_is_whole_drawing_minimum_even_without_a_vertex_there

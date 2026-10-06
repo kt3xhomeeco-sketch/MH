@@ -119,6 +119,88 @@ module MH
       inst.layer = tag
     end
 
+    # Hot reload must not leave a previous session's observer/timer alive.
+    @native_tagger.cancel! if @native_tagger
+    @native_tagger = nil
+
+    class NativePlacementTagger < Sketchup::ToolsObserver
+      def initialize(model, definition)
+        @model, @definition = model, definition
+        @entities = model.active_entities
+        @active_path = model.active_path&.dup
+        @existing_instances = definition.instances.to_a.dup
+        @tools = model.tools
+        @active = true
+        @armed = false
+        @timer = nil
+        @attached = @tools.add_observer(self)
+        raise "Không theo dõi được công cụ đặt CAD." unless @attached
+      end
+
+      def arm!
+        @armed = true
+        DWG.log_event("paste.native_tag_armed", tool_id: @tools.active_tool_id)
+      end
+
+      def onActiveToolChanged(_tools, _name, _tool_id)
+        return unless @active && @armed
+        return if @timer
+        # Notifications are read-only. Wait for the native callback to return.
+        @timer = UI.start_timer(0.0, false) do
+          @timer = nil
+          finish_if_idle
+        end
+      rescue => e
+        cancel!
+        DWG.log_event("paste.native_tag_error", error: "#{e.class}: #{e.message}")
+      end
+
+      def cancel!
+        @active = false
+        UI.stop_timer(@timer) if @timer
+        @timer = nil
+        @tools.remove_observer(self) if @attached
+        @attached = false
+      rescue => e
+        DWG.log_event("paste.native_tag_cleanup_error", error: "#{e.class}: #{e.message}")
+      end
+
+      def finish_if_idle
+        return unless @active
+        unless @model.valid? && Sketchup.active_model == @model && @definition.valid? &&
+               @model.active_path == @active_path && @model.active_entities == @entities
+          cancel!
+          return
+        end
+        # Do not start an operation during placement, Orbit, Move or another
+        # editing tool. If the user immediately presses M, wait until Select.
+        return unless @tools.active_tool.nil? && [0, 21022].include?(@tools.active_tool_id)
+
+        instances = @definition.instances.to_a.reject { |instance| @existing_instances.include?(instance) }
+        instances.select! { |instance| instance.valid? && instance.parent == @entities.parent }
+        cancel! # One-shot; detach before making any model changes.
+        if instances.empty?
+          DWG.log_event("paste.native_tag_cancelled", reason: "no_placed_instance")
+          return
+        end
+
+        operation_open = false
+        # Keep this separate from native placement's Undo. A delayed transparent
+        # operation could otherwise merge into an unrelated user action.
+        raise "Không mở được operation gán Tag CAD." unless @model.start_operation("Tag CAD MH_DWG", true)
+        operation_open = true
+        instances.each { |instance| DWG.assign_tag(instance, @model) }
+        @model.commit_operation
+        operation_open = false
+        DWG.log_event("paste.native_tag_assigned", tag: TAG_NAME, instances: instances.map { |instance| DWG.entity_log(instance) })
+      rescue => e
+        @model.abort_operation if operation_open
+        cancel!
+        DWG.log_event("paste.native_tag_error", error: "#{e.class}: #{e.message}")
+        UI.messagebox("CAD đã đặt nhưng chưa gán được Tag MH_DWG: #{e.message}")
+      end
+    end
+
     def self.import_options
       # Request recentering, but verify/fix the actual definition coordinates:
       # our SU 2025 DefinitionList#import results retained the CAD origin.
@@ -637,6 +719,8 @@ module MH
       # Cancel even a placement timer whose Tool has already handed off.
       @placement_tool.cancel_pending! if @placement_tool
       @placement_tool = nil
+      @native_tagger.cancel! if @native_tagger
+      @native_tagger = nil
       log_event("paste.before_select_tool_nil")
       model.select_tool(nil)
       log_event("paste.after_select_tool_nil")
@@ -662,11 +746,12 @@ module MH
       if placement_mode == :native
         # Normalization makes the whole drawing's min XYZ the definition origin.
         # SketchUp owns the mouse-follow preview, click, cancel and transaction.
-        # No custom Tool, add_instance callback, timer, observer or post-place
-        # Tag mutation is used in this diagnostic path. Keep the old custom
-        # path available explicitly for comparison, not as an automatic fallback.
+        # A one-shot observer only queues Tag assignment after native placement
+        # exits to Select. It never creates, hides or transforms an instance.
         log_event("paste.before_native_placement", defn: definition_summary(defn), anchor_mode: "bounds_min", repeat: false)
+        @native_tagger = NativePlacementTagger.new(model, defn)
         raise "Không bật được công cụ đặt CAD native." unless model.place_component(defn, false)
+        @native_tagger.arm!
         log_event("paste.native_placement_started")
         return
       end
@@ -679,6 +764,7 @@ module MH
       model.select_tool(@placement_tool)
       log_event("paste.after_select_rotate_tool")
     rescue => e
+      @native_tagger.cancel! if import_owned && @native_tagger
       log_event("paste.error", error: "#{e.class}: #{e.message}", backtrace: e.backtrace&.first(8))
       UI.messagebox("Lỗi import CAD: #{e.class}: #{e.message}")
     ensure
