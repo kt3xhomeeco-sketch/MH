@@ -84,15 +84,94 @@ module MH
     end
 
     def self.find_clipboard_dwg
-      temp = ENV['TEMP'].tr('\\', '/')
-      Dir.glob("#{temp}/A$C*.dwg").max_by { |f| File.mtime(f) }
+      # AutoCAD uses A$C*.dwg. VinaCAD creates a regular .dwg (for example
+      # 8f0.dwg) and a .tmp file with the same basename. Scan both sources,
+      # then use the one copied most recently.
+      temp = ENV.fetch("TEMP").tr("\\", "/")
+      autocad_files = Dir.glob(File.join(temp, "A$C*.dwg"), File::FNM_CASEFOLD)
+      vinacad_files = Dir.glob(File.join(temp, "*.dwg"), File::FNM_CASEFOLD)
+                         .select { |file| vinacad_clipboard_temp_dwg?(file) }
+      candidates = (autocad_files + vinacad_files).uniq
+      newest = candidates.max_by { |file| File.mtime(file) }
+
+      log_event(
+        "clipboard.dwg_path_selected",
+        autocad_files: autocad_files,
+        vinacad_files: vinacad_files,
+        selected_path: newest,
+        selected_mtime: (File.mtime(newest).to_s if newest)
+      )
+      newest
+    rescue => e
+      log_event("clipboard.dwg_path_error", error: "#{e.class}: #{e.message}")
+      nil
     end
 
-    def self.assign_tag(inst)
+    def self.vinacad_clipboard_temp_dwg?(file)
+      return false if File.basename(file).match?(/\AA\$C.+\.dwg\z/i)
+      basename = File.basename(file, ".dwg")
+      File.file?(File.join(File.dirname(file), "#{basename}.tmp"))
+    end
+
+    def self.assign_tag(inst, model = inst.model)
       return unless inst.is_a?(Sketchup::ComponentInstance)
-      model = Sketchup.active_model
       tag = model.layers[TAG_NAME] || model.layers.add(TAG_NAME)
       inst.layer = tag
+    end
+
+    def self.import_options
+      # Request recentering, but verify/fix the actual definition coordinates:
+      # our SU 2025 DefinitionList#import results retained the CAD origin.
+      { preserve_origin: false }
+    end
+
+    def self.normalize_definition_origin(defn, model)
+      # Only an unused, newly imported root may be edited. Moving a child
+      # definition would also alter other CAD blocks which share that child.
+      raise "Không chuẩn hóa CAD đã có instance trong model." unless defn.instances.empty?
+      bounds = defn.bounds
+      raise "CAD không có bounds hợp lệ." if bounds.empty?
+      offset = bounds.min
+      coordinates = [offset.x.to_f, offset.y.to_f, offset.z.to_f]
+      raise "Tọa độ CAD không hợp lệ." unless coordinates.all?(&:finite?)
+      if coordinates.all? { |value| value.abs <= 1.0e-6 }
+        log_event("paste.origin_already_normalized", bounds_min: point_log(offset))
+        return
+      end
+
+      operation_open = false
+      started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      log_event("paste.before_normalize_origin", defn: definition_summary(defn))
+      raise "Không mở được operation chuẩn hóa CAD." unless model.start_operation("Chuẩn hóa gốc CAD", true)
+      operation_open = true
+      shift = Geom::Transformation.translation(Geom::Point3d.new(-offset.x, -offset.y, -offset.z))
+      # Transform all root geometry together; nested block definitions are not
+      # edited. The unused definition is outside the active drawing context.
+      result = defn.entities.transform_entities(shift, defn.entities.to_a)
+      raise "Không dịch được hình học CAD về gốc." unless result
+      defn.invalidate_bounds
+      normalized_bounds = defn.bounds
+      raise "Bounds CAD rỗng sau chuẩn hóa." if normalized_bounds.empty?
+      minimum = normalized_bounds.min
+      unless [minimum.x.to_f, minimum.y.to_f, minimum.z.to_f].all? { |value| value.finite? && value.abs <= 1.0e-6 }
+        raise "Gốc CAD chưa chuẩn hóa; dừng đặt để tránh dùng tọa độ cũ."
+      end
+      model.commit_operation
+      operation_open = false
+      duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started_at) * 1000).round(2)
+      log_event("paste.after_normalize_origin", original_min: point_log(offset), defn: definition_summary(defn), duration_ms: duration_ms)
+    rescue
+      model.abort_operation if operation_open
+      raise
+    end
+
+    def self.placement_anchor_points(defn)
+      # Definition bounds include nested CAD blocks in definition coordinates.
+      # Start at the whole drawing's min X/Y/Z corner, not near CAD's X axis.
+      bounds = defn.bounds
+      base_point = bounds.empty? ? ORIGIN : bounds.min
+      alternatives = find_all_vertices_on_x_axis(defn.entities)
+      [base_point] + alternatives.reject { |point| point == base_point }
     end
 
     # Tìm vertex gần trục X nhất - CHỈ level 1 + bounding box cho nested
@@ -168,8 +247,16 @@ module MH
       SNAP_RADIUS = 20
 
       def initialize(source, base_offset = ORIGIN, all_axis_vertices = nil)
-        @inst = source if source.is_a?(Sketchup::ComponentInstance)
-        @defn = @inst ? @inst.definition : source
+        @model = Sketchup.active_model
+        @entities = @model.active_entities
+        @active_path = Array(@model.active_path).dup
+        @context_inverse = @model.edit_transform.inverse
+        @defn = source
+        @inst = nil
+        @active = false
+        @handoff = false
+        @placement_pending = false
+        @placement_timer = nil
         @all_axis_vertices = all_axis_vertices || [base_offset]
         @current_vertex_index = 0
         @base_offset = @all_axis_vertices[@current_vertex_index]
@@ -190,7 +277,7 @@ module MH
       end
 
       def activate
-        model = Sketchup.active_model
+        model = @model
         log_tool("activate_start")
         unless @defn && @defn.valid?
           log_tool("activate_invalid_definition")
@@ -198,7 +285,7 @@ module MH
           model.select_tool(nil)
           return
         end
-        @inst.visible = false if @inst&.valid?
+        @active = true
         @preview_segments = collect_preview_segments(@defn.entities)
         @preview_segments = bounds_preview_segments(@defn) if @preview_segments.empty?
         vertex_count = @all_axis_vertices.length
@@ -208,11 +295,21 @@ module MH
 
       def deactivate(view)
         log_tool("deactivate", placed: @placed, finalizing: @finalizing, op_open: @op_open)
-        cleanup_unplaced_instance unless @placed || @finalizing
+        @active = false
+        cancel_pending! unless @handoff
+        @preview_segments = []
         view.invalidate
       end
 
+      def cancel_pending!
+        UI.stop_timer(@placement_timer) if @placement_timer
+        @placement_timer = nil
+        @placement_pending = false
+        @finalizing = false unless @placed
+      end
+
       def onMouseMove(flags, x, y, view)
+        return unless @active && !@finalizing && context_valid?
         @ip.pick(view, x, y)
 
         ray = view.pickray(x, y)
@@ -244,7 +341,7 @@ module MH
       end
 
       def draw(view)
-        return unless @current_pos
+        return unless @active && @current_pos && context_valid?
 
         draw_preview(view)
         
@@ -258,7 +355,7 @@ module MH
 
       def onLButtonDown(flags, x, y, view)
         log_tool("left_button_down", flags: flags, x: x, y: y, current_pos: MH::DWG.point_log(@current_pos), rot: @rot, finalizing: @finalizing)
-        return if @finalizing || !@current_pos
+        return if @finalizing || !@active || !@current_pos || !context_valid?
 
         if (flags & COPY_MODIFIER_MASK) != 0 # Ctrl
           @rot[2] += 90 # Xoay trục Z
@@ -288,16 +385,38 @@ module MH
         end
 
         @finalizing = true
+        @placement_pending = true
+        @final_transform = @context_inverse * @preview_transform
         log_tool("finalize_timer_scheduled", transform: MH::DWG.transform_log(@preview_transform), inst: MH::DWG.entity_log(@inst))
         Sketchup.set_status_text("Đang đặt CAD...", SB_PROMPT)
 
-        # Đừng commit operation ngay trong callback chuột. Với DWG import lớn,
-        # SketchUp 2025 rất dễ BugSplat khi đóng undo transaction trong lúc tool
-        # event vẫn đang chạy, đặc biệt sau vài lần xoay/transform preview.
-        UI.start_timer(0.0, false) { finalize_placement(view) }
+        # Leave the Tool first, then create geometry in a separate UI callback.
+        # During preview there is no imported instance to hide or transform.
+        @placement_timer = UI.start_timer(0.0, false) do
+          @placement_timer = nil
+          if @placement_pending && context_valid?
+            begin
+              @handoff = true
+              @model.select_tool(nil)
+            ensure
+              @handoff = false
+            end
+            @handoff_tool_id = @model.tools.active_tool_id
+            if @placement_pending
+              @placement_timer = UI.start_timer(0.05, false) do
+                @placement_timer = nil
+                finalize_placement(view)
+              end
+            end
+          else
+            cancel_pending!
+            log_tool("finalize_cancelled_context_changed")
+          end
+        end
       end
 
       def onKeyDown(key, repeat, flags, view)
+        return false unless @active && !@finalizing && context_valid?
         if key == 9 # Tab key
           return if @all_axis_vertices.length <= 1
           
@@ -317,10 +436,19 @@ module MH
 
       def onCancel(reason, view)
         log_tool("cancel", reason: reason, placed: @placed, finalizing: @finalizing)
-        Sketchup.active_model.select_tool(nil)
+        cancel_pending!
+        @model.select_tool(nil) if Sketchup.active_model == @model
       end
 
       private
+
+      def context_valid?
+        Sketchup.active_model == @model && @model.valid? &&
+          @model.active_entities == @entities &&
+          Array(@model.active_path) == @active_path && @defn&.valid?
+      rescue
+        false
+      end
 
       def log_tool(event, data = {})
         MH::DWG.log_event("tool.#{event}", data.merge(log_id: @log_id))
@@ -333,7 +461,7 @@ module MH
         log_tool("mouse_move", flags: flags, x: x, y: y, current_pos: MH::DWG.point_log(@current_pos), snapped: @snapped, rot: @rot, preview_segments: @preview_segments.length, transform: MH::DWG.transform_log(@preview_transform))
       end
 
-      def collect_preview_segments(entities, transform = IDENTITY, segments = [], limit = 12_000)
+      def collect_preview_segments(entities, transform = IDENTITY, segments = [], limit = 12_000, ancestors = [])
         entities.each do |ent|
           break if segments.length >= limit
 
@@ -345,7 +473,9 @@ module MH
             ]
           when Sketchup::ComponentInstance, Sketchup::Group
             next unless ent.valid?
-            collect_preview_segments(ent.definition.entities, transform * ent.transformation, segments, limit)
+            definition = ent.definition
+            next if ancestors.include?(definition) || ancestors.length >= 64
+            collect_preview_segments(definition.entities, transform * ent.transformation, segments, limit, ancestors + [definition])
           end
         end
 
@@ -414,51 +544,25 @@ module MH
         false
       end
 
-      def cleanup_unplaced_instance
-        log_tool("cleanup_start", inst: MH::DWG.entity_log(@inst), op_open: @op_open)
-        return unless @inst&.valid?
-
-        model = Sketchup.active_model
-        log_tool("cleanup_start_operation")
-        model.start_operation("Hủy đặt CAD", true)
-        @op_open = true
-        log_tool("cleanup_before_erase", inst: MH::DWG.entity_log(@inst))
-        @inst.erase!
-        log_tool("cleanup_before_commit")
-        model.commit_operation
-        @op_open = false
-        log_tool("cleanup_done")
-      rescue
-        log_tool("cleanup_error", op_open: @op_open)
-        begin
-          model.abort_operation if @op_open && model
-        rescue
-        end
-        @op_open = false
-      end
-
       def finalize_placement(view)
-        model = Sketchup.active_model
+        unless @placement_pending && context_valid? && @model.tools.active_tool_id == @handoff_tool_id
+          cancel_pending!
+          log_tool("finalize_cancelled_context_changed")
+          return
+        end
+        @placement_pending = false
+        model = @model
         log_tool("finalize_start", inst: MH::DWG.entity_log(@inst), defn: MH::DWG.definition_summary(@defn), transform: MH::DWG.transform_log(@preview_transform))
 
         log_tool("finalize_before_start_operation")
         model.start_operation("Đặt CAD", true)
         @op_open = true
         log_tool("finalize_after_start_operation")
-        if @inst&.valid?
-          log_tool("finalize_before_transform_existing", inst: MH::DWG.entity_log(@inst))
-          @inst.transformation = @preview_transform || IDENTITY
-          log_tool("finalize_after_transform_existing", inst: MH::DWG.entity_log(@inst))
-          log_tool("finalize_before_visible_true")
-          @inst.visible = true
-          log_tool("finalize_after_visible_true", inst: MH::DWG.entity_log(@inst))
-        else
-          log_tool("finalize_before_add_instance")
-          @inst = model.active_entities.add_instance(@defn, @preview_transform || IDENTITY)
-          log_tool("finalize_after_add_instance", inst: MH::DWG.entity_log(@inst))
-        end
+        log_tool("finalize_before_add_instance")
+        @inst = @entities.add_instance(@defn, @final_transform)
+        log_tool("finalize_after_add_instance", inst: MH::DWG.entity_log(@inst))
         log_tool("finalize_before_assign_tag")
-        MH::DWG.assign_tag(@inst)
+        MH::DWG.assign_tag(@inst, model)
         log_tool("finalize_after_assign_tag", inst: MH::DWG.entity_log(@inst))
         log_tool("finalize_before_commit")
         model.commit_operation
@@ -466,10 +570,7 @@ module MH
         @placed = true
         log_tool("finalize_after_commit", inst: MH::DWG.entity_log(@inst))
 
-        log_tool("finalize_before_select_tool_nil")
-        model.select_tool(nil)
         log_tool("finalize_done")
-        schedule_post_finalize_watchdog
       rescue => e
         log_tool("finalize_error", error: "#{e.class}: #{e.message}", backtrace: e.backtrace&.first(8), op_open: @op_open)
         begin
@@ -483,27 +584,8 @@ module MH
           # Ignore cleanup errors so the user still gets the real failure.
         end
         UI.messagebox("Lỗi đặt CAD: #{e.class}: #{e.message}")
-        cleanup_unplaced_instance unless @placed
-        model.select_tool(nil) if model
       ensure
-        view.invalidate if view
-      end
-
-      def schedule_post_finalize_watchdog
-        [0.2, 1.0, 3.0, 8.0].each do |delay|
-          UI.start_timer(delay, false) do
-            log_tool(
-              "post_finalize_watchdog",
-              delay: delay,
-              active_tool: (Sketchup.active_model.tools.active_tool.class.name rescue nil),
-              inst: MH::DWG.entity_log(@inst),
-              model_entities: (Sketchup.active_model.active_entities.length rescue nil),
-              selected_count: (Sketchup.active_model.selection.length rescue nil)
-            )
-          end
-        end
-      rescue => e
-        log_tool("post_finalize_watchdog_error", error: "#{e.class}: #{e.message}", backtrace: e.backtrace&.first(5))
+        view.invalidate if view && Sketchup.active_model == @model && @model.valid?
       end
 
       def update_transform
@@ -535,10 +617,14 @@ module MH
     # ============================================================
     #                   IMPORT + PLACE
     # ============================================================
-    def self.paste_from_clipboard
+    def self.paste_from_clipboard(placement_mode = :native)
+      return if @importing
+      raise ArgumentError, "Unknown CAD placement mode" unless [:native, :custom].include?(placement_mode)
+      import_owned = true
+      @importing = true
       model = Sketchup.active_model
-      view = model.active_view
-      log_event("paste.start", active_path: (model.path rescue nil), entities_before: (model.active_entities.length rescue nil))
+      pipeline = placement_mode == :native ? "definition_native_placement" : "definition_preview_then_place"
+      log_event("paste.start", pipeline: pipeline, active_path: (model.path rescue nil), entities_before: (model.active_entities.length rescue nil))
 
       dwg = find_clipboard_dwg
       unless dwg
@@ -548,89 +634,55 @@ module MH
 
       log_event("paste.dwg_found", path: dwg, size: (File.size(dwg) rescue nil), mtime: (File.mtime(dwg).to_s rescue nil))
 
-      # Deactivate tool đang chạy (nếu có) -> abort preview op cũ, tránh
-      # import chạy trong khi 1 operation đang mở (nested op -> BugSplat).
+      # Cancel even a placement timer whose Tool has already handed off.
+      @placement_tool.cancel_pending! if @placement_tool
+      @placement_tool = nil
       log_event("paste.before_select_tool_nil")
       model.select_tool(nil)
       log_event("paste.after_select_tool_nil")
 
-      cam = view.camera
-      eye, target, up = cam.eye.clone, cam.target.clone, cam.up.clone
-      is_perspective = cam.perspective?
-      fov_or_height = is_perspective ? cam.fov : cam.height
-
-      before = model.active_entities.to_a
-      log_event("paste.before_import", active_entities: before.length)
-
-      # QUAN TRỌNG: KHÔNG bọc model.import trong start_operation.
-      # import tự quản transaction riêng — lồng vào operation khác = nested
-      # operation -> hỏng undo stack -> BugSplat (sập trễ vài giây sau).
-      unless model.import(dwg, {})
-        log_event("paste.import_failed")
+      # Import a definition only. Do not create a visible native-import instance,
+      # hide it, or transform it while SketchUp is still updating import state.
+      # The importer manages its own transaction; no operation encloses it.
+      options = import_options
+      log_event("paste.before_definition_import", options: options)
+      import_started_at = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+      defn = model.definitions.import(dwg, options)
+      import_duration_ms = ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - import_started_at) * 1000).round(2)
+      unless defn && defn.valid? && defn.entities.length > 0
+        log_event("paste.definition_import_failed")
         return UI.messagebox("Import DWG lỗi!")
       end
-      log_event("paste.after_import", active_entities: (model.active_entities.length rescue nil))
+      log_event("paste.after_definition_import", defn: definition_summary(defn), active_entities: model.active_entities.length, duration_ms: import_duration_ms)
+      return unless Sketchup.active_model == model && model.valid?
 
-      new_ents = model.active_entities.to_a - before
-      log_event("paste.new_entities", summary: entities_summary(new_ents), sample: new_ents.first(10).map { |ent| entity_log(ent) })
+      normalize_definition_origin(defn, model)
+      return unless Sketchup.active_model == model && model.valid? && defn.valid?
 
-      if new_ents.empty?
-        log_event("paste.no_new_entities")
-        return UI.messagebox("Không có gì import!")
+      if placement_mode == :native
+        # Normalization makes the whole drawing's min XYZ the definition origin.
+        # SketchUp owns the mouse-follow preview, click, cancel and transaction.
+        # No custom Tool, add_instance callback, timer, observer or post-place
+        # Tag mutation is used in this diagnostic path. Keep the old custom
+        # path available explicitly for comparison, not as an automatic fallback.
+        log_event("paste.before_native_placement", defn: definition_summary(defn), anchor_mode: "bounds_min", repeat: false)
+        raise "Không bật được công cụ đặt CAD native." unless model.place_component(defn, false)
+        log_event("paste.native_placement_started")
+        return
       end
 
-      # Gom + tạo definition trong 1 operation RIÊNG (sau khi import xong).
-      defn = nil
-      placement_inst = nil
-      base_point = nil
-      all_axis_vertices = nil
-      log_event("paste.before_process_operation")
-      model.start_operation("Xử lý CAD", true)
-      log_event("paste.after_process_operation_start")
-      begin
-        if new_ents.length == 1 && (new_ents[0].is_a?(Sketchup::ComponentInstance) || new_ents[0].is_a?(Sketchup::Group))
-          first_ent = new_ents[0]
-          log_event("paste.single_import_entity", entity: entity_log(first_ent))
-          inst = first_ent.is_a?(Sketchup::Group) ? first_ent.to_component : first_ent
-        else
-          log_event("paste.before_group_new_entities")
-          group = model.active_entities.add_group(new_ents)
-          log_event("paste.after_group_new_entities", group: entity_log(group))
-          inst = group.to_component
-        end
-        log_event("paste.after_to_component", inst: entity_log(inst))
-
-        defn = inst.definition
-        base_point = find_vertex_on_x_axis(defn.entities)
-        all_axis_vertices = find_all_vertices_on_x_axis(defn.entities)
-        log_event("paste.definition_ready", defn: definition_summary(defn), base_point: point_log(base_point), axis_vertices: all_axis_vertices.length)
-
-        log_event("paste.before_hide_import_instance", inst: entity_log(inst))
-        inst.visible = false
-        placement_inst = inst
-        log_event("paste.before_process_commit")
-        model.commit_operation
-        log_event("paste.after_process_commit", placement_inst: entity_log(placement_inst))
-      rescue => e
-        log_event("paste.process_error", error: "#{e.class}: #{e.message}", backtrace: e.backtrace&.first(8))
-        model.abort_operation
-        return UI.messagebox("Lỗi xử lý CAD: #{e.message}")
-      end
-
-      log_event("paste.before_camera_restore")
-      cam.set(eye, target, up)
-      if is_perspective
-        cam.perspective = true
-        cam.fov = fov_or_height
-      else
-        cam.perspective = false
-        cam.height = fov_or_height
-      end
-      log_event("paste.after_camera_restore")
-
-      log_event("paste.before_select_rotate_tool", placement_inst: entity_log(placement_inst), defn: definition_summary(defn))
-      model.select_tool(RotatePlaceTool.new(placement_inst || defn, base_point, all_axis_vertices))
+      all_axis_vertices = placement_anchor_points(defn)
+      base_point = all_axis_vertices.first
+      log_event("paste.definition_ready", defn: definition_summary(defn), base_point: point_log(base_point), anchor_mode: "bounds_min", axis_vertices: all_axis_vertices.length)
+      @placement_tool = RotatePlaceTool.new(defn, base_point, all_axis_vertices)
+      log_event("paste.before_select_rotate_tool", defn: definition_summary(defn))
+      model.select_tool(@placement_tool)
       log_event("paste.after_select_rotate_tool")
+    rescue => e
+      log_event("paste.error", error: "#{e.class}: #{e.message}", backtrace: e.backtrace&.first(8))
+      UI.messagebox("Lỗi import CAD: #{e.class}: #{e.message}")
+    ensure
+      @importing = false if import_owned
     end
 
     unless file_loaded?(__FILE__)
