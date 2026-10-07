@@ -83,7 +83,7 @@ module MH::Stretch
         pts = BoxModel.display_plane_points(@bb, plane)
 
         # Keep the idle red plane visually quiet; the hover-yellow plane stays clear.
-        alpha = move_hot ? 82 : 54
+        alpha = move_hot ? 82 : 27
         line_alpha = move_hot ? 255 : 215
         @view.drawing_color = Sketchup::Color.new(
           content_color.red,

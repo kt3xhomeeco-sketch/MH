@@ -82,7 +82,8 @@ module Stretch
       moved += move_containers(buckets[:containers], world_delta)
       moved += move_curves(buckets[:curves], world_delta)
       moved += move_vertex_buckets(buckets[:vertex_buckets], world_delta)
-      remove_new_coplanar_seams(edge_snapshot)
+      restore_target_edge_states(edge_snapshot)
+      merge_coplanar_faces(edge_snapshot)
       moved
     end
 
@@ -97,39 +98,85 @@ module Stretch
       scopes.compact.uniq.each_with_object({}) do |entities, snapshot|
         snapshot[entities.object_id] = {
           entities: entities,
-          edge_keys: entities.grep(Sketchup::Edge).each_with_object({}) do |edge, keys|
-            keys[edge_key(edge)] = true
+          vertex_positions: entities.grep(Sketchup::Edge).flat_map(&:vertices).uniq.each_with_object({}) do |vertex, positions|
+            positions[vertex_key(vertex)] = vertex.position.clone
+          end,
+          edge_states: entities.grep(Sketchup::Edge).each_with_object({}) do |edge, states|
+            states[edge_key(edge)] = {
+              soft: edge.soft?,
+              smooth: edge.smooth?,
+              hidden: edge.hidden?
+            }
           end
         }
       end
     end
 
-    def remove_new_coplanar_seams(snapshot)
+    def restore_target_edge_states(snapshot)
+      snapshot.each_value do |entry|
+        states = entry[:edge_states]
+        entry[:entities].grep(Sketchup::Edge).each do |edge|
+          state = states[edge_key(edge)]
+          next unless state
+
+          edge.soft = state[:soft]
+          edge.smooth = state[:smooth]
+          edge.hidden = state[:hidden]
+        rescue => error
+          warn "MH Stretch edge style restore failed: #{error.class}: #{error.message}"
+        end
+      end
+      true
+    rescue => error
+      warn "MH Stretch edge style restore failed: #{error.class}: #{error.message}"
+      false
+    end
+
+    # Match Cleanup's Merge Coplanar Faces with Ignore Normals enabled, but
+    # only inspect edges created or moved by this stretch. Opposite face
+    # normals are intentionally accepted.
+    def merge_coplanar_faces(snapshot)
       snapshot.each_value do |entry|
         entities = entry[:entities]
-        old_keys = entry[:edge_keys]
-        seams = entities.grep(Sketchup::Edge).select do |edge|
-          !old_keys[edge_key(edge)] && removable_coplanar_seam?(edge)
+        old_edge_states = entry[:edge_states]
+        old_vertex_positions = entry[:vertex_positions]
+        candidates = entities.grep(Sketchup::Edge).select do |edge|
+          next false unless changed_by_stretch?(edge, old_edge_states, old_vertex_positions)
+
+          removable_coplanar_seam?(edge)
         end
-        entities.erase_entities(seams) unless seams.empty?
+        candidates.each do |edge|
+          entities.erase_entities(edge) if edge.valid? && removable_coplanar_seam?(edge)
+        end
       end
     rescue => error
-      warn "MH Stretch seam cleanup failed: #{error.class}: #{error.message}"
+      warn "MH Stretch coplanar face merge failed: #{error.class}: #{error.message}"
       0
     end
 
     def removable_coplanar_seam?(edge)
-      return false unless edge.valid? && edge.curve.nil? && edge.faces.length == 2
-      return false if edge.soft? || edge.smooth? || edge.hidden?
+      return false unless edge.valid? && edge.faces.length == 2
 
       first, second = edge.faces
-      return false unless first.normal.samedirection?(second.normal)
-      return false unless second.vertices.first.position.distance_to_plane(first.plane).abs <= 0.01.mm
+      return false unless second.vertices.all? do |vertex|
+        vertex.position.distance_to_plane(first.plane).abs <= 0.01.mm
+      end
       return false unless first.material == second.material
       return false unless first.back_material == second.back_material
       return false unless first.layer == second.layer
 
       true
+    rescue
+      false
+    end
+
+    def changed_by_stretch?(edge, old_edge_states, old_vertex_positions)
+      return true unless old_edge_states.key?(edge_key(edge))
+
+      edge.vertices.any? do |vertex|
+        old_position = old_vertex_positions[vertex_key(vertex)]
+        old_position.nil? || old_position.distance(vertex.position) > 0.001.mm
+      end
     rescue
       false
     end

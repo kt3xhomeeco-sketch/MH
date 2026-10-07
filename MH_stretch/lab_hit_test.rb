@@ -65,13 +65,17 @@ module MH::Stretch
     end
 
     def hit_face_handle(x, y)
+      best_hit = nil
+      best_distance = HANDLE_HIT_PX * @ui_factor
       BoxModel.face_handles(@bb).each do |key, point|
         sp = @view.screen_coords(point)
-        next if Math.hypot(x - sp.x, y - sp.y) > HANDLE_HIT_PX * @ui_factor
+        distance = Math.hypot(x - sp.x, y - sp.y)
+        next if distance > best_distance
 
-        return { kind: :handle, axis: key[:axis], side: key[:side] }
+        best_distance = distance
+        best_hit = { kind: :handle, axis: key[:axis], side: key[:side] }
       end
-      nil
+      best_hit
     end
 
     # A visible axis is also a grip.  Previously only its two endpoint cubes
@@ -80,6 +84,8 @@ module MH::Stretch
     # still selects that exact side; a line hit selects the nearer side.
     def hit_axis_line(x, y)
       handles = BoxModel.face_handles(@bb)
+      best_hit = nil
+      best_distance = AXIS_HIT_PX * @ui_factor
       BoxModel::AXES.each do |axis|
         minus = handles.find { |key, _| key[:axis] == axis && key[:side] == :minus }&.last
         plus = handles.find { |key, _| key[:axis] == axis && key[:side] == :plus }&.last
@@ -88,11 +94,12 @@ module MH::Stretch
         start = @view.screen_coords(minus)
         finish = @view.screen_coords(plus)
         distance, t = point_segment_distance(x, y, start.x, start.y, finish.x, finish.y)
-        next unless distance <= AXIS_HIT_PX * @ui_factor
+        next if distance > best_distance
 
-        return { kind: :handle, axis: axis, side: t < 0.5 ? :minus : :plus, hit: :axis }
+        best_distance = distance
+        best_hit = { kind: :handle, axis: axis, side: t < 0.5 ? :minus : :plus, hit: :axis }
       end
-      nil
+      best_hit
     end
 
     def hit_plane_body(x, y)

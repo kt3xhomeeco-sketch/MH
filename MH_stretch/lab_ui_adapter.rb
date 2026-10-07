@@ -21,7 +21,12 @@ module MH::Stretch
     def bbox_handle_cut_planes(axis, side, planes)
       return [] unless planes
 
-      list = planes.select { |item| item[:axis] == axis && item[:usable] }
+      # Hidden default planes only keep legacy UI state; they are not actual
+      # cut planes. Including one per selected copy makes a multi-selection
+      # divide the requested distance by the number of copies.
+      list = planes.select do |item|
+        item[:axis] == axis && item[:usable] && !item[:hidden]
+      end
       list = list.sort_by { |item| item[:pos].to_f }
       side == :plus ? list : list.reverse
     end
@@ -35,6 +40,7 @@ module MH::Stretch
       return ui_result(false, 0, 'MH Stretch: không có plane hợp lệ.') unless plane
 
       planes = stretch_planes(plane)
+      return ui_result(false, 0, 'MH Stretch: không có plane hợp lệ.') if planes.empty?
       if planes.length > 1 && StretchOperation.respond_to?(:commit_many)
         StretchOperation.commit_many(
           model,
@@ -82,6 +88,121 @@ module MH::Stretch
     rescue => error
       warn "MH Stretch DC collection failed: #{error.class}: #{error.message}"
       []
+    end
+
+    # A geometric stretch edits the component definition directly. Before the
+    # Dynamic Components redraw rebuilds that definition, synchronize the
+    # instance's unconstrained length attributes to the geometry that now
+    # exists; otherwise redraw uses stale lenx/leny/lenz values and can resize
+    # the stretched component a second time (or restore its old thickness).
+    def dynamic_component_anchor_sides(components, axis)
+      return {} unless axis
+
+      model = Sketchup.active_model
+      components.to_a.each_with_object({}) do |component, anchors|
+        next unless component && component.valid? && component.is_a?(Sketchup::ComponentInstance)
+        next unless top_level_component?(component, model)
+
+        bounds = component.bounds
+        origin_value = BoxModel.axis_value(component.transformation.origin, axis).to_f
+        min_value = BoxModel.axis_min(bounds, axis).to_f
+        max_value = BoxModel.axis_max(bounds, axis).to_f
+        key = component.respond_to?(:persistent_id) ? component.persistent_id : component.entityID
+        anchors[[key, axis]] = (origin_value - min_value).abs <= (origin_value - max_value).abs ? :min : :max
+      end
+    rescue => error
+      warn "MH Stretch DC anchor capture failed: #{error.class}: #{error.message}"
+      {}
+    end
+
+    def sync_dynamic_component_lengths(components, axes:, anchors: {})
+      live = components.to_a.select do |component|
+        component && component.valid? && component.is_a?(Sketchup::ComponentInstance)
+      end
+      return 0 if live.empty?
+
+      axis_keys = axes.to_a.map { |axis| { x: 'lenx', y: 'leny', z: 'lenz' }[axis] }.compact.uniq
+      return 0 if axis_keys.empty?
+
+      model = Sketchup.active_model
+      synced = 0
+      model.start_operation('MH Stretch Sync DC Dimensions', true)
+      live.each do |component|
+        axes.each do |axis|
+          key = component.respond_to?(:persistent_id) ? component.persistent_id : component.entityID
+          rebase_dynamic_component_origin(component, axis, anchors[[key, axis]])
+        end
+
+        bounds = component.bounds
+        dictionary = component.attribute_dictionary('dynamic_attributes', true)
+        lengths = { 'lenx' => bounds.width, 'leny' => bounds.height, 'lenz' => bounds.depth }
+        axis_keys.each do |key|
+          formula = dynamic_attribute_value(component, "_#{key}_formula")
+          next unless formula.to_s.strip.empty?
+
+          value = lengths.fetch(key).to_f
+          dictionary[key] = value
+          dictionary["_#{key}_nominal"] = value
+          synced += 1
+        end
+      end
+      model.commit_operation
+      synced
+    rescue => error
+      model.abort_operation rescue nil
+      warn "MH Stretch DC dimension sync failed: #{error.class}: #{error.message}"
+      0
+    end
+
+    # Keep the same outer face anchored through DC redraw. Moving the instance
+    # origin alone would move the model geometry too, so compensate its
+    # definition contents by the inverse local-space displacement.
+    def rebase_dynamic_component_origin(component, axis, anchor)
+      return false unless anchor
+      return false unless top_level_component?(component, Sketchup.active_model)
+
+      bounds = component.bounds
+      target = anchor == :max ? BoxModel.axis_max(bounds, axis) : BoxModel.axis_min(bounds, axis)
+      origin = component.transformation.origin
+      amount = target.to_f - BoxModel.axis_value(origin, axis).to_f
+      return false if amount.abs <= 0.001.mm
+
+      world_delta = BoxModel.axis_delta_vector(axis, amount)
+      old_transform = component.transformation
+      local_back = Geom::Vector3d.new(-world_delta.x, -world_delta.y, -world_delta.z).transform(old_transform.inverse)
+      content_transform = Geom::Transformation.translation(local_back)
+      entities = component.definition.entities
+      vertices = entities.grep(Sketchup::Edge).flat_map(&:vertices).uniq
+      entities.transform_entities(content_transform, vertices) unless vertices.empty?
+      entities.each do |child|
+        next unless child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
+
+        child.transformation = content_transform * child.transformation
+      end
+      component.transformation = Geom::Transformation.translation(world_delta) * old_transform
+      component.definition.invalidate_bounds if component.definition.respond_to?(:invalidate_bounds)
+      true
+    rescue => error
+      warn "MH Stretch DC origin rebase failed: #{error.class}: #{error.message}"
+      false
+    end
+
+    def top_level_component?(component, model)
+      parent = component.parent
+      parent == model || parent == model.entities
+    rescue
+      false
+    end
+
+    def dynamic_attribute_value(component, key)
+      instance_dictionary = component.attribute_dictionary('dynamic_attributes', false)
+      value = instance_dictionary[key] if instance_dictionary
+      return value unless value.nil?
+
+      definition_dictionary = component.definition.attribute_dictionary('dynamic_attributes', false)
+      definition_dictionary && definition_dictionary[key]
+    rescue
+      nil
     end
 
     # Curic Align can create a Dynamic Component instance without its instance
@@ -336,8 +457,11 @@ module MH::Stretch
 
     def stretch_planes(plane)
       source = plane && plane[:planes]
-      planes = source.to_a.select { |item| item && item[:axis] && item[:pos] }
-      planes = [plane] if planes.empty?
+      planes = source.to_a.select do |item|
+        item && item[:axis] && item[:pos] && !item[:hidden]
+      end
+      planes = [plane] if planes.empty? && plane && !plane[:hidden]
+      return [] if planes.empty?
       side = plane[:side] || :plus
       planes.map do |item|
         item.merge(side: side)

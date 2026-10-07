@@ -64,6 +64,8 @@ module MH::Stretch
       @no_plane_mode = read_no_plane_mode
       @dimension_offset_axes = read_dimension_offset_axes
       @pending_redraw_components = []
+      @pending_redraw_axes = []
+      @pending_redraw_anchors = {}
     end
 
     def activate
@@ -132,7 +134,9 @@ module MH::Stretch
               @show_plane_grips
             ).hit(x, y)
           end
-        activate_hovered_axis(hit) if !axis_locked && hit && hit[:kind] == :handle && !pinned_plane?
+        if !axis_locked && hit && hit[:kind] == :handle && !pinned_plane?
+          activate_hovered_axis(hit)
+        end
         @state.set_hover(hit)
         @cursor_xy = [x, y]
         if hit || @hover_dimension_axis
@@ -601,6 +605,17 @@ module MH::Stretch
     end
 
     def toggle_plane_mode
+      # Tab can be pressed before the cursor has selected any endpoint/axis.
+      # Give the default plane a deterministic axis from the selected bounds
+      # (the longest usable dimension) so the plane is still visible.
+      if !@active_axis && !BoxModel.empty_bounds?(@bb)
+        axes = BoxModel::AXES.select { |axis| BoxModel.usable_axis?(@bb, axis) }
+        @active_axis = (axes.empty? ? BoxModel::AXES : axes).max_by do |axis|
+          BoxModel.axis_length(@bb, axis).to_f.abs
+        end
+        @active_side = :plus
+      end
+
       if @offset_plane_divisions
         @offset_planes_enabled = true
         @offset_plane_divisions = nil
@@ -641,7 +656,9 @@ module MH::Stretch
       if @offset_planes_enabled
         @planes.clear_defaults!
         @planes.clear_hidden_defaults!
-        sync_offset_planes if @active_axis
+        if @active_axis
+          ensure_active_axis_plane
+        end
       else
         @planes.clear_offset_planes!
         @planes.clear_hidden_defaults!
@@ -851,13 +868,23 @@ module MH::Stretch
           }
         else
           plane = active_plane_for(axis)
-          cuts = UiAdapter.bbox_handle_cut_planes(axis, side, @planes.planes)
+          plane_snapshot = plane && plane.dup
+          cuts =
+            if plane_snapshot && !plane_snapshot[:hidden]
+              [plane_snapshot]
+            else
+              UiAdapter.bbox_handle_cut_planes(axis, side, @planes.planes).map(&:dup)
+            end
+          plane_side = plane_snapshot ? displayed_plane_side(plane_snapshot, side) : side
           {
             axis: axis,
-            side: side,
-            plane_id: plane && plane[:id],
+            side: plane_side,
+            input_side: side,
+            amount_sign: plane_side == side ? 1.0 : -1.0,
+            plane_id: plane_snapshot && plane_snapshot[:id],
+            plane: plane_snapshot,
             cuts: cuts,
-            box_grip: plane.nil? && cuts.empty?
+            box_grip: plane_snapshot.nil? && cuts.empty?
           }
         end
       @target_source_point = source.clone
@@ -866,9 +893,10 @@ module MH::Stretch
       @preview_segments = []
       @creation_preview = nil
       if @target_point
-        amount =
+        raw_amount =
           BoxModel.axis_value(@target_point, axis) -
           BoxModel.axis_value(@target_source_point, axis)
+        amount = signed_operation_amount(@target_operation, raw_amount)
         @target_operation[:amount] = amount
         @preview_segments = preview_operation(@target_operation, amount)
       end
@@ -892,9 +920,10 @@ module MH::Stretch
         @target_operation[:axis]
       )
       return unless @target_point
-      amount =
+      raw_amount =
         BoxModel.axis_value(@target_point, @target_operation[:axis]) -
         BoxModel.axis_value(@target_source_point, @target_operation[:axis])
+      amount = signed_operation_amount(@target_operation, raw_amount)
       @target_operation[:amount] = amount
       @preview_segments = preview_operation(@target_operation, amount)
       view.tooltip = @target_ip.valid? ? @target_ip.tooltip : ''
@@ -1309,7 +1338,12 @@ module MH::Stretch
         return result[:changed].to_i
       end
 
-      side = cuts.length == 1 ? (cuts.first[:side] || :plus) : :plus
+      side =
+        if cuts.length == 1
+          displayed_plane_side(cuts.first, cuts.first[:side] || :plus)
+        else
+          :plus
+        end
       vector = BoxModel.axis_delta_vector(axis, stretch_amount_for_side(side, offset))
       model = Sketchup.active_model
       targets = model.selection.to_a
@@ -1351,8 +1385,15 @@ module MH::Stretch
 
     def input_dimension(axis, view)
       dimension_side = dimension_input_side(axis)
-      switch_axis(axis, dimension_side)
-      dimension_planes = dimension_cut_planes(axis)
+      # Do not call switch_axis for the already-active axis: it would
+      # re-sync an endpoint-selected plane to the Tab/default position just
+      # before the dimension operation snapshots the visible cuts.
+      if @active_axis != axis
+        switch_axis(axis, dimension_side)
+      else
+        @active_side = dimension_side
+      end
+      dimension_planes = dimension_cut_planes(axis).map(&:dup)
       plane = dimension_planes.first || dimension_stretch_plane(axis, dimension_side)
       if plane && plane[:id]
         @state.set_active(kind: :plane, id: plane[:id])
@@ -1393,6 +1434,10 @@ module MH::Stretch
       finish_model_change(result, view)
     end
 
+    def signed_operation_amount(operation, raw_amount)
+      raw_amount.to_f * (operation && operation[:amount_sign] || 1.0)
+    end
+
     def start_plane_drag(id, x, y)
       plane = @planes.by_id(id)
       return unless plane
@@ -1410,20 +1455,39 @@ module MH::Stretch
     end
 
     def start_grip_drag(axis, side, x, y, view)
-      switch_axis(axis, side)
+      input_side = side || :plus
+      switch_axis(axis, input_side)
       plane = active_plane_for(axis)
-      cuts = @no_plane_mode ? [] : UiAdapter.bbox_handle_cut_planes(axis, side, @planes.planes)
-      box_grip = plane.nil? && cuts.empty?
+      plane_snapshot = plane && plane.dup
+      axis_cuts =
+        if @no_plane_mode
+          []
+        else
+          UiAdapter.bbox_handle_cut_planes(axis, input_side, @planes.planes).map(&:dup)
+        end
+      cuts = axis_cuts
+      box_grip = plane_snapshot.nil? && cuts.empty?
+      # The grabbed endpoint determines the moving zone. Plane position stays
+      # governed by the active/default plane mode, not by endpoint priority.
+      plane_side = input_side
 
-      @state.set_active(plane ? { kind: :plane, id: plane[:id] } : { kind: :handle, axis: axis, side: side })
-      origin = BoxModel.face_handles(@bb).find { |key, _| key[:axis] == axis && key[:side] == side }&.last
+      @state.set_active(plane ? { kind: :plane, id: plane[:id] } : { kind: :handle, axis: axis, side: input_side })
+      origin = BoxModel.face_handles(@bb).find { |key, _| key[:axis] == axis && key[:side] == input_side }&.last
       origin ||= plane ? BoxModel.plane_center(@bb, plane) : @bb.center
       @drag = {
         type: :grip,
         click_grip: true,
-        id: plane && plane[:id],
+        id: plane_snapshot && plane_snapshot[:id],
+        plane: plane_snapshot,
         axis: axis,
-        side: side,
+        # `side` is the displayed plane side used by StretchOperation.
+        side: plane_side,
+        # `input_side` stays tied to the endpoint the user grabbed.
+        input_side: input_side,
+        # Plane side selects the moving zone; mouse motion controls travel
+        # direction. Never reverse the drag because a plane is on the other
+        # half of the bounds.
+        amount_sign: 1.0,
         cuts: cuts,
         box_grip: box_grip,
         start: [x, y],
@@ -1519,21 +1583,21 @@ module MH::Stretch
         @drag[:started] = true
       end
 
-      amount = axis_drag_amount(
+      raw_amount = axis_drag_amount(
         x,
         y,
         view,
         @drag[:origin],
         @drag[:axis],
-        @drag[:side],
+        @drag[:input_side] || @drag[:side],
         @drag[:start],
         @drag[:last_valid_amount],
         @drag[:source_ip]
       )
-      @drag[:amount] = amount
-      @drag[:last_valid_amount] = amount
+      @drag[:last_valid_amount] = raw_amount
+      @drag[:amount] = raw_amount.to_f * (@drag[:amount_sign] || 1.0)
       operation = @drag.merge(plane_id: @drag[:id])
-      @preview_segments = preview_operation(operation, amount)
+      @preview_segments = preview_operation(operation, @drag[:amount])
     end
 
     def commit_or_finish_drag(view)
@@ -1566,11 +1630,14 @@ module MH::Stretch
         )
       end
 
-      if @no_plane_mode && operation && operation[:box_grip]
+      # A box grip with no real cut plane is always native Scale. The hidden
+      # legacy-plane cleanup can leave no_plane_mode false for one tool turn,
+      # but must never make the endpoint grip inert.
+      if operation && operation[:box_grip]
         return scale_preview_segments(operation[:axis], amount, operation[:side])
       end
 
-      plane = operation && @planes.by_id(operation[:id] || operation[:plane_id])
+      plane = operation && (operation[:plane] || @planes.by_id(operation[:id] || operation[:plane_id]))
       planes = operation_stretch_planes(operation, plane)
       return [] if planes.empty?
 
@@ -1623,8 +1690,7 @@ module MH::Stretch
 
     def commit_operation(operation, amount)
       if operation && operation[:mode] == :between_planes
-        @pending_redraw_components =
-          @dc_redraw_enabled ? UiAdapter.dynamic_components_for_redraw(Sketchup.active_model) : []
+        capture_pending_redraw(operation[:axis])
         return BetweenPlanesAdapter.commit(
           Sketchup.active_model,
           operation[:between_region],
@@ -1633,19 +1699,18 @@ module MH::Stretch
         )
       end
 
-      if @no_plane_mode && operation && operation[:box_grip]
+      if operation && operation[:box_grip]
         return scale_selection_without_cut(operation[:axis], amount, operation[:side])
       end
 
       plane =
         if operation
-          @planes.by_id(operation[:id] || operation[:plane_id]) || operation[:plane]
+          operation[:plane] || @planes.by_id(operation[:id] || operation[:plane_id])
         end
       planes = operation_stretch_planes(operation, plane)
       return ui_only_result if planes.empty?
 
-      @pending_redraw_components =
-        @dc_redraw_enabled ? UiAdapter.dynamic_components_for_redraw(Sketchup.active_model) : []
+      capture_pending_redraw(operation[:axis])
       UiAdapter.commit(
         Sketchup.active_model,
         stretch_bundle(operation, plane, planes),
@@ -1719,7 +1784,7 @@ module MH::Stretch
 
       if cuts.length == 1
         plane = cuts.first
-        side = plane[:side] || :plus
+        side = displayed_plane_side(plane, plane[:side] || :plus)
         amount = stretch_amount_for_side(side, delta)
         return commit_operation(build_grip_operation(axis, side, plane, cuts: [plane]), amount)
       end
@@ -1758,8 +1823,7 @@ module MH::Stretch
 
       # Native Scale bypasses commit_operation's normal StretchAdapter path,
       # so capture Dynamic Components here before their transformations change.
-      @pending_redraw_components =
-        @dc_redraw_enabled ? UiAdapter.dynamic_components_for_redraw(model) : []
+      capture_pending_redraw(axis, model)
 
       model.start_operation('MH Stretch Native Axis Scale', true)
       transform = Geom::Transformation.scaling(origin, *scales)
@@ -1798,8 +1862,10 @@ module MH::Stretch
       return [] unless operation
 
       side = operation[:side] || fallback_plane && fallback_plane[:side] || :plus
-      planes = operation[:cuts].to_a.select { |item| item && item[:axis] == operation[:axis] && item[:usable] }
-      planes = [fallback_plane].compact if planes.empty?
+      planes = operation[:cuts].to_a.select do |item|
+        item && item[:axis] == operation[:axis] && item[:usable] && !item[:hidden]
+      end
+      planes = [fallback_plane].compact if planes.empty? && fallback_plane && !fallback_plane[:hidden]
       planes.map { |item| item.merge(side: side) }
     end
 
@@ -1836,6 +1902,13 @@ module MH::Stretch
     def finish_model_change(result, view)
       redraw_count =
         if result[:ok] && @dc_redraw_enabled
+          # Stretch moves real geometry first. Sync free DC dimensions before
+          # redraw so the DC solver does not apply stale lengths a second time.
+          UiAdapter.sync_dynamic_component_lengths(
+            @pending_redraw_components,
+            axes: @pending_redraw_axes,
+            anchors: @pending_redraw_anchors
+          )
           UiAdapter.schedule_redraw_dynamic_components(@pending_redraw_components) do
             refresh_after_dc_redraw
           end
@@ -1848,7 +1921,21 @@ module MH::Stretch
       suffix << "redraw #{redraw_count} DC" if redraw_count.positive?
       Sketchup.status_text = [result[:message].to_s, suffix.join(', ')].reject(&:empty?).join(' | ')
       @pending_redraw_components = []
+      @pending_redraw_axes = []
+      @pending_redraw_anchors = {}
       refresh_ui_box(view)
+    end
+
+    def capture_pending_redraw(axis, model = Sketchup.active_model)
+      return unless @dc_redraw_enabled
+
+      if @pending_redraw_components.empty?
+        @pending_redraw_components = UiAdapter.dynamic_components_for_redraw(model)
+      end
+      UiAdapter.dynamic_component_anchor_sides(@pending_redraw_components, axis).each do |key, anchor|
+        @pending_redraw_anchors[key] ||= anchor
+      end
+      @pending_redraw_axes << axis if axis && !@pending_redraw_axes.include?(axis)
     end
 
     def refresh_ui_box(view)
@@ -1938,6 +2025,24 @@ module MH::Stretch
     def offset_plane_side_for(motion_side)
       side = motion_side || :plus
       @offset_plane_mode == :opposite ? opposite_side(side) : side
+    end
+
+    # The drawn location is the source of truth for a cut plane. Its stored
+    # :side only records how a Tab mode originally created it, so it can be
+    # stale after a different endpoint is selected or the plane is moved.
+    def displayed_plane_side(plane, fallback = :plus)
+      return fallback unless plane && @bb && !BoxModel.empty_bounds?(@bb)
+
+      axis = plane[:axis]
+      return fallback unless axis
+
+      midpoint = (BoxModel.axis_min(@bb, axis) + BoxModel.axis_max(@bb, axis)) / 2.0
+      position = plane[:pos].to_f
+      return fallback if (position - midpoint).abs <= 0.01.mm
+
+      position < midpoint ? :minus : :plus
+    rescue
+      fallback
     end
 
     def outer_selection_bounds
@@ -2083,13 +2188,13 @@ module MH::Stretch
       return active_offset_plane(axis, @active_side) if @offset_planes_enabled
 
       existing = @planes.first_for_axis(axis)
-      return existing if existing
+      return existing if existing && !existing[:hidden]
 
       if @show_default_plane
         @planes.ensure_axis_default(@bb, axis, @active_side)
       else
         sync_hidden_default_planes(axis)
-        @planes.first_for_axis(axis)
+        nil
       end
     end
 

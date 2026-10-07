@@ -95,9 +95,13 @@ module MH::Stretch
       @planes.delete_if { |plane| plane[:kind] == :offset_auto && plane[:axis] != axis }
       @planes.delete_if { |plane| plane[:kind] == :offset_division }
       count = count.to_i == 2 ? 2 : 1
-      offset = [distance.to_f, 0.0].max
       min = BoxModel.axis_min(bb, axis)
       max = BoxModel.axis_max(bb, axis)
+      span = max - min
+      # Leave 3 mm from the opposite endpoint. This caps an oversized offset
+      # at half the selected length minus 3 mm (for example, 70 mm -> 32 mm).
+      max_offset = [span / 2.0 - 3.mm, 0.0].max
+      offset = [[distance.to_f, 0.0].max, max_offset].min
       specs =
         if count == 2
           [

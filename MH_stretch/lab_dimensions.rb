@@ -66,8 +66,8 @@ module MH::Stretch
           outward = Geom::Vector3d.new(1, 0, 0)
         elsif axis != :z
           outward = Geom::Vector3d.new(outward.x, outward.y, 0)
-          next if outward.length == 0
-          outward.normalize!
+          outward = fallback_outward(axis) if outward.length == 0
+          outward.normalize! if outward.length > 0
         end
 
         offset = @view.pixels_to_model(DIM_OFFSET_PX * @ui_factor, middle)
@@ -164,6 +164,14 @@ module MH::Stretch
 
       outward.normalize!
       outward
+    end
+
+    def fallback_outward(axis)
+      # A thin board can make the selected edge's outward vector point only
+      # along Z. Flattening that vector for an X/Y dimension would otherwise
+      # produce a zero vector and silently drop the dimension from the overlay.
+      # Use the other in-plane axis as a stable screen offset instead.
+      axis == :x ? Geom::Vector3d.new(0, 1, 0) : Geom::Vector3d.new(1, 0, 0)
     end
 
     def draw_tick(a, b, color)
