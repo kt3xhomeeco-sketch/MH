@@ -17,13 +17,6 @@
     thickness_mappings: { scope: 'global',  key: 'thickness_mappings',  cols: [['min','Min','num'],['max','Max','num'],['value','Giá trị']] },
     invalid_materials:  { scope: 'global',  key: 'invalid_materials',   cols: [['material','Vật liệu'],['thickness','Độ dày']] },
     superimp_import_list: { scope: 'config', key: 'superimp_import_list', cols: [['name','Tên'],['path','Path'],['shortcut','Shortcut'],['group','Group'],['swap_key','Swap key','num']] },
-    ma_vat_lieu_global: { scope: 'config', key: 'ma_vat_lieu_global', cols: [['gia_tri','Giá trị nhập'],['gia_tri_map','Mã chuẩn']] },
-    ma_thickness:       { scope: 'config', key: 'ma_thickness',       cols: [['min','Min','num'],['max','Max','num'],['value','Giá trị']] },
-    ma_detail_aliases:  { scope: 'config', key: 'ma_detail_aliases',  cols: [['pattern','Pattern'],['target','Target']] },
-    ma_tag_materials:   { scope: 'config', key: 'ma_tag_materials',   cols: [['tag_name','Tag'],['material_name','Material']] },
-    ma_column_aliases:  { scope: 'config', key: 'ma_column_aliases',  cols: [['internal_name','Tên nội bộ'],['alias','Alias']] },
-    // Render bằng giao diện thẻ (renderSurfaceFaceRules), không dùng grid cols.
-    ma_surface_face_rules: { scope: 'config', key: 'ma_surface_face_rules' },
     material_profile_choices: { scope: 'config', key: 'material_profile_choices', groupBy: 'material_name', cols: [['material_name','Tên vật liệu'],['thickness_1','Độ dày 1'],['thickness_2','Độ dày 2']] },
     dc_thickness_bindings: { scope: 'config', key: 'dc_thickness_bindings', cols: [['match','Match (path / group:..)'],['label','Tên Custom'],['param_panel','Param panel'],['param_back','Param hậu'],['param_extra','Param thêm'],['modul_only','Đánh modul'],['unit','Unit'],['enabled','Bật']] },
     dc_manual_materials: { scope: 'config', key: 'dc_manual_materials', cols: [['material_code','Mã vật liệu'],['sort_order','Số thứ tự','num'],['enabled','Bật']] }
@@ -400,7 +393,6 @@
 
   function switchRegistryTab(activeTab) {
     activeTab = String(activeTab || 'main').replace(/[^a-z_]/g, '');
-    if (activeTab === 'material_assign') activeTab = 'ma_vat_lieu';
     if (!activeTab) activeTab = 'main';
     document.querySelectorAll('.tab').forEach(function (x) { x.classList.remove('active'); });
     document.querySelectorAll('.panel').forEach(function (x) { x.classList.remove('active'); });
@@ -445,16 +437,8 @@
       renderMaterialProfileChoices();
       return;
     }
-    if (name === 'ma_surface_face_rules') {
-      renderSurfaceFaceRules();
-      return;
-    }
     if (name === 'dc_manual_materials') {
       renderManualMaterialsPicker();
-      return;
-    }
-    if (name === 'ma_vat_lieu_global') {
-      renderMaterialMappingBoard();
       return;
     }
     if (!def) return;
@@ -663,9 +647,7 @@
 
   function collectTable(name) {
     if (name === 'material_profile_choices') return collectMaterialProfileChoices();
-    if (name === 'ma_surface_face_rules') return collectSurfaceFaceRules();
     if (name === 'dc_manual_materials') return collectManualMaterialsPicker();
-    if (name === 'ma_vat_lieu_global') return collectMaterialMappingBoard();
     var def = TABLES[name];
     var wrap = $('tbl_' + name);
     if (!def || !wrap) {
@@ -940,180 +922,6 @@
     return n ? n.value.trim() : '';
   }
 
-  // ---- dc_thickness_options (library; project table is deprecated) -----
-  var dcOptCount = { project: 2, library: 2 };
-
-  // Renderer vẫn giữ nhánh project để dọn dữ liệu cũ khi lưu config, nhưng UI
-  // Superimp hiện chỉ dùng library/parent.
-  var THICK_CFG = {
-    project: {
-      wrap: 'tbl_dc_thickness_options',
-      read: function () { return []; },
-      write: function (_rows) { state.config.dc_thickness_options = []; state.config.dc_thickness_options_project = []; },
-      empty: 'Không có mã project cần bổ sung — mã đã có trong library sẽ không hiện ở đây.'
-    },
-    library: {
-      wrap: 'tbl_dc_thickness_options_library',
-      read: function () { return state.config.dc_thickness_options_library || []; },
-      write: function (rows) { state.config.dc_thickness_options_library = rows; },
-      empty: 'Library trống — bấm "+ loại" để thêm mã vật liệu và độ dày.'
-    }
-  };
-
-  function currentOptionCount(kind, rows) {
-    var maxOpt = 0;
-    (rows || []).forEach(function (r) {
-      var n = (r.options || []).length;
-      if (n > maxOpt) maxOpt = n;
-    });
-    return Math.max(2, dcOptCount[kind] || 2, maxOpt);
-  }
-
-  function renderThicknessOptions(kind) {
-    kind = kind || 'project';
-    var cfg = THICK_CFG[kind];
-    var wrap = $(cfg.wrap);
-    if (!wrap) return;
-    var rows = cfg.read().slice().sort(function (a, b) {
-      return String(a.material_type || '').localeCompare(String(b.material_type || ''), 'vi');
-    });
-    var nOpt = currentOptionCount(kind, rows);
-    dcOptCount[kind] = nOpt;
-    wrap.innerHTML = '';
-    var table = el('table', { class: 'thickness-options-table' });
-
-    var h1 = el('tr');
-    h1.appendChild(el('th', { text: 'Mã vật liệu (loại)', rowspan: '2', class: 'material-type-head' }));
-    for (var i = 1; i <= nOpt; i++) h1.appendChild(el('th', { text: 'Option ' + i, colspan: '2', class: 'option-head' }));
-    h1.appendChild(el('th', { text: '', rowspan: '2' }));
-    table.appendChild(h1);
-    var h2 = el('tr');
-    for (var j = 1; j <= nOpt; j++) {
-      h2.appendChild(el('th', { text: 'Panel', class: 'thickness-subhead' }));
-      h2.appendChild(el('th', { text: 'Hậu', class: 'thickness-subhead' }));
-    }
-    table.appendChild(h2);
-
-    rows.forEach(function (row) { table.appendChild(buildThicknessRow(kind, row, nOpt)); });
-    wrap.appendChild(table);
-    if (!rows.length) wrap.appendChild(el('div', { class: 'empty', text: cfg.empty }));
-    if (kind === 'library') {
-      wireThicknessLibrarySearch();
-      applyThicknessLibrarySearchFilter();
-    }
-  }
-
-  function buildThicknessRow(kind, row, nOpt) {
-    var tr = el('tr', { class: 'thickness-row' });
-    var materialInput = el('input', { 'data-col': 'material_type', value: row.material_type || '', placeholder: 'VD: MDFCA.AC' });
-    if (kind === 'library') {
-      materialInput.addEventListener('input', function () {
-        // Mã ở thư viện là nguồn của "Danh sách vật liệu tổng".
-        // Đồng bộ ngay khi người dùng nhập/sửa mã, không tự đưa vào Manual.
-        renderManualMaterialsPicker();
-      });
-    }
-    tr.appendChild(el('td', {}, [materialInput]));
-    var opts = row.options || [];
-    for (var i = 0; i < nOpt; i++) {
-      var o = opts[i] || {};
-      tr.appendChild(el('td', {}, [thicknessInput(kind, 'opt' + i + '_panel', o.panel, '17.6')]));
-      tr.appendChild(el('td', {}, [thicknessInput(kind, 'opt' + i + '_back', o.back, '8')]));
-    }
-    var act = el('td', { class: 'actions' });
-    var del = el('button', { class: 'btn del', title: 'Xoá', text: '✕' });
-    del.addEventListener('click', function () {
-      var keep = collectThicknessOptions(kind).filter(function (r) {
-        return String(r.material_type).trim() !== String(row.material_type || '').trim();
-      });
-      THICK_CFG[kind].write(keep);
-      renderThicknessOptions(kind);
-    });
-    act.appendChild(del);
-    tr.appendChild(act);
-    return tr;
-  }
-
-  function thicknessInput(kind, col, value, placeholder) {
-    var text = value == null ? '' : String(value).trim();
-    var emptyLibraryCell = kind === 'library' && !text;
-    var input = el('input', {
-      'data-col': col,
-      'data-empty-marker': emptyLibraryCell ? '1' : '',
-      value: emptyLibraryCell ? '--' : text,
-      placeholder: kind === 'library' ? '--' : placeholder
-    });
-    if (kind === 'library') {
-      input.addEventListener('input', function () {
-        input.setAttribute('data-empty-marker', cleanThicknessInputValue(kind, input.value) ? '' : '1');
-      });
-      input.addEventListener('focus', function () {
-        if (input.value.trim() === '--') input.select();
-      });
-    }
-    return input;
-  }
-
-  function cleanThicknessInputValue(kind, value) {
-    var text = value == null ? '' : String(value).trim();
-    if (kind === 'library' && text === '--') return '';
-    return text;
-  }
-
-  function collectThicknessOptions(kind) {
-    kind = kind || 'project';
-    var cfg = THICK_CFG[kind];
-    var wrap = $(cfg.wrap);
-    if (!wrap) return kind === 'project' ? [] : cfg.read();
-    var out = [];
-    var trs = wrap.querySelectorAll('tr.thickness-row');
-    for (var i = 0; i < trs.length; i++) {
-      var typeInp = trs[i].querySelector('input[data-col="material_type"]');
-      var type = typeInp ? typeInp.value.trim() : '';
-      if (!type) continue;
-      var options = [];
-      var k = 0;
-      while (true) {
-        var p = trs[i].querySelector('input[data-col="opt' + k + '_panel"]');
-        var b = trs[i].querySelector('input[data-col="opt' + k + '_back"]');
-        if (!p && !b) break;
-        var panel = p ? cleanThicknessInputValue(kind, p.value) : '';
-        var back = b ? cleanThicknessInputValue(kind, b.value) : '';
-        if (panel || back) options.push({ panel: panel, back: back });
-        k++;
-      }
-      out.push({ material_type: type, options: options });
-    }
-    return out;
-  }
-
-  function addThicknessOption(kind) {
-    kind = kind || 'project';
-    THICK_CFG[kind].write(collectThicknessOptions(kind));
-    dcOptCount[kind] = currentOptionCount(kind, THICK_CFG[kind].read()) + 1;
-    renderThicknessOptions(kind);
-  }
-
-  function addThicknessType(kind) {
-    kind = kind || 'project';
-    var rows = collectThicknessOptions(kind);
-    rows.push({ material_type: '', options: [] });
-    THICK_CFG[kind].write(rows);
-    renderThicknessOptions(kind);
-    if (kind === 'library') renderManualMaterialsPicker();
-    var inps = $(THICK_CFG[kind].wrap).querySelectorAll('input[data-col="material_type"]');
-    for (var i = 0; i < inps.length; i++) { if (!inps[i].value.trim()) { inps[i].focus(); break; } }
-  }
-
-  function thicknessRowsByKey(rows) {
-    var out = {};
-    (rows || []).forEach(function (row) {
-      var key = String(row.material_type || row.material_code || '').trim().toUpperCase();
-      if (key && !out[key]) out[key] = row;
-    });
-    return out;
-  }
-
   function manualSortOrder(row) {
     var raw = row && (row.sort_order != null ? row.sort_order
       : (row.order != null ? row.order : row.thu_tu));
@@ -1211,10 +1019,6 @@
     map[key] = Object.assign({ material_code: code, enabled: '0', sort_order: '' }, row || {}, { material_code: code });
   }
 
-  function manualSourceRows() {
-    return collectThicknessOptions('library');
-  }
-
   function manualMaterialCode(row) {
     return String((row && (row.material_code || row.material_type)) || '').trim();
   }
@@ -1224,36 +1028,6 @@
     return String(code || '').trim().toUpperCase();
   }
 
-  function ensureManualMaterialCodeInLibrary(code) {
-    code = String(code || '').trim();
-    if (!code) return false;
-
-    var rows = collectThicknessOptions('library');
-    var key = manualMaterialKey(code);
-    var exists = rows.some(function (row) {
-      return manualMaterialKey(row) === key;
-    });
-    if (exists) return false;
-
-    rows.push({ material_type: code, options: [] });
-    THICK_CFG.library.write(rows);
-    renderThicknessOptions('library');
-    return true;
-  }
-
-  function manualSourceKeys() {
-    var keys = {};
-    manualSourceRows().forEach(function (row) {
-      var code = manualMaterialCode(row);
-      if (code) keys[code.toUpperCase()] = true;
-    });
-    (state.config.dc_manual_materials || []).forEach(function (row) {
-      var code = manualMaterialCode(row);
-      if (code) keys[code.toUpperCase()] = true;
-    });
-    return keys;
-  }
-
   function allManualMaterialCandidates() {
     var map = {};
     var manualState = {};
@@ -1261,12 +1035,6 @@
     (state.config.dc_manual_materials || []).forEach(function (row) {
       var code = String(row.material_code || row.material_type || '').trim();
       if (code) manualState[code.toUpperCase()] = row;
-    });
-
-    manualSourceRows().forEach(function (row) {
-      var code = manualMaterialCode(row);
-      var key = manualMaterialKey(code);
-      addManualCandidate(map, code, manualState[key] || { enabled: '0', sort_order: '' });
     });
 
     Object.keys(manualState).forEach(function (key) {
@@ -1281,24 +1049,14 @@
     if (!code) return;
 
     var key = manualMaterialKey(code);
-    var libraryRows = collectThicknessOptions('library');
-    var nextLibraryRows = libraryRows.filter(function (row) {
-      return manualMaterialKey(row) !== key;
-    });
-    var removedFromLibrary = nextLibraryRows.length !== libraryRows.length;
-
-    // Mã trong Manual chỉ hợp lệ khi còn có trong danh sách tổng.
-    // Vì vậy xóa luôn trạng thái/chọn Manual của chính mã này.
     var manualRows = collectManualMaterialsPicker();
     var nextManualRows = manualRows.filter(function (row) {
       return manualMaterialKey(row) !== key;
     });
     var removedFromManual = nextManualRows.length !== manualRows.length;
 
-    if (!removedFromLibrary && !removedFromManual) return;
-    THICK_CFG.library.write(nextLibraryRows);
+    if (!removedFromManual) return;
     state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(nextManualRows);
-    renderThicknessOptions('library');
     renderManualMaterialsPicker();
     status('Đã xóa mã ' + code + ' khỏi Danh sách vật liệu.', 'ok');
   }
@@ -1511,7 +1269,7 @@
         source: 'Từ điển',
         required: 'Không',
         parent: 'Có',
-        note: 'Phân nhóm chính: SON, LK, VER, MS. VER gồm VER/VERKT/VERSOI/VERKTSOI.'
+        note: 'Các nhóm và mã nhận diện lấy từ Quy luật theo nhóm bề mặt trong Registry JSON.'
       },
       finish_code: {
         label: 'Mã hoàn thiện',
@@ -1647,7 +1405,7 @@
 
   function mcrSurfaceGroupKeys(rules) {
     var groups = rules.surface_groups || {};
-    var preferred = ['SON', 'VER', 'LK', 'MS'];
+    var preferred = ['SON', 'VER', 'LAM', 'MEL'];
     var seen = {};
     var keys = [];
     preferred.forEach(function (key) {
@@ -1785,9 +1543,9 @@
     return {
       SON: 'VD: MDFCA.17.AC.SON.30GY 88/014-30',
       VER: 'VD: HDFCA.AC.VER.30GY 88/014.2M',
-      LK: 'VD: MDFCA.17.AC.LK.SA7680.1M-BCT',
-      MS: 'VD: MDFCA.17.AC.MS.MS502MM'
-    }[groupKey] || '';
+      LAM: 'VD: MDFCA.17.AC.LAM.SA7680.1M-BCT',
+      MEL: 'VD: MDFCA.17.AC.MEL.MS502MM'
+    }[groupKey] || ('VD: MDFCA.17.AC.' + groupKey + '.MA_HOAN_THIEN');
   }
 
   function renderMaterialCodeTestBuilder(rules) {
@@ -2487,7 +2245,7 @@
     if (key === 'finish_code') return mcrBranchLabels('finish_label', 'finish_code');
     if (key === 'surface_variant') return mcrBranchLabels('variant_label', 'surface_variant');
 
-    var rows = state.global.material_code_mappings || [];
+    var rows = (rules && rules.mappings) || materialCodeRules().mappings || [];
     var values = [];
     rows.forEach(function (row) {
       if (String(row.nhom || '').trim() !== key) return;
@@ -2705,6 +2463,8 @@
     rules.gloss_suffix_regex = collectMcrGlossRegex();
     rules.single_segment_gloss_is_finish = true;
     rules.surface_groups = collectMaterialCodeSurfaceGroups(current.surface_groups || {});
+    rules.mappings = syncMaterialMappingsFromCodeColumns(rules);
+    syncMaterialSurfaceGroupsFromMappings(rules);
     rules.test_branches = collectMcrTestBranchesFromDom().map(normalizeMcrTestBranch);
     if (!rules.test_branches.length) rules.test_branches = ensureMcrTestBranches().map(normalizeMcrTestBranch);
 
@@ -2844,6 +2604,234 @@
   function pcrSeparatorFromInput(id, fallback) {
     var input = $(id);
     return input ? String(input.value || '').trim() : (fallback == null ? '_' : fallback);
+  }
+
+  // ---- name_read_rules --------------------------------------------------
+  // Extended readers are deliberately separate from product_code_rules:
+  // they accept legacy/extra name shapes but never become write templates.
+  var NAME_READ_GROUP_DEFINITIONS = {
+    product_code: { label: 'Mã sản phẩm', target: 'product', type: 'product', required: true },
+    module_no: { label: 'Số module', target: 'module', type: 'number', required: false },
+    modul_no: { label: 'Số module', target: 'module', type: 'number', required: false },
+    suffix: { label: 'Suffix', target: 'suffix', type: 'dictionary', required: false },
+    part: { label: 'Chi tiết', target: 'part', type: 'text', required: false },
+    custom: { label: 'Nhóm tự đặt', target: 'custom', type: 'text', required: false }
+  };
+
+  function nameReadRules() {
+    return Array.isArray(state.global.name_read_rules) ? state.global.name_read_rules : [];
+  }
+
+  function nameReadInput(value, field, placeholder) {
+    return el('input', {
+      class: 'ci name-read-input',
+      'data-read-field': field,
+      value: value == null ? '' : String(value),
+      placeholder: placeholder || ''
+    });
+  }
+
+  function nameReadGroupDefinition(key) {
+    return NAME_READ_GROUP_DEFINITIONS[String(key || '').trim()] || NAME_READ_GROUP_DEFINITIONS.custom;
+  }
+
+  function nameReadGroupSeparator(group, rule, isLast) {
+    if (isLast) return '';
+    if (group && Object.prototype.hasOwnProperty.call(group, 'separator_after')) {
+      return String(group.separator_after == null ? '' : group.separator_after);
+    }
+    // Hiển thị được quy tắc cũ từng dùng một dấu tách chung; khi lưu sẽ
+    // chuyển thành separator_after riêng cho mỗi nhóm.
+    var legacy = rule && (rule.segment_separator != null ? rule.segment_separator : rule.separator);
+    return String(legacy == null || legacy === '' ? '_' : legacy);
+  }
+
+  function nameReadGroupKey(group) {
+    var key = String(group && group.key || '').trim();
+    // Nhóm bị thiếu key từ cấu hình cũ phải hiện thành nhóm đầu tiên hợp lệ,
+    // không tự biến thành custom rỗng.
+    if (!key) return 'product_code';
+    return NAME_READ_GROUP_DEFINITIONS[key] ? key : 'custom';
+  }
+
+  function nameReadCustomGroupKey(group) {
+    var key = String(group && group.key || '').trim();
+    return NAME_READ_GROUP_DEFINITIONS[key] ? '' : key;
+  }
+
+  function buildNameReadGroup(group, groupIndex, rule, isLast) {
+    group = group || {};
+    var key = nameReadGroupKey(group);
+    var definition = nameReadGroupDefinition(key);
+    var card = el('div', { class: 'name-read-group', 'data-read-group-index': String(groupIndex) });
+    var head = el('div', { class: 'name-read-group-head' });
+    head.appendChild(el('span', { class: 'name-read-group-order', text: String(groupIndex + 1) }));
+    head.appendChild(el('strong', { class: 'name-read-group-title', text: definition.label }));
+    head.appendChild(el('button', {
+      class: 'btn xs del', type: 'button', text: '×', title: 'Xóa nhóm', 'data-read-action': 'delete-group'
+    }));
+    card.appendChild(head);
+
+    var fields = el('div', { class: 'name-read-group-fields' });
+    var select = el('select', { 'data-read-field': 'group-key' });
+    Object.keys(NAME_READ_GROUP_DEFINITIONS).forEach(function (candidate) {
+      var option = el('option', { value: candidate, text: candidate + ' — ' + NAME_READ_GROUP_DEFINITIONS[candidate].label });
+      if (candidate === key) option.selected = true;
+      select.appendChild(option);
+    });
+    fields.appendChild(el('label', { text: 'Nhóm' }, [select]));
+    if (key === 'custom') {
+      fields.appendChild(el('label', { text: 'Tên nhóm' }, [
+        nameReadInput(nameReadCustomGroupKey(group), 'group-custom-key', 'vd: zone')
+      ]));
+    }
+    var required = el('input', { type: 'checkbox', 'data-read-field': 'group-required' });
+    required.checked = group.required == null ? definition.required : group.required === true;
+    fields.appendChild(el('label', { class: 'mcr-check', text: 'Bắt buộc' }, [required]));
+    if (!isLast) {
+      fields.appendChild(el('label', { text: 'Dấu sau nhóm' }, [
+        nameReadInput(nameReadGroupSeparator(group, rule, false), 'group-separator', ' _ ')
+      ]));
+    }
+    card.appendChild(fields);
+    card.appendChild(el('div', {
+      class: 'name-read-group-meta',
+      text: 'Đọc thành ' + (definition.target === 'custom' ? (nameReadCustomGroupKey(group) || 'custom') : definition.target) +
+        ' · kiểu ' + definition.type + (isLast ? ' · nhóm cuối' : ' · dấu sau: ' + nameReadGroupSeparator(group, rule, false))
+    }));
+    return card;
+  }
+
+  function renderNameReadRules() {
+    var wrap = $('name_read_rules_builder');
+    if (!wrap) return;
+    wrap.innerHTML = '';
+    var rules = nameReadRules();
+    if (!rules.length) {
+      wrap.appendChild(el('div', { class: 'empty', text: 'Chưa có quy tắc đọc mở rộng — bấm “+ quy tắc”.' }));
+      return;
+    }
+    rules.forEach(function (rule, ruleIndex) {
+      var card = el('div', { class: 'name-read-rule', 'data-read-rule-index': String(ruleIndex) });
+      var head = el('div', { class: 'name-read-rule-head' });
+      var enabled = el('input', { type: 'checkbox', 'data-read-field': 'enabled' });
+      enabled.checked = rule.enabled !== false;
+      head.appendChild(enabled);
+      head.appendChild(nameReadInput(rule.key || ('read_rule_' + (ruleIndex + 1)), 'key', 'Mã quy tắc'));
+      head.appendChild(nameReadInput(rule.label || '', 'label', 'Tên hiển thị'));
+      head.appendChild(el('button', { class: 'btn xs del', type: 'button', text: '×', title: 'Xóa quy tắc', 'data-read-action': 'delete-rule' }));
+      card.appendChild(head);
+
+      // Array(rule.groups) sẽ bọc cả mảng thành một phần tử; phải giữ nguyên
+      // mảng để render đủ product_code, modul_no, suffix, part...
+      var groups = Array.isArray(rule.groups) ? rule.groups : [];
+      var flow = el('div', { class: 'name-read-group-flow' });
+      groups.forEach(function (group, groupIndex) {
+        if (groupIndex > 0) {
+          flow.appendChild(el('div', {
+            class: 'name-read-group-separator',
+            text: nameReadGroupSeparator(groups[groupIndex - 1], rule, false)
+          }));
+        }
+        flow.appendChild(buildNameReadGroup(group, groupIndex, rule, groupIndex === groups.length - 1));
+      });
+      card.appendChild(flow);
+      var addGroupButton = el('button', {
+        class: 'btn xs', type: 'button', text: '+ nhóm đọc', 'data-read-action': 'add-group'
+      });
+      // Gắn trực tiếp để vẫn hoạt động trên HtmlDialog/CEF cũ, nơi event
+      // delegation qua closest() đôi khi không bắt được button tạo động.
+      addGroupButton.addEventListener('click', function (ev) {
+        ev.preventDefault();
+        ev.stopPropagation();
+        addNameReadGroup(ruleIndex);
+      });
+      card.appendChild(addGroupButton);
+      wrap.appendChild(card);
+    });
+  }
+
+  function collectNameReadRules() {
+    var wrap = $('name_read_rules_builder');
+    if (!wrap) return nameReadRules();
+    var out = [];
+    Array.prototype.forEach.call(wrap.querySelectorAll('.name-read-rule'), function (card) {
+      function value(field) {
+        var node = card.querySelector('[data-read-field="' + field + '"]');
+        return node ? String(node.value || '').trim() : '';
+      }
+      var groups = [];
+      var groupRows = card.querySelectorAll('.name-read-group[data-read-group-index]');
+      Array.prototype.forEach.call(groupRows, function (row, groupIndex) {
+        function rowValue(field) {
+          var node = row.querySelector('[data-read-field="' + field + '"]');
+          return node ? String(node.value || '').trim() : '';
+        }
+        var selectedKey = rowValue('group-key');
+        var key = selectedKey === 'custom' ? rowValue('group-custom-key') : selectedKey;
+        // Giữ custom đang để trống để người dùng có thể thêm nhóm khác hoặc
+        // quay lại nhập tên, thay vì âm thầm làm mất nhóm đó khi bấm nút.
+        if (!key && selectedKey === 'custom') key = 'custom';
+        if (!key) return;
+        var definition = nameReadGroupDefinition(selectedKey);
+        var req = row.querySelector('[data-read-field="group-required"]');
+        groups.push({
+          key: key,
+          target: selectedKey === 'custom' ? key : definition.target,
+          type: definition.type,
+          required: !!(req && req.checked),
+          separator_after: groupIndex === groupRows.length - 1 ? '' : rowValue('group-separator')
+        });
+      });
+      if (value('key') || groups.length) {
+        var enabledNode = card.querySelector('[data-read-field="enabled"]');
+        out.push({
+          key: value('key'),
+          label: value('label'),
+          enabled: !!(enabledNode && enabledNode.checked),
+          groups: groups
+        });
+      }
+    });
+    state.global.name_read_rules = out;
+    return out;
+  }
+
+  function addNameReadRule() {
+    collectNameReadRules();
+    state.global.name_read_rules.push({
+      key: 'read_rule_' + (state.global.name_read_rules.length + 1),
+      label: 'Quy tắc đọc mới',
+      enabled: true,
+      groups: [
+        { key: 'product_code', target: 'product', type: 'product', required: true, separator_after: '_' },
+        { key: 'module_no', target: 'module', type: 'number', required: true, separator_after: '_' },
+        { key: 'suffix', target: 'suffix', type: 'dictionary', required: false, separator_after: '_' },
+        { key: 'part', target: 'part', type: 'text', required: false }
+      ]
+    });
+    renderNameReadRules();
+  }
+
+  function addNameReadGroup(ruleIndex) {
+    var rules = collectNameReadRules();
+    var rule = rules[ruleIndex];
+    if (!rule) {
+      status('Không tìm thấy quy tắc để thêm nhóm.', 'err');
+      return;
+    }
+    var groups = Array.isArray(rule.groups) ? rule.groups : [];
+    if (groups.length) {
+      var previous = groups[groups.length - 1];
+      previous.separator_after = previous.separator_after || '_';
+    }
+    groups.push({
+      key: 'part', target: 'part', type: 'text', required: false, separator_after: ''
+    });
+    rule.groups = groups;
+    state.global.name_read_rules = rules;
+    renderNameReadRules();
+    status('Đã thêm nhóm đọc.', 'ok');
   }
 
   // ---- product_code_rules ----------------------------------------------
@@ -3412,12 +3400,115 @@
   }
 
   function collectMaterialCodeRulesIntoState() {
-    if ($('tbl_material_code_layers')) state.global.material_code_rules = collectMaterialCodeRules();
+    if ($('tbl_material_code_layers')) {
+      state.global.material_code_rules = collectMaterialCodeRules();
+      syncMaterialMappingsFromCodeColumns(state.global.material_code_rules);
+    }
     return validateMaterialCodeRules(state.global.material_code_rules || {});
   }
 
   function syncMaterialMappingsToGlobalState() {
-    state.global.material_code_mappings = collectTable('ma_vat_lieu_global');
+    var rules = state.global.material_code_rules || materialCodeRules();
+    rules.mappings = syncMaterialMappingsFromCodeColumns(rules);
+    syncMaterialSurfaceGroupsFromMappings(rules);
+    state.global.material_code_rules = rules;
+    delete state.global.material_code_mappings;
+  }
+
+  // The code-cell builder and the dictionary use different persisted fields.
+  // Keep them synchronized so adding a canonical token to a layer also gives
+  // its mapping row the same layer (and therefore the same group rank).
+  function syncMaterialMappingsFromCodeColumns(rules) {
+    var rows = collectMaterialMappingBoard();
+    if (!Array.isArray(rows)) rows = [];
+    var columns = collectMcrTestColumnsFromDom();
+    var changed = false;
+    var syncable = { chat_lieu: true, nha_cung_cap: true, be_mat: true };
+    var defaultOrders = { chat_lieu: '1', nha_cung_cap: '2', be_mat: '3' };
+
+    (columns || []).forEach(function (column) {
+      var key = String(column && column.key || '').trim().toLowerCase();
+      if (!syncable[key]) return;
+      var order = defaultOrders[key] || '';
+      if (!order && rules && Array.isArray(rules.layers)) {
+        var layerIndex = rules.layers.findIndex(function (layer) {
+          return String(layer && layer.key || '').trim().toLowerCase() === key;
+        });
+        if (layerIndex >= 0) order = String(layerIndex + 1);
+      }
+
+      uniqueStrings(column.values || (column.value ? [column.value] : [])).forEach(function (value) {
+        var token = mcrComparable(value);
+        if (!token || token === 'NUMBER' || token === 'STRING') return;
+        var matches = rows.filter(function (row) {
+          return mcrComparable(row.gia_tri_map) === token || mcrComparable(row.gia_tri) === token;
+        });
+        if (!matches.length) {
+          rows.push({
+            // A code added in the structure is the canonical value first.
+            // The user may add one or more input aliases later in the
+            // "Giá trị nhập" column.
+            gia_tri: '',
+            gia_tri_map: String(value).trim(),
+            nhom: key,
+            thu_tu: order
+          });
+          changed = true;
+          return;
+        }
+        matches.forEach(function (row) {
+          // Do not move an explicitly classified alias. Repair only the
+          // orphan row, which is the case produced by the old UI.
+          if (!String(row.nhom || '').trim()) {
+            row.nhom = key;
+            changed = true;
+          }
+          if (!String(row.thu_tu || '').trim() && order) {
+            row.thu_tu = order;
+            changed = true;
+          }
+        });
+      });
+    });
+
+    state.config.ma_vat_lieu_global = rows;
+    if (rules && typeof rules === 'object') rules.mappings = rows;
+    if (changed && $('tbl_ma_vat_lieu_global')) renderMaterialMappingBoard();
+    return rows;
+  }
+
+  function syncMaterialSurfaceGroupsFromMappings(rules) {
+    if (!rules || typeof rules !== 'object' || !rules.surface_groups) return rules;
+    var groups = rules.surface_groups;
+    var assigned = {};
+    (rules.mappings || []).forEach(function (row) {
+      row = row || {};
+      var layer = String(row.nhom || row.layer || row.key || row.group || '').trim();
+      if (mcrComparable(layer) !== 'BE_MAT') return;
+      var source = String(row.gia_tri || '').trim();
+      var canonical = String(row.gia_tri_map || row.mapped || row.canonical || '').trim().toUpperCase();
+      if (!canonical) return;
+      var matched = Object.keys(groups).find(function (key) {
+        var group = groups[key] || {};
+        var members = group.members || [];
+        return mcrComparable(key) === mcrComparable(canonical) ||
+          members.some(function (member) { return mcrComparable(member) === mcrComparable(canonical) || mcrComparable(member) === mcrComparable(source); }) ||
+          mcrComparable(group.label) === mcrComparable(source);
+      });
+      if (!matched) return;
+      if (!assigned[matched]) assigned[matched] = [];
+      if (assigned[matched].indexOf(canonical) < 0) assigned[matched].push(canonical);
+    });
+    Object.keys(assigned).forEach(function (oldKey) {
+      var rule = groups[oldKey];
+      if (!rule) return;
+      delete groups[oldKey];
+      var members = assigned[oldKey];
+      var newKey = members.indexOf(String(oldKey).toUpperCase()) >= 0 ? String(oldKey).toUpperCase() : members[0];
+      rule.members = members;
+      groups[newKey] = rule;
+    });
+    return rules;
   }
 
   function validateMaterialCodeRules(rules) {
@@ -3718,13 +3809,14 @@
     var warnings = result.validation_warnings || [];
     var beMat = String(result.layers.be_mat || '');
     var group = String(result.surface_group || '');
+    var configuredGroups = Object.keys(rules.surface_groups || {}).join('/') || '(chưa cấu hình)';
     if (!beMat) {
-      warnings.push('Thiếu be_mat: không phân loại được nhóm SON/LK/VER/MS.');
+      warnings.push('Thiếu be_mat: không phân loại được nhóm ' + configuredGroups + '.');
       result.valid = errors.length === 0;
       return;
     }
     if (!group) {
-      errors.push('be_mat "' + beMat + '" chưa thuộc nhóm SON/LK/VER/MS.');
+      errors.push('be_mat "' + beMat + '" chưa thuộc nhóm ' + configuredGroups + '.');
       result.valid = false;
       return;
     }
@@ -3789,17 +3881,18 @@
     }
   }
 
-  function materialMappingRowsForPreview() {
+  function materialMappingRowsForPreview(rules) {
+    if (rules && Array.isArray(rules.mappings)) return rules.mappings;
     return $('tbl_ma_vat_lieu_global') ? collectMaterialMappingBoard() : (state.config.ma_vat_lieu_global || []);
   }
 
-  function applyMaterialMappingPreview(layer, value) {
+  function applyMaterialMappingPreview(layer, value, rules) {
     var val = String(value || '').trim();
     var key = String(layer.key || '').trim();
     if (!val || !key) return val;
     var valKey = mcrComparable(val);
     var keyKey = mcrComparable(key);
-    var rows = materialMappingRowsForPreview();
+    var rows = materialMappingRowsForPreview(rules);
     for (var i = 0; i < rows.length; i++) {
       var row = rows[i] || {};
       var group = row.nhom || row.layer || row.key || row.group || '';
@@ -4162,26 +4255,6 @@
     });
   }
 
-  function wireThicknessLibrarySearch() {
-    var input = $('dcThicknessLibrarySearch');
-    if (!input || input.__mhThicknessLibrarySearchWired) return;
-    input.__mhThicknessLibrarySearchWired = true;
-    input.addEventListener('input', applyThicknessLibrarySearchFilter);
-  }
-
-  function applyThicknessLibrarySearchFilter() {
-    var input = $('dcThicknessLibrarySearch');
-    var wrap = $('tbl_dc_thickness_options_library');
-    if (!input || !wrap) return;
-    var q = input.value.trim().toUpperCase();
-    var rows = wrap.querySelectorAll('tr.thickness-row');
-    for (var i = 0; i < rows.length; i++) {
-      var codeInput = rows[i].querySelector('input[data-col="material_type"]');
-      var code = codeInput ? codeInput.value.trim().toUpperCase() : '';
-      rows[i].style.display = !q || code.indexOf(q) >= 0 ? '' : 'none';
-    }
-  }
-
   function wireManualSearch() {
     var input = $('dcManualSearch');
     if (!input || input.__mhManualSearchWired) return;
@@ -4201,7 +4274,7 @@
     }
   }
 
-  function autoGenThicknessTypes() {
+  function syncManualMaterialTypes() {
     status('Đang lấy danh sách loại vật liệu từ Config…');
     var currentManualRows = collectTable('dc_manual_materials');
     var finished = false;
@@ -4210,7 +4283,6 @@
     }, 5000);
     Bridge.get('load_config').then(function (cfg) {
       var d = cfg && cfg.data ? cfg.data : {};
-      state.config.dc_thickness_options_library = d.dc_thickness_options_library || state.config.dc_thickness_options_library || [];
       state.config.dc_manual_materials = mergeManualRowsForUi(d.dc_manual_materials || [], currentManualRows);
       renderTable('dc_manual_materials');
       return Bridge.get('dc_thickness_types');
@@ -4218,30 +4290,11 @@
       finished = true;
       clearTimeout(timer);
       if (!r || !r.ok) { status('Lỗi lấy loại vật liệu: ' + (r && r.error || ''), 'err'); return; }
-      var libraryByKey = thicknessRowsByKey(state.config.dc_thickness_options_library || []);
-      var have = {};
-      var skippedLibrary = 0;
-      (r.types || []).forEach(function (t) {
-        var key = String(t).trim();
-        var up = key.toUpperCase();
-        if (!key || have[up]) return;
-        if (libraryByKey[up]) {
-          skippedLibrary++;
-          have[up] = true;
-          return;
-        }
-        have[up] = true;
-      });
-      state.config.dc_thickness_options = [];
-      state.config.dc_thickness_options_project = [];
-      renderThicknessOptions('library');
       var manualMerge = mergeManualMaterialsFromTypes(r.types || []);
-      status('Đã đồng bộ danh sách vật liệu theo parent'
-        + ', library đã có ' + skippedLibrary + ' mã'
-        + ', manual thêm ' + manualMerge.added + ' mã mới/tổng ' + manualMerge.total
+      status('Đã đồng bộ Danh sách vật liệu: thêm ' + manualMerge.added + ' mã mới/tổng ' + manualMerge.total
         + (r.source ? ', nguồn ' + r.source : '')
         + (r.duration_ms != null ? ' (' + r.duration_ms + ' ms)' : '')
-        + '. Nhập độ dày rồi bấm Lưu.', 'ok');
+        + '.', 'ok');
     }, function (err) {
       finished = true;
       clearTimeout(timer);
@@ -4329,7 +4382,18 @@
     var row = buildBindingFromLearnForm(true);
     if (!row) return;
     upsertBindingRow(row);
-    status('Đã tạo binding cho "' + row.match + '". Bấm Lưu để ghi Config.xlsx.', 'ok');
+    // Kích hoạt ngay trong runtime để DC mới/đang chọn nhận độ dày mà không
+    // phải chờ một lần lưu Excel tốn thời gian. Dòng này vẫn cần Lưu để bền
+    // sau khi đóng SketchUp.
+    Bridge.get('activate_dc_thickness_binding', row).then(function (r) {
+      if (r && r.ok) {
+        status('Đã tạo và kích hoạt binding cho "' + row.match + '". Bấm Lưu để giữ lại sau khi mở lại SketchUp.', 'ok');
+      } else {
+        status('Đã tạo binding nhưng chưa kích hoạt runtime: ' + (r && r.error || ''), 'err');
+      }
+    }, function (err) {
+      status('Đã tạo binding nhưng chưa kích hoạt runtime: ' + (err && err.message || err || ''), 'err');
+    });
   }
 
   function addExtraParam() {
@@ -4414,26 +4478,8 @@
   }
 
   function addRow(name) {
-    if (name === 'ma_surface_face_rules') {
-      var sfrWrap = $('tbl_ma_surface_face_rules');
-      if (!sfrWrap) return;
-      var emptyNode = sfrWrap.querySelector('.empty'); if (emptyNode) emptyNode.remove();
-      var cards = sfrWrap.querySelector('.sfr-cards');
-      if (!cards) { cards = el('div', { class: 'sfr-cards' }); sfrWrap.appendChild(cards); }
-      cards.appendChild(buildSurfaceFaceCard({ enabled: '1' }));
-      return;
-    }
     if (name === 'dc_manual_materials') {
       openManualMaterialInput();
-      return;
-    }
-    if (name === 'ma_vat_lieu_global') {
-      var mappingRows = collectMaterialMappingBoard();
-      mappingRows.push({ gia_tri: '', gia_tri_map: '' });
-      state.config.ma_vat_lieu_global = mappingRows;
-      renderMaterialMappingBoard();
-      var mappingInputs = $('tbl_ma_vat_lieu_global').querySelectorAll('input[data-col="gia_tri"]');
-      if (mappingInputs.length) mappingInputs[mappingInputs.length - 1].focus();
       return;
     }
     var def = TABLES[name];
@@ -4447,7 +4493,6 @@
 
   // ---- config (textareas) ----------------------------------------------
   function fillConfig() {
-    renderMaterialCodeRules();
     renderProductCodeRules();
     var p = state.project, g = state.global;
     var kw = p.keywords || {};
@@ -4468,7 +4513,6 @@
   function strOf(s) { return (s && typeof s === 'object') ? s.value : String(s); }
 
   function collectConfigIntoState() {
-    collectMaterialCodeRulesIntoState();
     collectProductCodeRulesIntoState();
     if (!$('kw_exempt')) return;
     // project
@@ -4508,9 +4552,8 @@
     state.project.modules = collectTable('modules');
   }
   function collectAllGlobalTables() {
-    collectMaterialCodeRulesIntoState();
     collectProductCodeRulesIntoState();
-    syncMaterialMappingsToGlobalState();
+    collectNameReadRules();
     state.global.materials = collectTable('materials');
     state.global.thickness_mappings = collectTable('thickness_mappings');
     state.global.invalid_materials = collectTable('invalid_materials');
@@ -4518,11 +4561,6 @@
 
   function save(scope) {
     collectConfigIntoState();
-    var mcrCheck = validateMaterialCodeRules(state.global.material_code_rules || {});
-    if (!mcrCheck.ok) {
-      status('Cấu trúc mã vật liệu chưa hợp lệ.', 'err');
-      return;
-    }
     var pcrCheck = validateProductCodeRules(state.global.product_code_rules || {});
     if (!pcrCheck.ok) {
       status('Cấu trúc mã sản phẩm chưa hợp lệ: ' + pcrCheck.errors.join(' '), 'err');
@@ -4615,45 +4653,16 @@
     });
   }
 
-  function mergeThicknessToConfig() {
-    state.config.dc_thickness_options = [];
-    state.config.dc_thickness_options_project = [];
-    var formRow = buildBindingFromLearnForm(false);
-    if (formRow) upsertBindingRow(formRow);
-    state.config.dc_thickness_bindings = collectTable('dc_thickness_bindings');
-    status('Đang lưu/cập nhật độ dày vật liệu và binding DC vào Config.xlsx…');
-    Bridge.get('merge_dc_thickness_options_to_config', {
-      dc_thickness_options: state.config.dc_thickness_options,
-      dc_thickness_options_project: state.config.dc_thickness_options_project,
-      dc_thickness_options_library: collectThicknessOptions('library'),
-      dc_thickness_bindings: state.config.dc_thickness_bindings,
-      dc_manual_materials: collectTable('dc_manual_materials')
-    }).then(function (r) {
-      if (!r || !r.ok) {
-        status('Lỗi lưu độ dày vật liệu: ' + (r && r.error || ''), 'err');
-        return;
-      }
-      status('Đã lưu dc_thickness_options: thêm ' + r.added
-        + ', cập nhật ' + (r.updated || 0)
-        + ', giữ nguyên ' + (r.unchanged || 0)
-        + ', bỏ qua library ' + (r.skipped_library || 0)
-        + '; manual thêm ' + (r.manual_added || 0) + '/tổng ' + (r.manual_total || 0) + ' dòng'
-        + '; binding ' + (r.bindings || 0) + ' dòng.', 'ok');
-      loadConfig();
-    }, function (err) {
-      status('Lỗi lưu độ dày vật liệu: ' + (err && err.message || err || ''), 'err');
-    });
-  }
-
-  // ---- config (Config.xlsx) -----------------------------------------------
+  // ---- config (JSON runtime; Excel import/export is explicit) -------------
   var configData = {}; // lưu data gốc để dùng lại
 
-  function loadConfig() {
-    status('Đang đọc Config.xlsx…');
-    Bridge.get('load_config').then(function (r) {
-      if (!r || !r.ok) { status('Lỗi đọc Config.xlsx', 'err'); return; }
+  function loadConfig(fromExcel) {
+    status(fromExcel ? 'Đang tải từ Excel…' : 'Đang đọc JSON…');
+    Bridge.get(fromExcel ? 'reload_config_excel' : 'load_config').then(function (r) {
+      if (!r || !r.ok) { status(fromExcel ? 'Lỗi tải từ Excel' : 'Lỗi đọc JSON', 'err'); return; }
       var d = r.data || {};
       configData = d;
+      if (Array.isArray(d.name_read_rules)) state.global.name_read_rules = d.name_read_rules;
       var seps = d.separators || {};
       $('nc_sep_sub_prefix').value = seps.sep_sub_prefix != null ? seps.sep_sub_prefix : '-';
       $('nc_sep_prefix').value = seps.sep_prefix != null ? seps.sep_prefix : '_';
@@ -4679,35 +4688,18 @@
       }).join('\n');
       renderSuffixRows(d.suffix || []);
       renderProductCodeRules();
+      renderNameReadRules();
       collectProductCodeRulesIntoState();
-      // config tables
-      state.config.ma_vat_lieu = d.ma_vat_lieu || [];
-      state.config.ma_vat_lieu_global = d.ma_vat_lieu_global || d.ma_vat_lieu || [];
-      state.config.ma_thickness = d.ma_thickness || [];
-      state.config.ma_detail_aliases = d.ma_detail_aliases || [];
-      state.config.ma_tag_materials = d.ma_tag_materials || [];
-      state.config.ma_column_aliases = d.ma_column_aliases || [];
-      state.config.ma_surface_face_rules = d.ma_surface_face_rules || [];
       state.config.superimp_import_list = d.superimp_import_list || [];
       state.config.dc_material_options = d.dc_material_options || [];
       state.config.material_profile_choices = d.material_profile_choices || [];
-      state.config.dc_thickness_options_library = d.dc_thickness_options_library || [];
-      state.config.dc_thickness_options_project = [];
-      state.config.dc_thickness_options = [];
       state.config.dc_thickness_bindings = d.dc_thickness_bindings || [];
       state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(d.dc_manual_materials || []);
-      renderTable('ma_vat_lieu_global');
       renderTable('superimp_import_list');
-      renderThicknessOptions('library');
       renderTable('dc_thickness_bindings');
       renderTable('dc_manual_materials');
-      renderTable('ma_thickness');
-      renderTable('ma_detail_aliases');
-      renderTable('ma_tag_materials');
-      renderTable('ma_column_aliases');
-      renderTable('ma_surface_face_rules');
       updateNamePreview();
-      status('Đã tải Config.xlsx', 'ok');
+      status(fromExcel ? 'Đã tải từ Excel và cập nhật JSON.' : 'Đã tải JSON.', 'ok');
     });
   }
 
@@ -4773,6 +4765,7 @@
     syncActiveColumn('prefix');
     syncActiveColumn('modul');
     var suffixEntries = suffixEntriesFromDom();
+    collectNameReadRules();
     syncSuffixTextarea(suffixEntries);
     return {
       separators: {
@@ -4791,74 +4784,51 @@
       prefix_columns: cloneColumns(configData.prefix_columns || {}),
       modul_columns: cloneColumns(configData.modul_columns || {}),
       suffix: suffixEntries,
+      name_read_rules: state.global.name_read_rules || [],
       product_code_rules: state.global.product_code_rules || collectProductCodeRules(),
-      material_code_rules: state.global.material_code_rules || collectMaterialCodeRules(),
-      ma_vat_lieu: collectTable('ma_vat_lieu_global'),
-      ma_vat_lieu_global: collectTable('ma_vat_lieu_global'),
       superimp_import_list: collectTable('superimp_import_list'),
-      ma_thickness: collectTable('ma_thickness'),
-      ma_detail_aliases: collectTable('ma_detail_aliases'),
-      ma_tag_materials: collectTable('ma_tag_materials'),
-      ma_column_aliases: collectTable('ma_column_aliases'),
-      ma_surface_face_rules: collectTable('ma_surface_face_rules'),
       dc_material_profiles: configData.dc_material_profiles || [],
       dc_material_options: state.config.dc_material_options || configData.dc_material_options || [],
       material_profile_choices: state.config.material_profile_choices || [],
-      dc_thickness_options: [],
-      dc_thickness_options_project: [],
-      dc_thickness_options_library: collectThicknessOptions('library'),
       dc_thickness_bindings: collectTable('dc_thickness_bindings'),
       dc_manual_materials: collectTable('dc_manual_materials')
     };
   }
 
   function saveConfig() {
-    var mcrCheck = collectMaterialCodeRulesIntoState();
-    if (mcrCheck && !mcrCheck.ok) {
-      status('Cấu trúc mã vật liệu chưa hợp lệ.', 'err');
-      return;
-    }
+    saveConfigJson();
+  }
+
+  function collectConfigForSave() {
     var pcrCheck = collectProductCodeRulesIntoState();
     if (pcrCheck && !pcrCheck.ok) {
       status('Cấu trúc mã sản phẩm chưa hợp lệ: ' + pcrCheck.errors.join(' '), 'err');
-      return;
+      return null;
     }
-    syncMaterialMappingsToGlobalState();
-    var data = collectConfig();
-    status('Đang lưu…');
-    Bridge.get('save_config', data).then(function (r) {
-      if (r && r.ok) {
-        Bridge.get('save_global', state.global).then(function (gr) {
-          state.config.dc_manual_materials = normalizeManualMaterialRowsForUi(data.dc_manual_materials || []);
-          state.config.dc_thickness_options_library = data.dc_thickness_options_library || [];
-          renderTable('dc_manual_materials');
-          status('Đã lưu → Excel + Registry: ' + (r.path || '') + (gr && gr.ok ? ' + rule mã vật liệu + mã sản phẩm' : ''), gr && gr.ok ? 'ok' : 'err');
-          fillConfig();
-        });
-      } else {
-        status('Lỗi lưu: ' + (r && r.error || ''), 'err');
-      }
-    });
+    return collectConfig();
   }
 
   function saveSuperimp() {
     var formRow = buildBindingFromLearnForm(false);
     if (formRow) upsertBindingRow(formRow);
-    saveConfig();
+    saveSuperimpLibrary();
   }
 
   function saveConfigJson() {
     var data;
     try {
-      data = collectConfig();
+      // Validates and copies rule/mapping state into the JSON payload before
+      // the fast save starts.
+      data = collectConfigForSave();
     } catch (e) {
       status('Không thể lưu JSON: ' + (e && e.message || e || ''), 'err');
       return;
     }
+    if (!data) return;
     status('Đang lưu JSON…');
     Bridge.get('autosave_config_json', data, state.global).then(function (r) {
       status(
-        r && r.ok ? 'Đã lưu JSON (chưa ghi Excel).' : 'Lỗi lưu JSON: ' + (r && r.error || ''),
+        r && r.ok ? 'Đã lưu JSON và áp dụng ngay (chưa ghi Excel).' : 'Lỗi lưu JSON: ' + (r && r.error || ''),
         r && r.ok ? 'ok' : 'err'
       );
     }, function (err) {
@@ -4866,17 +4836,52 @@
     });
   }
 
+  function exportConfigExcel() {
+    var data = collectConfigForSave();
+    if (!data) return;
+    status('Đang xuất Excel…');
+    Bridge.get('export_config_excel', data, state.global).then(function (r) {
+      if (r && r.ok) {
+        status('Đã xuất Excel: ' + (r.config_path || '') + ' + ' + (r.superimp_library_path || ''), 'ok');
+      } else {
+        status('Lỗi xuất Excel: ' + (r && r.error || ''), 'err');
+      }
+    }, function (err) {
+      status('Lỗi xuất Excel: ' + (err && err.message || err || ''), 'err');
+    });
+  }
+
   function saveSuperimpJson() {
     var formRow = buildBindingFromLearnForm(false);
     if (formRow) upsertBindingRow(formRow);
-    saveConfigJson();
+    saveSuperimpLibrary();
+  }
+
+  function saveSuperimpLibrary() {
+    var data;
+    try {
+      data = collectConfigForSave();
+    } catch (e) {
+      status('Không thể lưu thư viện Superimp: ' + (e && e.message || e || ''), 'err');
+      return;
+    }
+    if (!data) return;
+    status('Đang lưu JSON và thư viện Superimp…');
+    Bridge.get('autosave_superimp_library', data, state.global).then(function (r) {
+      status(
+        r && r.ok ? 'Đã lưu JSON và thư viện Superimp.' : 'Lỗi lưu thư viện Superimp: ' + (r && r.error || ''),
+        r && r.ok ? 'ok' : 'err'
+      );
+    }, function (err) {
+      status('Lỗi lưu thư viện Superimp: ' + (err && err.message || err || ''), 'err');
+    });
   }
 
   function openConfigFolder() {
     Bridge.get('open_config_folder');
   }
 
-  // ---- tạo mã vật liệu -------------------------------------------------
+  /* Legacy Excel/material-code generation flow removed from the Tổng hợp UI.
   var mvlInputPath = '';
   var mvlInputExists = false;
   var mvlOutputPath = '';
@@ -4954,6 +4959,36 @@
     });
   }
 
+  function syncProjectJsonFromExcel() {
+    withMVLInput(function () {
+      status('Đang chuyển Excel sang JSON dự án…');
+      $('mvlLog').textContent = 'Đang đọc Excel và cập nhật JSON...';
+      $('btnSyncProjectJson').disabled = true;
+      Bridge.get('sync_project_json_from_excel', { input: mvlInputPath }).then(function (r) {
+        $('btnSyncProjectJson').disabled = false;
+        if (r && r.ok) {
+          var log = 'Đã cập nhật JSON dự án: ' + r.json + '\\nNguồn Excel: ' + r.excel + '\\n' + (r.rows_count || 0) + ' dòng dữ liệu.';
+          if (r.material_assign && r.material_assign.ok) {
+            log += '\\nMaterial Assign đã nạp từ JSON: ' + r.material_assign.count + ' dòng.';
+            $('maDataCount').textContent = r.material_assign.count + ' dòng đã load';
+            $('maSection').style.display = '';
+          } else if (r.material_assign && r.material_assign.error) {
+            log += '\\nMaterial Assign: ' + r.material_assign.error;
+          }
+          $('mvlLog').textContent = log;
+          status('Cập nhật JSON dự án xong!', 'ok');
+        } else {
+          $('mvlLog').textContent = 'Lỗi cập nhật JSON: ' + (r && r.error || '');
+          status('Lỗi cập nhật JSON dự án', 'err');
+        }
+      }).catch(function (err) {
+        $('btnSyncProjectJson').disabled = false;
+        $('mvlLog').textContent = 'Lỗi cập nhật JSON: ' + (err && err.message || err || '');
+        status('Lỗi cập nhật JSON dự án', 'err');
+      });
+    });
+  }
+
   function reloadProjectJsonRuntime() {
     status('Đang nạp lại JSON cho các app MH…');
     $('mvlLog').textContent = 'Đang nạp lại JSON (không đọc Excel)...';
@@ -4983,6 +5018,7 @@
       status('Lỗi reload JSON', 'err');
     });
   }
+
   function markProducts() {
     var start = $('markStart') ? $('markStart').value : '';
     var end = $('markEnd') ? $('markEnd').value : '';
@@ -5107,6 +5143,119 @@
     });
   }
 
+  */
+
+  // ---- đánh dấu sản phẩm từ JSON MH Thongke Desktop -------------------
+  var thongkeDesktopJsonPath = '';
+
+  function setThongkeDesktopJsonPath(path, exists) {
+    thongkeDesktopJsonPath = String(path || '').trim();
+    var label = $('thongkeJsonPath');
+    if (!label) return;
+    label.textContent = thongkeDesktopJsonPath
+      ? thongkeDesktopJsonPath + (exists === false ? ' (không tồn tại)' : '')
+      : '(chưa chọn)';
+  }
+
+  function chooseThongkeDesktopJson() {
+    Bridge.get('choose_thongke_desktop_json').then(function (r) {
+      if (!r || !r.ok) return;
+      setThongkeDesktopJsonPath(r.path, true);
+      var label = r.type === 'thongke_desktop_snapshot' ? 'snapshot MH Thongke Desktop' : 'JSON dữ liệu vật liệu';
+      $('markLog').textContent = 'Đã chọn ' + (r.count || 0) + ' dòng từ ' + label + '. Bấm RELOAD JSON để nạp.';
+    });
+  }
+
+  function reloadProjectJsonRuntime() {
+    status('Đang nạp lại JSON runtime…');
+    $('reloadJsonLog').textContent = 'Đang xử lý...';
+    $('btnReloadProjectJson').disabled = true;
+      Bridge.get('reload_project_json_runtime', { json: thongkeDesktopJsonPath }).then(function (r) {
+      $('btnReloadProjectJson').disabled = false;
+      if (r && r.ok) {
+        var material = r.material_assign || {};
+        var sourceLabel = r.files_count > 1 ? (r.files_count + ' file JSON đã gộp') : (r.source_type === 'thongke_desktop_snapshot' ? 'snapshot MH Thongke Desktop' : 'JSON runtime');
+        var log = 'Đã reload ' + sourceLabel + ': ' + r.json + '\n' + (r.rows_count || 0) + ' dòng dữ liệu.';
+        if (material.ok) {
+          log += '\nMH Material đã nạp ' + (material.count || 0) + ' dòng từ JSON.';
+          $('maDataCount').textContent = (material.count || 0) + ' dòng đã load';
+          $('maSection').style.display = '';
+        } else if (material.error) {
+          log += '\nMH Material: ' + material.error;
+        }
+        $('reloadJsonLog').textContent = log;
+        status('Đã reload JSON runtime.', 'ok');
+      } else {
+        $('reloadJsonLog').textContent = 'Lỗi reload JSON: ' + (r && r.error || '');
+        status('Lỗi reload JSON', 'err');
+      }
+    }).catch(function (err) {
+      $('btnReloadProjectJson').disabled = false;
+      $('reloadJsonLog').textContent = 'Lỗi reload JSON: ' + (err && err.message || err || '');
+      status('Lỗi reload JSON', 'err');
+    });
+  }
+
+  function markProducts() {
+    var start = $('markStart') ? $('markStart').value : '';
+    var end = $('markEnd') ? $('markEnd').value : '';
+    if (!String(start).trim() || !String(end).trim()) {
+      $('markLog').textContent = 'Nhập số Đầu và Cuối.';
+      status('Nhập số Đầu–Cuối', 'err');
+      return;
+    }
+    status('Đang tạo nhãn thủ công...');
+    $('markLog').textContent = 'Đang xử lý...';
+    $('btnMarkProducts').disabled = true;
+    Bridge.get('mark_products_manual', {
+      prefix: $('markPrefix') ? $('markPrefix').value : '',
+      start: start,
+      end: end,
+      spacing: $('markSpacing') ? $('markSpacing').value : 5000
+    }).then(function (r) {
+      $('btnMarkProducts').disabled = false;
+      if (r && r.ok) {
+        $('markLog').textContent = 'Đang tạo ' + r.count + ' nhãn: ' + (r.codes || []).join(', ');
+        status('Đang đánh dấu ' + r.count + ' sản phẩm...', 'ok');
+      } else {
+        $('markLog').textContent = 'Lỗi: ' + (r && r.error || '');
+        status('Lỗi đánh dấu SP', 'err');
+      }
+    }).catch(function (err) {
+      $('btnMarkProducts').disabled = false;
+      $('markLog').textContent = 'Lỗi: ' + (err && err.message || err || '');
+      status('Lỗi đánh dấu SP', 'err');
+    });
+  }
+
+  function markProductsFromJson() {
+    if (!thongkeDesktopJsonPath) {
+      $('markLog').textContent = 'Chọn file JSON từ MH Thongke Desktop trước.';
+      status('Chưa chọn JSON MH Thongke Desktop', 'err');
+      return;
+    }
+    status('Đang đọc JSON MH Thongke Desktop và tạo nhãn...');
+    $('markLog').textContent = 'Đang xử lý...';
+    $('btnMarkProductsFromJson').disabled = true;
+    Bridge.get('mark_products_from_thongke_json', {
+      json: thongkeDesktopJsonPath,
+      spacing: $('markSpacing') ? $('markSpacing').value : 5000
+    }).then(function (r) {
+      $('btnMarkProductsFromJson').disabled = false;
+      if (r && r.ok) {
+        $('markLog').textContent = 'Đang tạo ' + r.count + ' nhãn: ' + (r.codes || []).join(', ');
+        status('Đang đánh dấu ' + r.count + ' sản phẩm...', 'ok');
+      } else {
+        $('markLog').textContent = 'Lỗi: ' + (r && r.error || '');
+        status('Lỗi đánh dấu SP', 'err');
+      }
+    }).catch(function (err) {
+      $('btnMarkProductsFromJson').disabled = false;
+      $('markLog').textContent = 'Lỗi: ' + (err && err.message || err || '');
+      status('Lỗi đánh dấu SP', 'err');
+    });
+  }
+
   function assignSelection() {
     status('Đang gán vật liệu selection…');
     $('maLog').textContent = 'Đang xử lý...';
@@ -5135,22 +5284,16 @@
     });
   }
 
-  function openMVLOutput() {
-    if (mvlOutputPath) Bridge.get('open_mvl_output', mvlOutputPath);
-  }
-
   // ---- bootstrap --------------------------------------------------------
   function loadData() {
     status('Đang tải dữ liệu…');
     Bridge.get('get_data').then(function (d) {
       state.global = d.global || {};
       state.project = d.project || {};
+      renderNameReadRules();
       $('modelName').textContent = d.model_name || '?';
       $('projectPath').textContent = d.project_path || '';
-      if (d.mvl_input_path) {
-        setMVLInputPath(d.mvl_input_path, d.mvl_input_exists);
-        if (d.mvl_input_exists) loadSpCodes();
-      }
+      setThongkeDesktopJsonPath(d.thongke_desktop_json_path, d.thongke_desktop_json_exists);
       fillConfig();
       status('Sẵn sàng.' + (d.model_saved ? '' : ' (Model chưa lưu → project dùng file mặc định)'));
       loadConfig();
@@ -5178,17 +5321,53 @@
     on('btnReload', 'click', loadData);
     on('btnImport', 'click', doImport);
     on('btnScanModel', 'click', scanModel);
-    on('btnReloadConfig', 'click', loadConfig);
+    on('btnReloadConfigMain', 'click', function () { loadConfig(true); });
+    on('btnReloadConfig', 'click', function () { loadConfig(true); });
     on('btnSaveConfig', 'click', saveConfig);
+    on('btnExportConfigExcel', 'click', exportConfigExcel);
     on('btnOpenConfigFolder', 'click', openConfigFolder);
-    on('btnReloadConfig2', 'click', loadConfig);
+    on('btnReloadConfig2', 'click', function () { loadConfig(true); });
     on('btnSaveConfig2', 'click', saveConfig);
+    on('btnExportConfigExcel2', 'click', exportConfigExcel);
     on('btnOpenConfigFolder2', 'click', openConfigFolder);
-    on('btnReloadMaterialProfiles', 'click', autoGenThicknessTypes);
-    on('btnAddThicknessTypeLib', 'click', function () { addThicknessType('library'); });
-    on('btnAddThicknessOptionLib', 'click', function () { addThicknessOption('library'); });
+    on('btnReloadMaterialProfiles', 'click', syncManualMaterialTypes);
     on('btnAddMaterialCodeLayer', 'click', addMcrTestCell);
     on('btnAddProductCodeCell', 'click', addProductCodeCell);
+    on('btnAddNameReadRule', 'click', addNameReadRule);
+    var readRulesBuilder = $('name_read_rules_builder');
+    if (readRulesBuilder) {
+      readRulesBuilder.addEventListener('input', function () {
+        collectNameReadRules();
+      });
+      readRulesBuilder.addEventListener('change', function () {
+        collectNameReadRules();
+      });
+      readRulesBuilder.addEventListener('click', function (ev) {
+        var btn = ev.target.closest('[data-read-action]');
+        if (!btn) return;
+        var card = btn.closest('.name-read-rule');
+        if (!card) return;
+        var ruleIndex = parseInt(card.getAttribute('data-read-rule-index'), 10);
+        var action = btn.getAttribute('data-read-action');
+        if (action === 'delete-rule') {
+          state.global.name_read_rules.splice(ruleIndex, 1);
+        } else if (action === 'add-group') {
+          addNameReadGroup(ruleIndex);
+          return;
+        } else if (action === 'delete-group') {
+          var row = btn.closest('.name-read-group[data-read-group-index]');
+          var groupIndex = row ? parseInt(row.getAttribute('data-read-group-index'), 10) : -1;
+          collectNameReadRules();
+          if (groupIndex >= 0) state.global.name_read_rules[ruleIndex].groups.splice(groupIndex, 1);
+        }
+        renderNameReadRules();
+      });
+      readRulesBuilder.addEventListener('change', function (ev) {
+        if (!ev.target.closest('[data-read-field="group-key"], [data-read-field="group-separator"]')) return;
+        collectNameReadRules();
+        renderNameReadRules();
+      });
+    }
     var pcrBuilder = $('pcr_builder');
     if (pcrBuilder) {
       pcrBuilder.addEventListener('input', function () {
@@ -5459,13 +5638,10 @@
     on('btnLearnDCParams', 'click', learnDCParams);
     on('btnAddExtraParam', 'click', addExtraParam);
     on('btnCreateBinding', 'click', createBinding);
-    on('btnChooseInput', 'click', chooseMVLInput);
-    on('btnMarkProducts', 'click', markProducts);
+    on('btnChooseThongkeJson', 'click', chooseThongkeDesktopJson);
     on('btnReloadProjectJson', 'click', reloadProjectJsonRuntime);
-    on('btnMarkProductsAuto', 'click', markProductsAuto);
-    on('btnRunMVL', 'click', runMVL);
-    on('btnReloadMVLExcel', 'click', reloadMVLExcel);
-    on('btnOpenOutput', 'click', openMVLOutput);
+    on('btnMarkProducts', 'click', markProducts);
+    on('btnMarkProductsFromJson', 'click', markProductsFromJson);
     on('btnAssignSelection', 'click', assignSelection);
     on('btnAssignAll', 'click', assignAll);
     on('nc_active_sub_prefix', 'change', function () { onColumnChange('sub_prefix'); });

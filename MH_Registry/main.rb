@@ -11,11 +11,12 @@
 
 require 'sketchup.rb'
 require 'json'
+require_relative '../MH_shared/material_library'
 
 module MH
   module RegistryApp
+    MH::MaterialLibrary.attach(self)
     PATH = File.dirname(__FILE__) unless defined?(self::PATH)
-    MATERIAL_CODE_LIBRARY_PATH = File.join(File.dirname(PATH), 'MH_shared', 'data', 'material_code_library.xlsx') unless defined?(self::MATERIAL_CODE_LIBRARY_PATH)
     DEFAULTS_KEY = 'MH_Registry' unless defined?(self::DEFAULTS_KEY)
     LAST_MVL_INPUT_KEY = 'LastMVLInputPath' unless defined?(self::LAST_MVL_INPUT_KEY)
     DEBUG = false unless const_defined?(:DEBUG, false)
@@ -47,6 +48,7 @@ module MH
 
       Connector.load_all
       data = load_config
+      remember_runtime_config(data) if respond_to?(:remember_runtime_config)
       Connector.notify_config_changed(data)
       @runtime_ready = true
       true
@@ -391,23 +393,69 @@ module MH
         path = autosave_config_json(config_data)
         MH::Registry.save_global!(symbolize_safe(global_data)) if global_data.is_a?(Hash)
         sync_project_config_registry(config_data)
-        # JSON is the active configuration source. Refresh the DC Import cache
-        # and the currently running Superimp tool so Manual material codes take
-        # effect immediately, without performing the slower Excel save.
-        Connector.notify_config_changed(load_config)
-        refresh_superimp_material_runtime
+        # Fast JSON save: không đọc lại material_code_library.xlsx, không
+        # reload import list qua Config/XLSX và không dựng lại menu. Dữ liệu
+        # thư viện đã được giữ trong snapshot runtime từ lần load trước.
+        runtime_data = runtime_config_for_fast_autosave(config_data)
+        # Tab Superimp chỉ thay binding/list/manual VL/option độ dày. Broadcast
+        # cho mọi connector kéo cả Material Assign (có đường nạp dữ liệu nặng)
+        # vào mỗi lần lưu, dù tab này không hề chỉnh vật liệu. Cập nhật đúng
+        # pipeline đang tiêu thụ các trường này là đủ.
+        pipeline = Connector.get('dc_import_pipeline') rescue nil
+        if pipeline
+          if pipeline.respond_to?(:on_superimp_config_changed)
+            pipeline.on_superimp_config_changed(runtime_data)
+          elsif pipeline.respond_to?(:on_config_changed)
+            pipeline.on_config_changed(runtime_data)
+          end
+        end
+        if defined?(MH::Superimp) && MH::Superimp.respond_to?(:apply_registry_import_list)
+          MH::Superimp.apply_registry_import_list(runtime_data['superimp_import_list'])
+        end
+        refresh_open_superimp_material_hud
         deferred.resolve({ 'ok' => true, 'path' => path })
       rescue => e
         deferred.resolve({ 'ok' => false, 'error' => "#{e.class}: #{e.message}" })
       end
 
-      dlg.on('merge_dc_thickness_options_to_config') do |deferred, data|
-        begin
-          result = merge_dc_thickness_options_to_config(symbolize_safe(data))
-          deferred.resolve(result)
-        rescue => e
-          deferred.resolve({ 'ok' => false, 'error' => e.message })
+      # Lưu tab Superimp phải cập nhật JSON và thư viện mã vật liệu, vì bảng
+      # độ dày chuẩn không còn thuộc superimp_library.xlsx.
+      dlg.on('autosave_superimp_library') do |deferred, config_data, global_data|
+        config_data = symbolize_safe(config_data)
+        saved = autosave_superimp_library(config_data)
+        MH::Registry.save_global!(symbolize_safe(global_data)) if global_data.is_a?(Hash)
+        sync_project_config_registry(config_data)
+        runtime_data = runtime_config_for_fast_autosave(config_data)
+        pipeline = Connector.get('dc_import_pipeline') rescue nil
+        if pipeline
+          if pipeline.respond_to?(:on_superimp_config_changed)
+            pipeline.on_superimp_config_changed(runtime_data)
+          elsif pipeline.respond_to?(:on_config_changed)
+            pipeline.on_config_changed(runtime_data)
+          end
         end
+        if defined?(MH::Superimp) && MH::Superimp.respond_to?(:apply_registry_import_list)
+          MH::Superimp.apply_registry_import_list(runtime_data['superimp_import_list'])
+        end
+        refresh_open_superimp_material_hud
+        deferred.resolve({ 'ok' => true }.merge(saved))
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => "#{e.class}: #{e.message}" })
+      end
+
+      # Cho binding tham số DC có hiệu lực tức thời sau nút "Tạo binding".
+      # Không ghi Excel ở callback này để thao tác học binding không bị chậm;
+      # nút Lưu vẫn là nơi ghi bền superimp_library.xlsx.
+      dlg.on('activate_dc_thickness_binding') do |deferred, row|
+        pipeline = Connector.get('dc_import_pipeline') rescue nil
+        result = if pipeline && pipeline.respond_to?(:upsert_runtime_binding)
+                   pipeline.upsert_runtime_binding(row || {})
+                 else
+                   { 'ok' => false, 'error' => 'DC Import runtime chưa sẵn sàng.' }
+                 end
+        deferred.resolve(result)
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => "#{e.class}: #{e.message}" })
       end
 
       dlg.on('import_xlsx') do |deferred|
@@ -497,8 +545,10 @@ module MH
       end
     end
 
-    # -- Tổng hợp: chọn file, đánh dấu SP, tạo mã vật liệu --
-    def attach_mvl_callbacks(dlg)
+    # Legacy Excel/material-code callbacks. Kept temporarily for internal
+    # compatibility only; the Control Panel registers the JSON-only method
+    # defined below instead.
+    def attach_legacy_mvl_callbacks(dlg)
       dlg.on('get_mvl_input_path') do |deferred|
         path = last_mvl_input_path
         json_path = last_mvl_json_path
@@ -694,6 +744,87 @@ module MH
       end
     end
 
+    # -- Tổng hợp: đánh dấu SP từ JSON MH Thongke Desktop --
+    def attach_mvl_callbacks(dlg)
+      dlg.on('choose_thongke_desktop_json') do |deferred|
+        path = UI.openpanel('Chọn JSON dữ liệu vật liệu hoặc MH Thongke Desktop', '', 'JSON|*.json||')
+        if path
+          source = runtime_json_source(path)
+          if !source['ok']
+            deferred.resolve({ 'ok' => false, 'error' => source['error'].to_s.empty? ? 'JSON không có dữ liệu vật liệu hợp lệ.' : source['error'] })
+          else
+            # The selected data file is the explicit, primary runtime source.
+            # Do not require the model to have SPEC/Data or an Excel workbook.
+            remember_mvl_json_path(path)
+            # A Desktop snapshot can also supply product labels for the marking
+            # command, so retain that separate capability when applicable.
+            remember_thongke_desktop_json_path(path) if source['type'] == 'thongke_desktop_snapshot'
+            deferred.resolve({
+              'ok' => true,
+              'path' => path,
+              'count' => Array(source['rows']).length,
+              'type' => source['type']
+            })
+          end
+        else
+          deferred.resolve({ 'ok' => false, 'cancelled' => true })
+        end
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+
+      dlg.on('mark_products_manual') do |deferred, payload|
+        params = payload.is_a?(Hash) ? payload : {}
+        sp_codes = expand_sp_code_range(params['start'] || params[:start], params['end'] || params[:end])
+        prefix = (params['prefix'] || params[:prefix]).to_s
+        sp_codes = sp_codes.map { |code| "#{prefix}#{code}" } unless prefix.empty?
+        if sp_codes.empty?
+          deferred.resolve({ 'ok' => false, 'error' => 'Không sinh được mã SP; kiểm tra số Đầu và Cuối.' })
+          next
+        end
+        unless defined?(CURIC::Text) && CURIC::Text.respond_to?(:place)
+          deferred.resolve({ 'ok' => false, 'error' => 'CURIC Text chưa được cài đặt.' })
+          next
+        end
+
+        spacing_mm = (params['spacing'] || params[:spacing]).to_f
+        spacing_mm = 5000.0 if spacing_mm <= 0
+        deferred.resolve({ 'ok' => true, 'count' => sp_codes.length, 'codes' => sp_codes, 'source' => 'manual_range' })
+        UI.start_timer(0.1) { place_product_labels(sp_codes, spacing_mm, 'Mark SP Manual') }
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+
+      dlg.on('mark_products_from_thongke_json') do |deferred, payload|
+        params = payload.is_a?(Hash) ? payload : { 'json' => payload }
+        source = thongke_desktop_product_codes_source(params['json'] || params[:json])
+        sp_codes = Array(source['codes'])
+        if sp_codes.empty?
+          deferred.resolve({ 'ok' => false, 'error' => source['error'].to_s.empty? ? 'Không tìm thấy mã SP trong JSON MH Thongke Desktop.' : source['error'] })
+          next
+        end
+        unless defined?(CURIC::Text) && CURIC::Text.respond_to?(:place)
+          deferred.resolve({ 'ok' => false, 'error' => 'CURIC Text chưa được cài đặt.' })
+          next
+        end
+
+        path = source['path'].to_s
+        remember_thongke_desktop_json_path(path)
+        spacing_mm = (params['spacing'] || params[:spacing]).to_f
+        spacing_mm = 5000.0 if spacing_mm <= 0
+        deferred.resolve({ 'ok' => true, 'count' => sp_codes.length, 'codes' => sp_codes, 'path' => path, 'source' => 'mh_thongke_desktop_json' })
+        UI.start_timer(0.1) { place_product_labels(sp_codes, spacing_mm, 'Mark SP from MH Thongke Desktop') }
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+
+      dlg.on('reload_project_json_runtime') do |deferred, payload|
+        deferred.resolve(reload_project_json_runtime(payload))
+      rescue => e
+        deferred.resolve({ 'ok' => false, 'error' => e.message })
+      end
+    end
+
     # -- Connector callbacks (Material Assign, etc.) --
     def attach_connector_callbacks(dlg)
       dlg.on('load_into_material_assign') do |deferred, file_path|
@@ -774,103 +905,6 @@ module MH
     end
 
     # ---- Helpers -----------------------------------------------------------
-
-    def merge_dc_thickness_options_to_config(data)
-      config = load_config
-      incoming = Array(data['dc_thickness_options'] || data[:dc_thickness_options] ||
-                       data['dc_thickness_options_project'] || data[:dc_thickness_options_project])
-      incoming = Array(data['rows'] || data[:rows]) if incoming.empty?
-      incoming = incoming.select { |row| row.is_a?(Hash) && !row['material_type'].to_s.strip.empty? }
-      replace_project = data.key?('dc_thickness_options') || data.key?(:dc_thickness_options) ||
-                        data.key?('dc_thickness_options_project') || data.key?(:dc_thickness_options_project) ||
-                        data.key?('rows') || data.key?(:rows)
-
-      library_rows = Array(config['dc_thickness_options_library'])
-      library_keys = {}
-      library_rows.each do |row|
-        key = row['material_type'].to_s.strip.upcase
-        library_keys[key] = true unless key.empty?
-      end
-
-      current = replace_project ? [] : Array(config['dc_thickness_options_project'])
-      by_key = {}
-      current.each_with_index do |row, index|
-        key = row['material_type'].to_s.strip.upcase
-        by_key[key] = index unless key.empty?
-      end
-      added = []
-      updated = []
-      skipped_library = []
-      unchanged = 0
-
-      incoming.each do |row|
-        type = row['material_type'].to_s.strip
-        key = type.upcase
-        if library_keys[key]
-          skipped_library << type
-          next
-        end
-
-        normalized = {
-          'material_type' => type,
-          'options' => normalize_thickness_options(row['options'])
-        }
-
-        if by_key.key?(key)
-          index = by_key[key]
-          if normalize_thickness_options(current[index]['options']) == normalized['options']
-            unchanged += 1
-          else
-            current[index] = normalized
-            updated << type
-          end
-        else
-          current << normalized
-          by_key[key] = current.length - 1
-          added << type
-        end
-      end
-
-      config['dc_thickness_options_project'] = current
-      config['dc_thickness_options'] = merge_thickness_options(library_rows, current)
-
-      incoming_manual = data['dc_manual_materials'] || data[:dc_manual_materials]
-      manual_merge = nil
-      if incoming_manual.nil?
-        manual_merge = overwrite_manual_materials_from_thickness_options(config['dc_manual_materials'], config['dc_thickness_options'])
-        config['dc_manual_materials'] = manual_merge['rows']
-      else
-        manual_rows = filter_manual_material_rows_by_thickness_options(incoming_manual, config['dc_thickness_options'])
-        manual_merge = { 'rows' => manual_rows, 'added' => 0 }
-        config['dc_manual_materials'] = manual_merge['rows']
-      end
-
-      incoming_bindings = data['dc_thickness_bindings'] || data[:dc_thickness_bindings]
-      unless incoming_bindings.nil?
-        config['dc_thickness_bindings'] = Array(incoming_bindings).select do |row|
-          row.is_a?(Hash) && !(row['match'] || row[:match]).to_s.strip.empty?
-        end
-      end
-      save_config(config)
-      Connector.notify_config_changed(config)
-      refresh_superimp_material_runtime
-
-      {
-        'ok' => true,
-        'added' => added.length,
-        'updated' => updated.length,
-        'unchanged' => unchanged,
-        'skipped_library' => skipped_library.length,
-        'bindings' => Array(config['dc_thickness_bindings']).length,
-        'manual_overwritten' => false,
-        'manual_added' => manual_merge['added'].to_i,
-        'manual_total' => manual_merge['rows'].length,
-        'added_types' => added,
-        'updated_types' => updated,
-        'skipped_library_types' => skipped_library,
-        'path' => config_path
-      }
-    end
 
     def refresh_superimp_material_runtime
       unless defined?(MH::Superimp)
@@ -993,7 +1027,7 @@ module MH
       Array(data['material_profile_choices']).each do |row|
         add_type.call(row['material_name'] || row[:material_name]) if row.is_a?(Hash)
       end
-      Array(data['dc_thickness_options']).each do |row|
+      Array(data['dc_thickness_options_library']).each do |row|
         add_type.call(row['material_type'] || row[:material_type]) if row.is_a?(Hash)
       end
 
@@ -1070,149 +1104,6 @@ module MH
       ['ma sp', 'ma san pham', 'masp', 'product code', 'sp'].include?(text)
     end
 
-    def overwrite_manual_materials_from_thickness_options(manual_rows, thickness_rows)
-      codes = Array(thickness_rows).filter_map do |row|
-        next unless row.is_a?(Hash)
-
-        (row['material_type'] || row[:material_type] ||
-         row['material_code'] || row[:material_code]).to_s.strip
-      end
-      overwrite_manual_materials_from_codes(manual_rows, codes)
-    end
-
-    def overwrite_manual_materials_from_codes(manual_rows, material_codes)
-      order_by_key = {}
-      enabled_by_key = {}
-      Array(manual_rows).each do |row|
-        next unless row.is_a?(Hash)
-
-        code = (row['material_code'] || row[:material_code] ||
-                row['material_type'] || row[:material_type]).to_s.strip
-        next if code.empty?
-
-        key = code.upcase
-        raw_order = row['sort_order'] || row[:sort_order] || row['order'] || row[:order] ||
-                    row['thu_tu'] || row[:thu_tu]
-        order_by_key[key] = numeric_manual_sort_order(raw_order)
-        enabled_by_key[key] = (row.key?('enabled') ? row['enabled'] : row[:enabled]).to_s
-      end
-
-      rows = []
-      seen = {}
-      Array(material_codes).each do |value|
-        code = value.to_s.strip
-        next if code.empty?
-
-        key = code.upcase
-        next if seen[key]
-
-        rows << {
-          'enabled' => enabled_by_key.key?(key) ? enabled_by_key[key].to_s : '1',
-          'material_code' => code,
-          'sort_order' => order_by_key.fetch(key, '')
-        }
-        seen[key] = true
-      end
-
-      { 'rows' => rows, 'added' => [rows.length - order_by_key.length, 0].max }
-    end
-    alias merge_manual_materials_from_thickness_options overwrite_manual_materials_from_thickness_options
-
-    def normalize_manual_material_rows(rows)
-      seen = {}
-      Array(rows).filter_map do |row|
-        next unless row.is_a?(Hash)
-
-        code = (row['material_code'] || row[:material_code] ||
-                row['material_type'] || row[:material_type]).to_s.strip
-        next if code.empty?
-
-        key = code.upcase
-        next if seen[key]
-
-        enabled = if row.key?('enabled')
-                    row['enabled']
-                  elsif row.key?(:enabled)
-                    row[:enabled]
-                  else
-                    '1'
-                  end
-        seen[key] = true
-        {
-          'enabled' => enabled.to_s.strip.empty? ? '1' : enabled.to_s.strip,
-          'material_code' => code,
-          'sort_order' => numeric_manual_sort_order(
-            row['sort_order'] || row[:sort_order] || row['order'] || row[:order] ||
-              row['thu_tu'] || row[:thu_tu]
-          )
-        }
-      end
-    end
-
-    def filter_manual_material_rows_by_thickness_options(manual_rows, thickness_rows)
-      valid = {}
-      Array(thickness_rows).each do |row|
-        next unless row.is_a?(Hash)
-
-        code = (row['material_type'] || row[:material_type] ||
-                row['material_code'] || row[:material_code]).to_s.strip.upcase
-        valid[code] = true unless code.empty?
-      end
-
-      normalize_manual_material_rows(manual_rows).select do |row|
-        valid[row['material_code'].to_s.strip.upcase]
-      end
-    end
-
-    def numeric_manual_sort_order(value)
-      text = value.to_s.strip
-      return '' if text.empty?
-
-      number = Float(text)
-      number.finite? ? number : ''
-    rescue ArgumentError, TypeError
-      ''
-    end
-
-    def merge_manual_material_rows(current_rows, incoming_rows)
-      rows = []
-      index_by_key = {}
-
-      normalize_manual_material_rows(current_rows).each do |row|
-        key = row['material_code'].to_s.strip.upcase
-        next if key.empty? || index_by_key.key?(key)
-
-        index_by_key[key] = rows.length
-        rows << row
-      end
-
-      added = 0
-      normalize_manual_material_rows(incoming_rows).each do |incoming|
-        key = incoming['material_code'].to_s.strip.upcase
-        next if key.empty?
-
-        if index_by_key.key?(key)
-          rows[index_by_key[key]] = rows[index_by_key[key]].merge(incoming)
-        else
-          index_by_key[key] = rows.length
-          rows << incoming
-          added += 1
-        end
-      end
-
-      { 'rows' => rows, 'added' => added }
-    end
-
-    def normalize_thickness_options(options)
-      Array(options).map do |opt|
-        next nil unless opt.is_a?(Hash)
-        panel = opt['panel'].to_s.strip
-        back = opt['back'].to_s.strip
-        next nil if panel.empty? && back.empty?
-        { 'panel' => panel, 'back' => back }
-      end.compact
-    end
-
     def registry_material_names
       rows = begin
         MH::Registry.global['materials']
@@ -1237,6 +1128,7 @@ module MH
       mpath = (model && model.path).to_s
       mvl_input_path = last_mvl_input_path
       mvl_json_path = last_mvl_json_path
+      thongke_desktop_json_path = last_thongke_desktop_json_path
       {
         'global'        => MH::Registry.global,
         'project'       => MH::Registry.project,
@@ -1247,8 +1139,28 @@ module MH
         'mvl_input_exists' => !mvl_input_path.empty? && File.exist?(mvl_input_path),
         'mvl_json_path' => mvl_json_path,
         'mvl_json_exists' => !mvl_json_path.empty? && File.exist?(mvl_json_path),
+        'thongke_desktop_json_path' => thongke_desktop_json_path,
+        'thongke_desktop_json_exists' => !thongke_desktop_json_path.empty? && File.exist?(thongke_desktop_json_path),
         'module_templates' => MH::Registry.module_templates
       }
+    end
+
+    def remember_thongke_desktop_json_path(path)
+      path = path.to_s.strip
+      return '' if path.empty?
+
+      project = MH::Registry.project
+      project['thongke_desktop_json_path'] = path
+      MH::Registry.save_project!(project)
+      path
+    rescue
+      path
+    end
+
+    def last_thongke_desktop_json_path
+      MH::Registry.project['thongke_desktop_json_path'].to_s.strip
+    rescue
+      ''
     end
 
     def remember_mvl_input_path(path)
@@ -1298,12 +1210,14 @@ module MH
         ''
       end
 
-      # MH Thongke Desktop ghi JSON trực tiếp vào SPEC/Data và không ghi lại
-      # metadata của Registry. Vì vậy metadata có thể trỏ vào file của lần tạo
-      # cũ. Luôn ưu tiên file dữ liệu hợp lệ mới nhất của chính công trình.
+      # A source chosen in the Registry is intentional and may live outside
+      # SPEC/Data. It is the primary JSON source; SPEC/Data remains fallback.
+      return project_path if !project_path.empty? && File.exist?(project_path)
+
+      # MH Thongke Desktop can write a row-array JSON directly into SPEC/Data
+      # without Registry metadata, so scan that location only as a fallback.
       latest_path = latest_runtime_project_json_path
       return latest_path unless latest_path.empty?
-      return project_path unless project_path.empty?
 
       input_path = last_mvl_input_path
       input_path.empty? ? '' : project_json_path(input_path).to_s
@@ -1431,10 +1345,6 @@ module MH
     def resolve_mvl_input_path(path)
       path = path.to_s.strip
       path.empty? ? last_mvl_input_path : path
-    end
-
-    def material_code_library_path
-      MATERIAL_CODE_LIBRARY_PATH
     end
 
     def run_mvl_pipeline(payload = {})
@@ -1668,37 +1578,198 @@ module MH
       { 'ok' => false, 'error' => e.message }
     end
 
+    # Resolve the two JSON formats accepted by the Registry material pipeline:
+    # - Array rows generated by Registry/Desktop (Ma_SP + Ma_vat_lieu)
+    # - MH Thongke Desktop snapshots (snapshot.mat_items)
+    # This is deliberately independent of SPEC/Data so a project can keep its
+    # canonical JSON wherever the user chooses.
+    def runtime_json_source(path)
+      path = path.to_s.strip
+      return { 'ok' => false, 'path' => '', 'error' => 'Chưa chọn file JSON dữ liệu.' } if path.empty?
+      return { 'ok' => false, 'path' => path, 'error' => "Không tìm thấy file JSON: #{path}" } unless File.exist?(path)
+
+      payload = JSON.parse(File.read(path, encoding: 'UTF-8'))
+      if payload.is_a?(Array)
+        rows = payload.select { |row| material_json_row?(row) }
+        return {
+          'ok' => false,
+          'path' => path,
+          'error' => 'JSON runtime không có dòng Mã SP + Mã vật liệu hợp lệ.'
+        } if rows.empty?
+        return { 'ok' => true, 'path' => path, 'type' => 'runtime_rows', 'rows' => rows }
+      end
+
+      if payload.is_a?(Hash) && payload['schema'].to_s == 'mh_thongke_project_snapshot' && payload['snapshot'].is_a?(Hash)
+        rows = Array(payload['snapshot']['mat_items']).filter_map do |item|
+          next unless item.is_a?(Hash)
+          product = (item['product'] || item[:product] || item['ma_sp'] || item[:ma_sp] || item['Ma_SP'] || item[:Ma_SP]).to_s.strip
+          material = (item['name'] || item[:name] || item['Ma_vat_lieu'] || item[:Ma_vat_lieu]).to_s.strip
+          # '--' is the Desktop's unassigned-product marker; it cannot drive
+          # object-aware material selection.
+          next if product.empty? || product == '--' || material.empty?
+          thickness = (item['kich_thuoc'] || item[:kich_thuoc] || item['thickness'] || item[:thickness]).to_s.strip
+          {
+            'Ma_SP' => product,
+            'Ten_SP' => (item['ten_sp'] || item[:ten_sp] || item['product_name'] || item[:product_name]).to_s.strip,
+            'Ma_vat_lieu' => material,
+            'Quy_cach_vat_lieu' => thickness,
+            'Excel_E' => thickness
+          }
+        end
+        return {
+          'ok' => false,
+          'path' => path,
+          'error' => 'Snapshot MH Thongke không có vật liệu đã gán Mã SP.'
+        } if rows.empty?
+        return { 'ok' => true, 'path' => path, 'type' => 'thongke_desktop_snapshot', 'rows' => rows }
+      end
+
+      { 'ok' => false, 'path' => path, 'error' => 'JSON phải là dữ liệu vật liệu (mảng dòng) hoặc snapshot MH Thongke Desktop.' }
+    rescue JSON::ParserError => e
+      { 'ok' => false, 'path' => path, 'error' => "JSON không hợp lệ: #{e.message}" }
+    rescue => e
+      { 'ok' => false, 'path' => path, 'error' => e.message }
+    end
+
+    # Collect every valid material-data JSON in the active project's SPEC/Data.
+    # Config/intermediate JSON files are intentionally ignored by
+    # runtime_json_source; an explicitly selected JSON outside that folder is
+    # included as an additional source.
+    def runtime_project_json_paths(extra_paths = [])
+      data_dir = spec_data_dir.to_s
+      candidates = if !data_dir.empty? && Dir.exist?(data_dir)
+        Dir.glob("#{data_dir.tr('\\\\', '/')}/*.json")
+      else
+        []
+      end
+      candidates.concat(Array(extra_paths).map { |path| path.to_s.strip })
+      candidates.map { |path| File.expand_path(path) }
+        .select { |path| File.file?(path) && File.extname(path).casecmp('.json').zero? }
+        .uniq
+        .sort_by { |path| [File.mtime(path).to_f, path.downcase] }
+    rescue
+      []
+    end
+
+    def runtime_json_sources(paths)
+      valid_sources = []
+      ignored = []
+      Array(paths).each do |path|
+        source = runtime_json_source(path)
+        if source['ok']
+          valid_sources << source
+        else
+          ignored << { 'path' => path.to_s, 'error' => source['error'].to_s }
+        end
+      end
+
+      seen = {}
+      rows = valid_sources.flat_map { |source| Array(source['rows']) }.each_with_object([]) do |row, result|
+        next unless row.is_a?(Hash)
+
+        canonical_row = row.each_with_object({}) { |(key, value), hash| hash[key.to_s] = value }
+          .sort_by { |key, _| key }
+        signature = JSON.generate(canonical_row)
+        next if seen[signature]
+
+        seen[signature] = true
+        result << row
+      end
+      return {
+        'ok' => false,
+        'paths' => [],
+        'rows' => [],
+        'files_count' => 0,
+        'ignored_files' => ignored,
+        'error' => 'Không tìm thấy JSON vật liệu hợp lệ trong SPEC/Data.'
+      } if rows.empty?
+
+      source_types = valid_sources.map { |source| source['type'].to_s }.uniq
+      {
+        'ok' => true,
+        'paths' => valid_sources.map { |source| source['path'].to_s },
+        'rows' => rows,
+        'files_count' => valid_sources.length,
+        'ignored_files' => ignored,
+        'type' => source_types.length == 1 && valid_sources.length == 1 ? source_types.first : 'runtime_rows_multi'
+      }
+    rescue => e
+      { 'ok' => false, 'paths' => [], 'rows' => [], 'files_count' => 0, 'error' => e.message }
+    end
+
+    # Builds the shared in-memory snapshot used by Material HUD and other MH
+    # consumers. This performs one read/parse per valid JSON source.
+    def load_runtime_project_data(extra_paths = [], reason: 'registry_runtime_json')
+      paths = runtime_project_json_paths(extra_paths)
+      source = runtime_json_sources(paths)
+      return [source, nil] unless source['ok'] && defined?(MH::ProjectData)
+
+      primary_path = source['paths'].max_by { |path| File.mtime(path).to_f }.to_s
+      signature = source['paths'].sum { |path| File.mtime(path).to_f }
+      snapshot = MH::ProjectData.set_rows(
+        source['rows'],
+        json_path: primary_path,
+        json_paths: source['paths'],
+        json_mtime: signature,
+        source: source['type'],
+        reason: reason
+      )
+      [source, snapshot]
+    rescue => e
+      [{ 'ok' => false, 'paths' => [], 'rows' => [], 'files_count' => 0, 'error' => e.message }, nil]
+    end
+
+    def material_json_row?(row)
+      return false unless row.is_a?(Hash)
+      product = row['Ma_SP'] || row['ma_sp'] || row['Mã SP'] || row['product_code'] || row['product']
+      material = row['Ma_vat_lieu'] || row['ma_vat_lieu'] || row['Mã vật liệu'] || row['material_code'] || row['material']
+      !product.to_s.strip.empty? && !material.to_s.strip.empty?
+    end
+
     # Nạp lại JSON runtime hiện có cho app đang chạy. Đây là luồng nhẹ: đọc
     # JSON một lần, không đọc XLSX, không nạp source Superimp và không dựng lại
     # danh sách/menu Superimp (chúng không phụ thuộc JSON mã vật liệu).
     def reload_project_json_runtime(payload = {})
       payload = payload.is_a?(Hash) ? payload : { 'input' => payload }
       input_path = resolve_mvl_input_path(payload['input'] || payload[:input])
-      json_path = (payload['json'] || payload[:json]).to_s.strip
-      # Khi UI đã chọn Excel, JSON cùng tên trong SPEC/Data là nguồn duy nhất
-      # đúng cho công trình đó. Không được ưu tiên last_mvl_json_path, vì nó có
-      # thể thuộc lần chạy/công trình trước và làm các app hiển thị dữ liệu cũ.
-      if json_path.empty? && !input_path.to_s.empty?
+      selected_json = (payload['json'] || payload[:json]).to_s.strip
+      if selected_json.empty? && !input_path.to_s.empty?
         input_json_path = project_json_path(input_path).to_s
-        json_path = input_json_path if File.exist?(input_json_path)
+        selected_json = input_json_path if File.exist?(input_json_path)
       end
-      json_path = latest_runtime_project_json_path(force: true) if json_path.empty?
-      json_path = last_mvl_json_path.to_s.strip if json_path.empty?
-      return { 'ok' => false, 'error' => 'Chua xac dinh duoc file JSON cua du an.' } if json_path.empty?
-      return { 'ok' => false, 'error' => "File JSON khong ton tai: #{json_path}" } unless File.exist?(json_path)
+      extra_json_paths = [selected_json]
+      remembered_json = last_mvl_json_path.to_s.strip
+      # Preserve a custom JSON outside SPEC/Data only when there is no valid
+      # project data JSON to aggregate. In SPEC/Data, Reload always reads all
+      # usable JSON files regardless of which Excel was last selected.
+      source = runtime_json_sources(runtime_project_json_paths(extra_json_paths))
+      if !source['ok'] && !remembered_json.empty? && File.file?(remembered_json)
+        source = runtime_json_sources([remembered_json])
+      end
+      return { 'ok' => false, 'error' => source['error'].to_s } unless source['ok']
+      json_path = source['paths'].max_by { |path| File.mtime(path).to_f }.to_s
 
+      # Keep only real material rows in the shared runtime cache. A project JSON
+      # may also contain product-summary rows with no material code; loading
+      # those into MH Material bloats every assignment/HUD lookup. A Desktop
+      # snapshot already arrives as the equivalent normalized material rows.
       project_data = if defined?(MH::ProjectData)
-        MH::ProjectData.load_json(
-          json_path,
-          source_path: input_path,
-          force: true,
-          reason: 'registry_reload_project_json_runtime'
+        MH::ProjectData.set_rows(
+          source['rows'],
+          source_path: source['files_count'].to_i == 1 ? input_path : nil,
+          json_path: json_path,
+          json_paths: source['paths'],
+          json_mtime: source['paths'].sum { |path| File.mtime(path).to_f },
+          source: source['type'],
+          reason: "registry_reload_#{source['type']}"
         )
       end
       runtime_rows = project_data && project_data[:ok] ? Array(project_data[:rows]) : nil
 
       material_connector = Connector.get('material_assign') rescue nil
-      material_assign = if material_connector && material_connector.respond_to?(:available?) && material_connector.available?
+      material_ready = material_connector &&
+        (!material_connector.respond_to?(:ensure_available) || material_connector.ensure_available)
+      material_assign = if material_ready && material_connector.respond_to?(:available?) && material_connector.available?
         material_connector.reset_data_load_throttle if material_connector.respond_to?(:reset_data_load_throttle)
         # Reuse the rows just parsed by ProjectData. The previous path called
         # load_from_json here, parsing the exact same file a second time.
@@ -1730,6 +1801,10 @@ module MH
       {
         'ok' => true,
         'json' => json_path,
+        'json_files' => source['paths'],
+        'files_count' => source['files_count'],
+        'ignored_json_files' => source['ignored_files'],
+        'source_type' => source['type'],
         'rows_count' => rows_count,
         'project_data' => project_data && project_data[:ok] ? {
           'ok' => true,
@@ -1852,6 +1927,40 @@ module MH
 
     def symbolize_safe(data)
       data.is_a?(Hash) ? data : {}
+    end
+
+    # This accepts only the snapshot schema emitted by MH Thongke Desktop.
+    # Registry-generated row-array JSON files are deliberately rejected so the
+    # product labels cannot silently use an outdated Registry source.
+    def thongke_desktop_product_codes_source(path = nil)
+      path = path.to_s.strip
+      path = last_thongke_desktop_json_path if path.empty?
+      return { 'codes' => [], 'path' => '', 'error' => 'Chưa chọn file JSON MH Thongke Desktop.' } if path.empty?
+      return { 'codes' => [], 'path' => path, 'error' => "Không tìm thấy file JSON: #{path}" } unless File.exist?(path)
+
+      payload = JSON.parse(File.read(path, encoding: 'UTF-8'))
+      unless payload.is_a?(Hash) && payload['schema'].to_s == 'mh_thongke_project_snapshot' && payload['snapshot'].is_a?(Hash)
+        return { 'codes' => [], 'path' => path, 'error' => 'File không đúng định dạng JSON snapshot của MH Thongke Desktop.' }
+      end
+
+      seen = {}
+      codes = []
+      %w[items mat_items].each do |collection|
+        Array(payload['snapshot'][collection]).each do |row|
+          next unless row.is_a?(Hash)
+          value = row['product'] || row[:product] || row['ma_sp'] || row[:ma_sp] || row['Ma_SP'] || row[:Ma_SP]
+          normalize_sp_code(value).each do |code|
+            next if seen[code]
+            seen[code] = true
+            codes << code
+          end
+        end
+      end
+      { 'codes' => codes, 'path' => path, 'source' => 'mh_thongke_desktop_json' }
+    rescue JSON::ParserError => e
+      { 'codes' => [], 'path' => path.to_s, 'error' => "JSON không hợp lệ: #{e.message}" }
+    rescue => e
+      { 'codes' => [], 'path' => path.to_s, 'error' => e.message }
     end
 
     def mark_product_codes_source(input_path = nil)

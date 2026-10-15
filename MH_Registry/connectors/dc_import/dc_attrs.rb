@@ -225,6 +225,26 @@ module MH
           end
         end
 
+        # UI "Tạo binding" phải có hiệu lực ngay trong phiên SketchUp hiện tại.
+        # Trước đây row chỉ nằm trong state của HtmlDialog cho tới khi người dùng
+        # bấm Lưu; vì thế DC mới import vẫn không nhận độ dày dù bảng đã hiện
+        # binding vừa tạo. Việc ghi bền vẫn do nút Lưu đảm nhiệm.
+        def upsert_runtime_binding(row)
+          binding = parse_bindings('dc_thickness_bindings' => [row]).first
+          return { 'ok' => false, 'error' => 'Binding thiếu Match hoặc tham số Panel/Hậu.' } unless binding
+
+          @bindings ||= []
+          match_key = normalize_binding_match_text(binding['match'])
+          index = @bindings.index do |item|
+            normalize_binding_match_text(item['match']) == match_key
+          end
+          index ? @bindings[index] = binding : @bindings << binding
+          clear_runtime_caches
+          { 'ok' => true, 'binding' => binding }
+        rescue => e
+          { 'ok' => false, 'error' => "#{e.class}: #{e.message}" }
+        end
+
         def binding_for(context, instance = nil)
           return nil unless context
           list = @bindings || []
