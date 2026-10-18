@@ -1,0 +1,2 @@
+# Quickstart
+Select the cabinet → Đọc SketchUp → Parametric. Tick permitted inputs, enter values, Xem trước. Expand 3D/DC groups to see calculated fields and formulas; Mở rộng bảng provides a full table view. Click a 3D row to open Quy tắc module, or an input link there to return to Parametric. Tạo bản thử creates an independent copy; Cập nhật operates only on owned trials. Reading that ordinary trial restores its own engine and current inputs.

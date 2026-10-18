@@ -1,0 +1,62 @@
+const {chromium}=require(process.env.MH_PLAYWRIGHT||'playwright');
+const path=require('path'),fs=require('fs'),assert=require('assert');
+const root=path.resolve(__dirname,'..');
+(async()=>{
+  const browser=await chromium.launch({headless:true,executablePath:process.env.MH_BROWSER||undefined});
+  try{
+    const page=await browser.newPage({viewport:{width:1400,height:900}}),errors=[];
+    page.on('pageerror',e=>errors.push(e.message));
+    await page.addInitScript(()=>{window.sent=[];window.sketchup={request:raw=>sent.push(JSON.parse(raw))};});
+    const file=name=>'file:///'+path.join(root,'ui',name).replaceAll('\\','/');
+    await page.goto(file('index.html'));
+    await page.evaluate(state=>window.receive(state),JSON.parse(fs.readFileSync(path.join(root,'outputs/ui-test-state.json'),'utf8')));
+    await page.locator('#library-tab').click();
+    const catalog={root:'D:/Library',settings:{folder:'',view:'grid',thumbnail_size:150,hud_size:86,folder_keys:{}},folders:[{id:'',parent:null,name:'Library'}],entries:[]};
+    await page.evaluate(state=>window.receiveLibrary(state),catalog);
+    await page.locator('#library-convert').click();
+    assert.equal((await page.evaluate(()=>sent.at(-1))).action,'library_conversion_ready');
+    let state={setup:{source:'',destination:'',update:false},running:false,report:null};
+    await page.evaluate(state=>window.receiveLibraryConversion(state),state);
+    await page.locator('#conversion-source-pick').click();
+    assert.equal((await page.evaluate(()=>sent.at(-1))).action,'library_conversion_source');
+    await page.evaluate(state=>window.receiveLibraryConversion(state),state); // picker cancelled
+    assert(await page.locator('#conversion-source-pick').isEnabled());
+    assert(await page.locator('#conversion-start').isDisabled());
+    state.setup={source:'D:/DC',destination:'D:/Library',update:false};
+    await page.evaluate(state=>window.receiveLibraryConversion(state),state);
+    await page.locator('#conversion-update').check();
+    assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'library_conversion_update',update:true});
+    state.setup.update=true;await page.evaluate(state=>window.receiveLibraryConversion(state),state);
+    await page.locator('#conversion-start').click();
+    assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'library_conversion_start',update:true});
+    state.running=true;state.report={status:'running',total:2,processed:1,converted:1,failed:0,existing:0,destination:'D:/Library',files:[{relative:'Tấm/Nẹp.skp',status:'converted',editable_parameters:2}]};
+    await page.evaluate(state=>window.receiveLibraryConversion(state),state);
+    assert(await page.locator('#conversion-cancel').isEnabled());assert(await page.locator('#library-open-hud').isDisabled());
+    assert.equal(await page.locator('#conversion-progress').evaluate(n=>n.value),1);
+    assert((await page.locator('#conversion-status').textContent()).includes('1/2'));
+    await page.locator('#conversion-cancel').click();assert.equal((await page.evaluate(()=>sent.at(-1))).action,'library_conversion_cancel');
+    state.running=false;state.report.status='cancelled';state.report.failed=1;state.report.processed=2;state.report.files.push({relative:'Lỗi.skp',status:'failed',error:'Hàm chưa hỗ trợ <script>bad</script>'});
+    await page.evaluate(state=>window.receiveLibraryConversion(state),state);
+    assert(await page.locator('#conversion-start').isEnabled());assert(await page.locator('#conversion-open').isEnabled());
+    await page.locator('#conversion-results summary').click();
+    assert.equal(await page.locator('.conversion-file').count(),2);
+    assert((await page.locator('.conversion-file').last().textContent()).includes('<script>bad</script>'));
+    assert.equal(await page.locator('#conversion-files script').count(),0);
+    for(const width of [1000,1400]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.body.scrollWidth<=innerWidth+1));}
+    await page.screenshot({path:path.join(root,'outputs/library-conversion-066.png')});
+    await page.locator('#conversion-close').click();assert(await page.locator('#library-conversion').isHidden());
+    await page.goto(file('parametric.html'));
+    const parametric=JSON.parse(fs.readFileSync(path.join(root,'outputs/custom-inputs-ui.json'),'utf8'));
+    await page.evaluate(state=>window.receive(state),parametric);
+    const value=page.getByRole('textbox',{name:'Xuong · value',exact:true});
+    assert.equal(await value.inputValue(),'50');
+    const backing=page.locator('[data-part-name="sp14_xương nẹp"]').locator('xpath=ancestor::tr').locator('.part-cell').nth(1);
+    await backing.dblclick();
+    assert((await page.locator('.cell-editor input').inputValue()).toLowerCase().includes('xuong'));
+    await page.locator('.cell-editor input').press('Escape');
+    await value.fill('70');await page.locator('#save-variables').click();
+    assert.equal((await page.evaluate(()=>sent.at(-1))).variables.find(r=>r.binding==='xuong').value,70);
+    assert.deepEqual(errors,[]);
+    console.log('Library batch controls, picker cancel, progress/stop/retry, escaped errors, responsive UI; custom Xuong=50, editable named cell and variable save passed.');
+  }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

@@ -1,0 +1,59 @@
+const {chromium}=require(process.env.MH_PLAYWRIGHT||'playwright');
+const path=require('path'),assert=require('assert'),fs=require('fs');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.MH_BROWSER||undefined});
+ try{
+  const page=await browser.newPage({viewport:{width:330,height:500}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{window.sent=[];window.sketchup={request:raw=>window.sent.push(JSON.parse(raw))};});
+  await page.goto('file:///'+path.resolve(__dirname,'../ui/module_options.html').replaceAll('\\','/'));
+  const common={id:'common:T1',name:'Độ dày T1',category:'dimension',unit:'mm',formula:'',editable:true,range:[.2,100],value:null,mixed:true,section_id:'common',section:'Tham số chung'};
+  const privateRow={...common,id:'A:input:giang',name:'Chiều cao giằng',value:70,mixed:false,section_id:'A',section:'Tủ A'};
+  const state={root_pid:'wrapper',token:'one',name:'Cụm tủ',rows:[common,privateRow]};
+  await page.evaluate(s=>window.receive(s),state);
+  assert.equal(await page.locator('.section').count(),2);
+  const input=page.locator('[data-variable-id="common:T1"]');
+  assert.equal(await input.inputValue(),'');assert.equal(await input.getAttribute('placeholder'),'Khác nhau');
+  await input.fill('18');await page.waitForTimeout(350);
+  assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'change',root_pid:'wrapper',token:'one',variable_id:'common:T1',value:18});
+  await page.locator('[data-variable-id="A:input:giang"]').fill('90');await page.waitForTimeout(350);
+  const before=await page.evaluate(()=>sent.length);
+  const ack=structuredClone(state);ack.token='two';ack.rows[0].value=18;ack.rows[0].mixed=false;
+  await page.evaluate(s=>window.receive(s),ack);
+  assert.equal(await page.evaluate(()=>sent.length),before+1);
+  assert.equal(await page.evaluate(()=>sent.at(-1).token),'two');
+  const other={...state,root_pid:'other',token:'other'};
+  await page.evaluate(s=>window.receive(s),other);
+  const previous=await page.evaluate(()=>sent.length);
+  await page.locator('input').first().fill('');await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(()=>sent.length),previous);
+  assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)));
+  await page.evaluate(s=>window.receive({...s,root_pid:'stable',token:'s1'}),state);
+  await page.locator('[data-variable-id="common:T1"]').fill('20');await page.waitForTimeout(350);
+  await page.locator('[data-variable-id="A:input:giang"]').fill('80');
+  await page.locator('[data-variable-id="common:T1"]').fill('22');
+  await page.evaluate(()=>window.keptInput=document.querySelector('[data-variable-id="common:T1"]'));
+  await page.evaluate(s=>{s.root_pid='stable';s.token='s2';s.rows[0].value=20;s.rows[0].mixed=false;window.receive(s);},structuredClone(state));
+  assert(await page.evaluate(()=>keptInput===document.querySelector('[data-variable-id="common:T1"]')));
+  assert.equal(await page.locator('[data-variable-id="common:T1"]').inputValue(),'22');
+  const batch=await page.evaluate(()=>sent.at(-1));assert.equal(batch.action,'changes');assert.equal(batch.changes.length,2);
+  assert(batch.changes.some(row=>row.variable_id==='common:T1'&&row.value===22));
+  assert(batch.changes.some(row=>row.variable_id==='A:input:giang'&&row.value===80));
+  assert(await page.locator('#save-skp').isDisabled());
+  // Windows New can reuse both Model and entity IDs. A new session must drop
+  // the old input queue even when the selected root PID remains the same.
+  await page.evaluate(s=>window.receive({...s,root_pid:'same-pid',session:'old-model',token:'old-token'}),state);
+  await page.locator('[data-variable-id="common:T1"]').fill('20');await page.waitForTimeout(350);
+  await page.locator('[data-variable-id="A:input:giang"]').fill('95');
+  const sentBeforeNew=await page.evaluate(()=>sent.length);
+  await page.evaluate(s=>window.receive({...s,root_pid:'same-pid',session:'new-model',token:'new-token'}),state);
+  await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(()=>sent.length),sentBeforeNew);
+  assert.equal(await page.locator('[data-variable-id="A:input:giang"]').inputValue(),'70');
+  assert(await page.locator('#save-skp').isEnabled());
+  assert.deepEqual(errors,[]);
+  await page.screenshot({path:path.resolve(__dirname,'../outputs/thickness-032/options.png')});
+  fs.writeFileSync(path.resolve(__dirname,'../outputs/thickness-032/browser.json'),JSON.stringify({ok:true,errors}));
+  console.log('Compact grouped options, mixed input, automatic apply, queued private edit and selection switching passed.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exitCode=1;});

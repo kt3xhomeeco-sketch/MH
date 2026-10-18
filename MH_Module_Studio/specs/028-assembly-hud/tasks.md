@@ -1,0 +1,7 @@
+- [x] Specify assembly/HUD behavior and ownership boundary.
+- [x] Add pure offsets, fit/center, angle, repeat spacing, dependency and motion math.
+- [x] Add stable panel anchors, transactions, persistence and deferred observers.
+- [x] Add native face picker/HUD, direct numeric edits, normal/free/XYZ drag.
+- [x] Register Studio, menu, context and shortcut command; update runtime manifest.
+- [x] Complete portable/UI gate, cold reopen and final native checks.
+- [x] Reload user session, package and record actual limits.

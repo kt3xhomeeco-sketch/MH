@@ -1,0 +1,213 @@
+{
+  "id": "91a6a636-0493-4ad1-b612-c90c51b65704",
+  "label": "1.TA Chặn Cánh.skp",
+  "parameter": 17.6,
+  "source": {
+    "kind": "selection",
+    "root_pid": "484351"
+  },
+  "parts": [
+    {
+      "key": "part:0001",
+      "name": "Chặn Cánh",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          400.0,
+          17.6,
+          70.0
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {
+        "_formatversion": 1.0,
+        "_has_movetool_behaviors": 0.0,
+        "_hasbehaviors": 1.0,
+        "_iscollapsed": "false",
+        "_lastmodified": "2026-03-04 09:42",
+        "_lengthunits": "CENTIMETERS",
+        "_lenx_error": "<span class=subformula-success>40.0</span>",
+        "_lenx_formula": "parent!LenX",
+        "_lenx_label": "LenX",
+        "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+        "_leny_formula": "2Tao Dot!d1",
+        "_leny_label": "LenY",
+        "_lenz_error": "<span class=subformula-success>7.0</span>",
+        "_lenz_formula": "parent!LenZ",
+        "_lenz_label": "LenZ",
+        "_name": "Dot",
+        "_x_label": "X",
+        "_y_label": "Y",
+        "_z_label": "Z",
+        "lenx": 15.748031496062993,
+        "leny": 0.6929133858267718,
+        "lenz": 2.7559055118110236,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "affine_verified": true
+    }
+  ],
+  "envelope": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      400.0,
+      17.6,
+      70.0
+    ]
+  ],
+  "dc_inputs": {
+    "_d1_access": "TEXTBOX",
+    "_d1_formlabel": "Độ dày",
+    "_d1_formulaunits": "CENTIMETERS",
+    "_d1_label": "d1",
+    "_d1_options": "&",
+    "_d1_units": "MILLIMETERS",
+    "_formatversion": 1.0,
+    "_has_movetool_behaviors": 0.0,
+    "_hasbehaviors": 1.0,
+    "_lastmodified": "2026-05-13 10:12",
+    "_lengthunits": "CENTIMETERS",
+    "_lenx_access": "NONE",
+    "_lenx_formulaunits": "CENTIMETERS",
+    "_lenx_label": "LenX",
+    "_lenx_nominal": 15.748031496062993,
+    "_lenx_options": "&",
+    "_lenx_units": "MILLIMETERS",
+    "_leny_access": "NONE",
+    "_leny_formulaunits": "CENTIMETERS",
+    "_leny_label": "LenY",
+    "_leny_nominal": 0.6929133858267718,
+    "_leny_options": "&",
+    "_leny_units": "MILLIMETERS",
+    "_lenz_access": "NONE",
+    "_lenz_formulaunits": "CENTIMETERS",
+    "_lenz_label": "LenZ",
+    "_lenz_nominal": 2.7559055118110236,
+    "_lenz_options": "&",
+    "_lenz_units": "MILLIMETERS",
+    "_name": "2Tao Dot",
+    "_scaletool_formlabel": "ScaleTool",
+    "_scaletool_label": "ScaleTool",
+    "_scaletool_units": "STRING",
+    "d1": "0.6929133858267717",
+    "lenx": "15.748031496062993",
+    "leny": "3.937007874015748",
+    "lenz": "15.74803149606299",
+    "scaletool": "122"
+  },
+  "captured_at": "2026-10-17T15:54:34Z",
+  "parameter_source": {
+    "kind": "dc_parameter_set",
+    "dc_keys": [
+      "d1"
+    ]
+  },
+  "dc_graph": {
+    "nodes": [
+      {
+        "id": "0",
+        "parent_id": "",
+        "path": [
+          "chặn cánh"
+        ],
+        "name": "Chặn Cánh",
+        "attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_iscollapsed": "false",
+          "_lastmodified": "2026-03-04 09:42",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>40.0</span>",
+          "_lenx_formula": "parent!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+          "_leny_formula": "2Tao Dot!d1",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>7.0</span>",
+          "_lenz_formula": "parent!LenZ",
+          "_lenz_label": "LenZ",
+          "_name": "Dot",
+          "_x_label": "X",
+          "_y_label": "Y",
+          "_z_label": "Z",
+          "lenx": 15.748031496062993,
+          "leny": 0.6929133858267718,
+          "lenz": 2.7559055118110236,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "transform": [
+          -1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0352,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          4.117647058823529,
+          0.0,
+          15.748031496062993,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            15.748031496062993,
+            19.68503937007874,
+            0.6692913385826772
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "visibility_flattened": false,
+        "part_key": "part:0001"
+      }
+    ],
+    "root_frame": [
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  "module_name": "1.TA Chặn Cánh",
+  "visibility_version": 1,
+  "formula_frame_version": 2
+}

@@ -1,0 +1,617 @@
+[
+  {
+    "label": "Trạng thái 1",
+    "parameter": 18.6,
+    "parts": [
+      {
+        "key": "nóc",
+        "name": "Nóc",
+        "bounds": [
+          [
+            18.6,
+            -2.884343045886067e-29,
+            481.3999999999992
+          ],
+          [
+            581.3999999999999,
+            173.99999999999997,
+            499.99999999999915
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông phải",
+        "name": "Hông Phải",
+        "bounds": [
+          [
+            581.3999999999997,
+            1.4438228390645235e-12,
+            -3.0079642480510743e-13
+          ],
+          [
+            599.9999999999998,
+            200.00000000000145,
+            499.9999999999991
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông trái",
+        "name": "Hông Trái",
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            -5.075939668586185e-13
+          ],
+          [
+            18.6,
+            199.99999999999997,
+            499.9999999999988
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "đáy",
+        "name": "Đáy",
+        "bounds": [
+          [
+            18.6,
+            0.0,
+            -6.489983661594784e-13
+          ],
+          [
+            581.3999999999997,
+            173.99999999999994,
+            18.59999999999935
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len chân trước",
+        "name": "Len Chân Trước",
+        "bounds": [
+          [
+            18.6,
+            -3.2110041646128743e-16,
+            9.021260186009788e-13
+          ],
+          [
+            581.3999999999999,
+            0.35819999999999996,
+            0.6733000000009023
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len nóc trước",
+        "name": "Len Nóc Trước",
+        "bounds": [
+          [
+            18.6,
+            0.0,
+            480.7266999999993
+          ],
+          [
+            19.806700000000003,
+            0.35819999999999996,
+            481.39999999999935
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "haucha / hậu",
+        "name": "Hậu",
+        "bounds": [
+          [
+            10.6,
+            173.99999999999997,
+            -1.1322661469085423e-27
+          ],
+          [
+            589.3999999999997,
+            181.99999999999997,
+            499.9999999999994
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        -3.2110041646128743e-16,
+        -6.489983661594784e-13
+      ],
+      [
+        599.9999999999998,
+        200.00000000000145,
+        499.9999999999994
+      ]
+    ],
+    "parameter_source": {
+      "kind": "geometry_thickness_group",
+      "part_keys": [
+        "hông phải",
+        "hông trái",
+        "nóc",
+        "đáy"
+      ],
+      "box_verified": true
+    },
+    "id": "dc-state-1",
+    "source": {
+      "kind": "regression_fixture"
+    },
+    "dc_inputs": {
+      "ba4ulq2qnw": 0.7322834645669292,
+      "_ba4ulq2qnw_access": "TEXTBOX",
+      "_ba4ulq2qnw_formlabel": "Độ Dày Tấm <font color=TEAL size =1>Panel Thickness </font>",
+      "_ba4ulq2qnw_units": "MILLIMETERS",
+      "ikqikbwfw7": 0.31496062992125984,
+      "_ikqikbwfw7_access": "TEXTBOX",
+      "_ikqikbwfw7_formlabel": "Hậu Độ Dày Tấm <font color=TEAL size =1>Back Thickness </font>",
+      "_ikqikbwfw7_units": "MILLIMETERS",
+      "iwc3l3ib0g": "0.7086614173228347",
+      "_iwc3l3ib0g_access": "TEXTBOX",
+      "_iwc3l3ib0g_formlabel": "Hậu Lùi",
+      "_iwc3l3ib0g_units": "MILLIMETERS",
+      "iwz_2qxr5k": "0.31496062992125984",
+      "_iwz_2qxr5k_access": "TEXTBOX",
+      "_iwz_2qxr5k_formlabel": "Hậu Ngậm",
+      "_iwz_2qxr5k_units": "MILLIMETERS",
+      "j5tmojr4bv": "2",
+      "_j5tmojr4bv_access": "LIST",
+      "_j5tmojr4bv_formlabel": "Phía Trên - Kiểu",
+      "_j5tmojr4bv_units": "FLOAT",
+      "jwt12il6fr": "0",
+      "_jwt12il6fr_access": "LIST",
+      "_jwt12il6fr_formlabel": "Phía Dưới - Kiểu",
+      "_jwt12il6fr_units": "FLOAT"
+    }
+  },
+  {
+    "label": "Trạng thái 2",
+    "parameter": 17.6,
+    "parts": [
+      {
+        "key": "nóc",
+        "name": "Nóc",
+        "bounds": [
+          [
+            17.59999999999997,
+            -2.884343045886067e-29,
+            482.3999999999992
+          ],
+          [
+            582.3999999999997,
+            173.99999999999997,
+            499.99999999999926
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông phải",
+        "name": "Hông Phải",
+        "bounds": [
+          [
+            582.3999999999999,
+            1.4438228390645235e-12,
+            -3.007964248051074e-13
+          ],
+          [
+            599.9999999999998,
+            200.00000000000142,
+            499.999999999999
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông trái",
+        "name": "Hông Trái",
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            -5.075939668586185e-13
+          ],
+          [
+            17.599999999999998,
+            199.99999999999997,
+            499.9999999999988
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "đáy",
+        "name": "Đáy",
+        "bounds": [
+          [
+            17.59999999999997,
+            0.0,
+            -6.141059808820871e-13
+          ],
+          [
+            582.3999999999997,
+            173.99999999999994,
+            17.59999999999939
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len chân trước",
+        "name": "Len Chân Trước",
+        "bounds": [
+          [
+            17.59999999999997,
+            -3.2110041646128743e-16,
+            9.021260186009788e-13
+          ],
+          [
+            582.3999999999997,
+            0.35819999999999996,
+            0.6733000000009023
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len nóc trước",
+        "name": "Len Nóc Trước",
+        "bounds": [
+          [
+            17.59999999999997,
+            0.0,
+            481.72669999999937
+          ],
+          [
+            18.80669999999997,
+            0.35819999999999996,
+            482.3999999999994
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "haucha / hậu",
+        "name": "Hậu",
+        "bounds": [
+          [
+            9.599999999999982,
+            173.99999999999997,
+            -1.1322661469085423e-27
+          ],
+          [
+            590.3999999999997,
+            181.99999999999997,
+            499.9999999999994
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        -3.2110041646128743e-16,
+        -6.141059808820871e-13
+      ],
+      [
+        599.9999999999998,
+        200.00000000000142,
+        499.9999999999994
+      ]
+    ],
+    "parameter_source": {
+      "kind": "geometry_thickness_group",
+      "part_keys": [
+        "hông phải",
+        "hông trái",
+        "nóc",
+        "đáy"
+      ],
+      "box_verified": true
+    },
+    "id": "dc-state-2",
+    "source": {
+      "kind": "regression_fixture"
+    },
+    "dc_inputs": {
+      "ba4ulq2qnw": "0.6929133858267717",
+      "_ba4ulq2qnw_access": "TEXTBOX",
+      "_ba4ulq2qnw_formlabel": "Độ Dày Tấm <font color=TEAL size =1>Panel Thickness </font>",
+      "_ba4ulq2qnw_units": "MILLIMETERS",
+      "ikqikbwfw7": 0.31496062992125984,
+      "_ikqikbwfw7_access": "TEXTBOX",
+      "_ikqikbwfw7_formlabel": "Hậu Độ Dày Tấm <font color=TEAL size =1>Back Thickness </font>",
+      "_ikqikbwfw7_units": "MILLIMETERS",
+      "iwc3l3ib0g": "0.7086614173228347",
+      "_iwc3l3ib0g_access": "TEXTBOX",
+      "_iwc3l3ib0g_formlabel": "Hậu Lùi",
+      "_iwc3l3ib0g_units": "MILLIMETERS",
+      "iwz_2qxr5k": "0.31496062992125984",
+      "_iwz_2qxr5k_access": "TEXTBOX",
+      "_iwz_2qxr5k_formlabel": "Hậu Ngậm",
+      "_iwz_2qxr5k_units": "MILLIMETERS",
+      "j5tmojr4bv": "2",
+      "_j5tmojr4bv_access": "LIST",
+      "_j5tmojr4bv_formlabel": "Phía Trên - Kiểu",
+      "_j5tmojr4bv_units": "FLOAT",
+      "jwt12il6fr": "0",
+      "_jwt12il6fr_access": "LIST",
+      "_jwt12il6fr_formlabel": "Phía Dưới - Kiểu",
+      "_jwt12il6fr_units": "FLOAT"
+    }
+  },
+  {
+    "label": "Trạng thái 3",
+    "parameter": 17.6,
+    "parts": [
+      {
+        "key": "nóc",
+        "name": "Nóc",
+        "bounds": [
+          [
+            17.6,
+            -2.83461299337079e-29,
+            482.3999999999992
+          ],
+          [
+            582.3999999999997,
+            171.0,
+            499.99999999999926
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông phải",
+        "name": "Hông Phải",
+        "bounds": [
+          [
+            582.3999999999999,
+            1.4438228390645235e-12,
+            -3.0079642480510743e-13
+          ],
+          [
+            599.9999999999998,
+            200.00000000000145,
+            499.9999999999991
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "hông trái",
+        "name": "Hông Trái",
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            -5.075939668586185e-13
+          ],
+          [
+            17.6,
+            199.99999999999997,
+            499.9999999999988
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "đáy",
+        "name": "Đáy",
+        "bounds": [
+          [
+            17.6,
+            0.0,
+            -6.141059808820871e-13
+          ],
+          [
+            582.3999999999996,
+            170.99999999999997,
+            17.59999999999939
+          ]
+        ],
+        "thickness_axis": 2,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len chân trước",
+        "name": "Len Chân Trước",
+        "bounds": [
+          [
+            17.6,
+            -3.2110041646128743e-16,
+            9.021260186009788e-13
+          ],
+          [
+            582.3999999999997,
+            0.35819999999999996,
+            0.6733000000009023
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "len nóc trước",
+        "name": "Len Nóc Trước",
+        "bounds": [
+          [
+            17.6,
+            0.0,
+            481.72669999999937
+          ],
+          [
+            18.806700000000006,
+            0.35819999999999996,
+            482.3999999999994
+          ]
+        ],
+        "thickness_axis": null,
+        "box_verified": true,
+        "visible": false,
+        "face_count": 6,
+        "edge_count": 12
+      },
+      {
+        "key": "haucha / hậu",
+        "name": "Hậu",
+        "bounds": [
+          [
+            9.600000000000001,
+            170.99999999999997,
+            -1.1322661469085423e-27
+          ],
+          [
+            590.3999999999997,
+            181.99999999999997,
+            499.9999999999994
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "visible": true,
+        "face_count": 6,
+        "edge_count": 12
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        -3.2110041646128743e-16,
+        -6.141059808820871e-13
+      ],
+      [
+        599.9999999999998,
+        200.00000000000145,
+        499.9999999999994
+      ]
+    ],
+    "parameter_source": {
+      "kind": "geometry_thickness_group",
+      "part_keys": [
+        "hông phải",
+        "hông trái",
+        "nóc",
+        "đáy"
+      ],
+      "box_verified": true
+    },
+    "id": "dc-state-3",
+    "source": {
+      "kind": "regression_fixture"
+    },
+    "dc_inputs": {
+      "ba4ulq2qnw": "0.6929133858267717",
+      "_ba4ulq2qnw_access": "TEXTBOX",
+      "_ba4ulq2qnw_formlabel": "Độ Dày Tấm <font color=TEAL size =1>Panel Thickness </font>",
+      "_ba4ulq2qnw_units": "MILLIMETERS",
+      "ikqikbwfw7": "0.4330708661417323",
+      "_ikqikbwfw7_access": "TEXTBOX",
+      "_ikqikbwfw7_formlabel": "Hậu Độ Dày Tấm <font color=TEAL size =1>Back Thickness </font>",
+      "_ikqikbwfw7_units": "MILLIMETERS",
+      "iwc3l3ib0g": "0.7086614173228347",
+      "_iwc3l3ib0g_access": "TEXTBOX",
+      "_iwc3l3ib0g_formlabel": "Hậu Lùi",
+      "_iwc3l3ib0g_units": "MILLIMETERS",
+      "iwz_2qxr5k": "0.31496062992125984",
+      "_iwz_2qxr5k_access": "TEXTBOX",
+      "_iwz_2qxr5k_formlabel": "Hậu Ngậm",
+      "_iwz_2qxr5k_units": "MILLIMETERS",
+      "j5tmojr4bv": "2",
+      "_j5tmojr4bv_access": "LIST",
+      "_j5tmojr4bv_formlabel": "Phía Trên - Kiểu",
+      "_j5tmojr4bv_units": "FLOAT",
+      "jwt12il6fr": "0",
+      "_jwt12il6fr_access": "LIST",
+      "_jwt12il6fr_formlabel": "Phía Dưới - Kiểu",
+      "_jwt12il6fr_units": "FLOAT"
+    }
+  }
+]

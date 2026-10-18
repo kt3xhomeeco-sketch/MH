@@ -1,0 +1,854 @@
+{
+  "id": "readable-nested-dc",
+  "label": "Readable nested cabinet",
+  "parameter": 18.6,
+  "source": {
+    "kind": "native-derived-test"
+  },
+  "parts": [
+    {
+      "key": "hông trái / hông phải",
+      "name": "Hông Phải",
+      "bounds": [
+        [
+          581.3999999999862,
+          5.775291356258094e-12,
+          18.599999999999998
+        ],
+        [
+          599.9999999999862,
+          500.00000000000574,
+          849.9999999999998
+        ]
+      ],
+      "thickness_axis": 0,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    },
+    {
+      "key": "đáy / đáy",
+      "name": "Đáy",
+      "bounds": [
+        [
+          1.1550582712516188e-11,
+          -5.775291356258094e-12,
+          2.0517956600436428e-26
+        ],
+        [
+          599.9999999999978,
+          499.9999999999943,
+          18.600000000000005
+        ]
+      ],
+      "thickness_axis": 2,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    },
+    {
+      "key": "noc1 / giằng trước",
+      "name": "Giằng Trước",
+      "bounds": [
+        [
+          18.6,
+          0.0,
+          780.0
+        ],
+        [
+          581.3999999999862,
+          18.6,
+          850.0
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    },
+    {
+      "key": "hoi trai / hông trái",
+      "name": "Hông Trái",
+      "bounds": [
+        [
+          -2.3101165425032376e-11,
+          0.0,
+          18.599999999999998
+        ],
+        [
+          18.599999999976898,
+          499.9999999999999,
+          849.9999999999998
+        ]
+      ],
+      "thickness_axis": 0,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    },
+    {
+      "key": "khung_hau / hậu",
+      "name": "Hậu",
+      "bounds": [
+        [
+          10.6,
+          474.00000000000006,
+          10.6
+        ],
+        [
+          589.3999999999862,
+          482.0,
+          849.9999999999998
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    },
+    {
+      "key": "noc1 / giằng sau",
+      "name": "Giằng Sau",
+      "bounds": [
+        [
+          18.6,
+          455.40000000000003,
+          779.9999999999999
+        ],
+        [
+          581.3999999999862,
+          474.00000000000006,
+          849.9999999999998
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": true,
+      "face_count": 6,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {}
+    }
+  ],
+  "envelope": [
+    [
+      -2.3101165425032376e-11,
+      -5.775291356258094e-12,
+      2.0517956600436428e-26
+    ],
+    [
+      599.9999999999978,
+      500.00000000000574,
+      850.0
+    ]
+  ],
+  "dc_inputs": {
+    "_dayvan_access": "TEXTBOX",
+    "_dayvan_error": "1.86",
+    "_dayvan_formlabel": "VÁN DÀY",
+    "_dayvan_formula": "1.86",
+    "_dayvan_formulaunits": "CENTIMETERS",
+    "_dayvan_label": "DAYVAN",
+    "_dayvan_options": "&V%C1N%2018=18&V%C1N%2020=0&",
+    "_dayvan_units": "MILLIMETERS",
+    "_giang_access": "TEXTBOX",
+    "_giang_formlabel": "CHIỀU CAO GIẰNG",
+    "_giang_formulaunits": "CENTIMETERS",
+    "_giang_label": "GIANG",
+    "_giang_options": "&",
+    "_giang_units": "MILLIMETERS",
+    "_hauday_access": "TEXTBOX",
+    "_hauday_error": "0.8",
+    "_hauday_formlabel": "HẬU DÀY",
+    "_hauday_formula": "0.8",
+    "_hauday_formulaunits": "CENTIMETERS",
+    "_hauday_label": "HAUDAY",
+    "_hauday_options": "&",
+    "_hauday_units": "MILLIMETERS",
+    "_lengthunits": "CENTIMETERS",
+    "_luihau_access": "TEXTBOX",
+    "_luihau_formlabel": "HẬU LÙI",
+    "_luihau_formulaunits": "CENTIMETERS",
+    "_luihau_label": "LUIHAU",
+    "_luihau_options": "&",
+    "_luihau_units": "MILLIMETERS",
+    "_name": "KHUNG",
+    "_sauranh_access": "TEXTBOX",
+    "_sauranh_formlabel": "CHIỀU SÂU RÃNH SOI",
+    "_sauranh_formulaunits": "CENTIMETERS",
+    "_sauranh_label": "SAURANH",
+    "_sauranh_options": "&",
+    "_sauranh_units": "MILLIMETERS",
+    "dayvan": 0.7322834645669292,
+    "giang": "2.7559055118110236",
+    "hauday": 0.31496062992125984,
+    "lenx": "23.62204724409449",
+    "leny": "19.68503937007874",
+    "lenz": "33.46456692913385",
+    "luihau": "0.7086614173228347",
+    "sauranh": "0.31496062992125984"
+  },
+  "dc_graph": {
+    "nodes": [
+      {
+        "id": "0",
+        "parent_id": "",
+        "path": [
+          "hông trái"
+        ],
+        "name": "Hông Trái",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>1.86</span>",
+          "_lenx_formula": "PARENT!DAYVAN",
+          "_lenx_label": "LenX",
+          "_lenx_nominal": 0.6929133858267718,
+          "_leny_error": "<span class=subformula-success>50.0</span>",
+          "_leny_formula": "parent!LenY",
+          "_leny_label": "LenY",
+          "_leny_nominal": 19.68503937007874,
+          "_lenz_error": "<span class=subformula-success>84.99999999999999</span>+-1*<span class=subformula-success>1.86</span>",
+          "_lenz_formula": "PARENT!LenZ-PARENT!DAYVAN",
+          "_lenz_label": "LenZ",
+          "_lenz_nominal": 32.77165354330708,
+          "_name": "Hông Trái",
+          "lenx": 0.7322834645669292,
+          "leny": 19.68503937007874,
+          "lenz": 32.732283464566926,
+          "_x_error": "<span class=subformula-success>59.99999999999863</span>+-1*<span class=subformula-success>1.86</span>",
+          "_x_formula": "PARENT!LenX - PARENT!DAYVAN",
+          "_x_label": "X",
+          "_z_error": "<span class=subformula-success>1.86</span>",
+          "_z_formula": " PARENT!DAYVAN",
+          "_z_label": "Z",
+          "x": 22.88976377952702,
+          "z": 0.7322834645669292
+        },
+        "transform": [
+          1.0333333333333976,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.6666666666666687,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.7713333333333328,
+          0.0,
+          22.88976377952702,
+          2.2737367544323206e-13,
+          0.732283464566929,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.7086614173227906,
+            11.81102362204723,
+            11.811023622047246
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "1",
+        "parent_id": "0",
+        "path": [
+          "hông trái",
+          "hông phải"
+        ],
+        "name": "Hông Phải",
+        "attributes": {
+          "_lengthunits": "INCHES",
+          "_name": "Hông Trái"
+        },
+        "transform": [
+          1.028571428571429,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.5,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.3603603603603604,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.6889763779527129,
+            23.62204724409446,
+            32.775590551181104
+          ]
+        ],
+        "part_key": "hông trái / hông phải"
+      },
+      {
+        "id": "2",
+        "parent_id": "",
+        "path": [
+          "đáy"
+        ],
+        "name": "Đáy",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>59.99999999999863</span>",
+          "_lenx_formula": "PARENT!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>50.0</span>",
+          "_leny_formula": "PARENT!LenY",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>1.86</span>",
+          "_lenz_formula": "PARENT!DAYVAN",
+          "_lenz_label": "LenZ",
+          "_name": "Đáy",
+          "lenx": 23.62204724409395,
+          "leny": 19.68503937007874,
+          "lenz": 0.7322834645669292,
+          "_x_label": "X",
+          "_y_label": "Y",
+          "_z_label": "Z",
+          "x": "0",
+          "y": 0.0,
+          "z": "0"
+        },
+        "transform": [
+          2.2727272727272125,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.6666666666666685,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0333333333333332,
+          0.0,
+          4.547473508864641e-13,
+          -2.2737367544323206e-13,
+          8.077935669463161e-28,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            10.393700787401613,
+            11.811023622047232,
+            0.7086614173228348
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "3",
+        "parent_id": "2",
+        "path": [
+          "đáy",
+          "đáy"
+        ],
+        "name": "Đáy",
+        "attributes": {},
+        "transform": [
+          0.88,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.5000000000000001,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.028571428571429,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.811023622047287,
+            23.62204724409446,
+            0.6889763779527559
+          ]
+        ],
+        "part_key": "đáy / đáy"
+      },
+      {
+        "id": "4",
+        "parent_id": "",
+        "path": [
+          "noc1"
+        ],
+        "name": "NOC1",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>59.99999999999863</span>+-2*<span class=subformula-success>1.86</span>",
+          "_lenx_formula": "PARENT!LENX-2*PARENT!DAYVAN",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.86</span>",
+          "_leny_formula": "PARENT!DAYVAN",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>7.0</span>",
+          "_lenz_formula": "PARENT!GIANG",
+          "_lenz_label": "LenZ",
+          "_name": "NOC1",
+          "lenx": 22.15748031496009,
+          "leny": 0.7322834645669292,
+          "lenz": 2.7559055118110236,
+          "_x_error": "<span class=subformula-success>1.86</span>",
+          "_x_formula": "Parent!DAYVAN",
+          "_x_label": "X",
+          "_z_error": "<span class=subformula-success>84.99999999999999</span>+-1*<span class=subformula-success>7.0</span>",
+          "_z_formula": "PARENT!LenZ-PARENT!GIANG",
+          "_z_label": "Z",
+          "x": 0.7322834645669292,
+          "z": 30.70866141732283
+        },
+        "transform": [
+          2.1318181818181032,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.06200000000000384,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.8888888888889164,
+          0.0,
+          0.7322834645669292,
+          0.0,
+          30.708661417322837,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            10.393700787401704,
+            11.811023622046514,
+            0.7086614173228296
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "5",
+        "parent_id": "4",
+        "path": [
+          "noc1",
+          "giằng trước"
+        ],
+        "name": "Giằng Trước",
+        "attributes": {},
+        "transform": [
+          0.9962264150943396,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          17.142857142857153,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.35999999999999743,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            10.433070866141861,
+            0.6889763779527129,
+            1.968503937007874
+          ]
+        ],
+        "part_key": "noc1 / giằng trước"
+      },
+      {
+        "id": "6",
+        "parent_id": "",
+        "path": [
+          "hoi trai"
+        ],
+        "name": "HOI TRAI",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>1.86</span>",
+          "_lenx_formula": "Parent!DAYVAN",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>50.0</span>",
+          "_leny_formula": "Parent!LenY",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>84.99999999999999</span>+-1*<span class=subformula-success>1.86</span>",
+          "_lenz_formula": "PARENT!LenZ-PARENT!DAYVAN",
+          "_lenz_label": "LenZ",
+          "_name": "HOI TRAI",
+          "lenx": 0.7322834645669292,
+          "leny": 19.68503937007874,
+          "lenz": 32.732283464566926,
+          "_z_error": "<span class=subformula-success>1.86</span>",
+          "_z_formula": " PARENT!DAYVAN",
+          "_z_label": "Z",
+          "z": 0.7322834645669292
+        },
+        "transform": [
+          1.0333333333333972,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.6666666666666676,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          2.771333333333333,
+          0.0,
+          -9.094947017729282e-13,
+          0.0,
+          0.732283464566929,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.7086614173227909,
+            11.811023622047236,
+            11.811023622047244
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "7",
+        "parent_id": "6",
+        "path": [
+          "hoi trai",
+          "hông trái"
+        ],
+        "name": "Hông Trái",
+        "attributes": {},
+        "transform": [
+          1.0285714285714291,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.5000000000000002,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.36036036036036034,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.6889763779527129,
+            23.62204724409446,
+            32.775590551181104
+          ]
+        ],
+        "part_key": "hoi trai / hông trái"
+      },
+      {
+        "id": "8",
+        "parent_id": "",
+        "path": [
+          "khung_hau"
+        ],
+        "name": "KHUNG_HAU",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>59.99999999999863</span>+-2*<span class=subformula-success>1.86</span>+2*<span class=subformula-success>0.8</span>",
+          "_lenx_formula": "Parent!LenX-2*Parent!DAYVAN+2*Parent!SAURANH",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>0.8</span>",
+          "_leny_formula": "Parent!HAUDAY",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>84.99999999999999</span>+-1*<span class=subformula-success>1.86</span>+<span class=subformula-success>0.8</span>",
+          "_lenz_formula": "PARENT!LenZ-PARENT!DAYVAN+PARENT!SAURANH",
+          "_lenz_label": "LenZ",
+          "_name": "KHUNG_HAU",
+          "lenx": 22.78740157480261,
+          "leny": 0.31496062992125984,
+          "lenz": 33.047244094488185,
+          "_x_error": "<span class=subformula-success>1.86</span>+-1*<span class=subformula-success>0.8</span>",
+          "_x_formula": "Parent!DAYVAN-Parent!SAURANH",
+          "_x_label": "X",
+          "_y_error": "<span class=subformula-success>50.0</span>+-1*<span class=subformula-success>1.8000000000000003</span>+-1*<span class=subformula-success>0.8</span>",
+          "_y_formula": "Parent!LenY-Parent!LUIHAU-KHUNG!HAUDAY",
+          "_y_label": "Y",
+          "_z_error": "<span class=subformula-success>1.75</span>+-1*<span class=subformula-success>0.9999999999999999</span>",
+          "_z_formula": "Parent!DAYVAN-Parent!SAURANH",
+          "_z_label": "Z",
+          "x": 0.4173228346456693,
+          "y": 18.661417322834648,
+          "z": 0.4173228346456693
+        },
+        "transform": [
+          1.9293333333332963,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.3333333333325388,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.9875294117647058,
+          0.0,
+          0.4173228346456693,
+          18.661417322834648,
+          0.4173228346456693,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.811023622047191,
+            0.23622047244108563,
+            33.46456692913386
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "9",
+        "parent_id": "8",
+        "path": [
+          "khung_hau",
+          "hậu"
+        ],
+        "name": "Hậu",
+        "attributes": {},
+        "transform": [
+          1.0526315789473684,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.8571428571428555,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0089020771513353,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.220472440944832,
+            0.2755905511812671,
+            33.16929133858268
+          ]
+        ],
+        "part_key": "khung_hau / hậu"
+      },
+      {
+        "id": "10",
+        "parent_id": "",
+        "path": [
+          "noc1"
+        ],
+        "name": "NOC1",
+        "attributes": {
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>59.99999999999863</span>+-2*<span class=subformula-success>1.86</span>",
+          "_lenx_formula": "PARENT!LENX-2*PARENT!DAYVAN",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.86</span>",
+          "_leny_formula": "PARENT!DAYVAN",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>7.0</span>",
+          "_lenz_formula": "PARENT!GIANG",
+          "_lenz_label": "LenZ",
+          "_name": "NOC1",
+          "lenx": 22.15748031496009,
+          "leny": 0.7322834645669292,
+          "lenz": 2.7559055118110236,
+          "_x_error": "<span class=subformula-success>1.86</span>",
+          "_x_formula": "Parent!DAYVAN",
+          "_x_label": "X",
+          "_y_error": "<span class=subformula-success>50.0</span>+-1*<span class=subformula-success>0.8</span>+-1*<span class=subformula-success>1.8000000000000003</span>+-1*<span class=subformula-success>1.86</span>",
+          "_y_formula": "PARENT!LENY-PARENT!HAUDAY-PARENT!LUIHAU-PARENT!DAYVAN",
+          "_y_label": "Y",
+          "_z_error": "<span class=subformula-success>84.99999999999999</span>+-1*<span class=subformula-success>7.0</span>",
+          "_z_formula": "PARENT!LenZ-PARENT!GIANG",
+          "_z_label": "Z",
+          "x": 0.7322834645669292,
+          "y": 17.92913385826772,
+          "z": 30.70866141732283
+        },
+        "transform": [
+          2.131818181818011,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.06200000000001409,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          3.8888888888889173,
+          0.0,
+          0.7322834645669292,
+          17.92913385826772,
+          30.70866141732283,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            10.393700787402155,
+            11.81102362204456,
+            0.7086614173228295
+          ]
+        ],
+        "part_key": null
+      },
+      {
+        "id": "11",
+        "parent_id": "10",
+        "path": [
+          "noc1",
+          "giằng sau"
+        ],
+        "name": "Giằng Sau",
+        "attributes": {},
+        "transform": [
+          0.9962264150943395,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          17.142857142857146,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.3599999999999974,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            10.433070866142316,
+            0.6889763779525993,
+            1.968503937007874
+          ]
+        ],
+        "part_key": "noc1 / giằng sau"
+      }
+    ],
+    "root_frame": [
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  }
+}

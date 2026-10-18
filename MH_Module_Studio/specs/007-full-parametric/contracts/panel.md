@@ -1,0 +1,2 @@
+# Panel contract
+Existing capture, exposure, preview/trial/update and rule actions remain. State adds parametric_rows, parametric_preview_rows and an optional parametric_diagnostic. Values are physical mm for lengths, otherwise preserved text/numeric values. Source and preview are distinct; UI switches with scene-mode. Incoming target edits still use the existing validated parameter dictionary; calculated rows cannot bypass that validation.

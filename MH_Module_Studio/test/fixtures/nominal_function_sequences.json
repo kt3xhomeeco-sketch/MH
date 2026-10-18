@@ -1,0 +1,722 @@
+{
+  "f_pkd9225hweeqn4": [
+    "YARVInstructionSequence/SimpleDataFormat",
+    3,
+    2,
+    1,
+    {
+      "arg_size": 1,
+      "local_size": 4,
+      "stack_max": 2,
+      "node_id": 1308,
+      "code_location": [
+        183,
+        45,
+        191,
+        15
+      ],
+      "node_ids": [
+        -1,
+        1251,
+        1252,
+        1253,
+        1255,
+        1256,
+        1256,
+        -1,
+        1249,
+        1249,
+        1259,
+        1260,
+        1261,
+        1264,
+        1258,
+        1268,
+        1271,
+        1267,
+        1274,
+        1277,
+        1279,
+        1279,
+        1279,
+        1278,
+        1273,
+        1288,
+        1289,
+        1291,
+        1291,
+        1281,
+        1282,
+        1283,
+        1285,
+        1287,
+        1287,
+        1298,
+        1299,
+        1301,
+        1301,
+        1294,
+        1295,
+        1297,
+        1297,
+        1304,
+        1306,
+        -1
+      ]
+    },
+    "block in abf_eval",
+    "(eval)",
+    null,
+    183,
+    "block",
+    [
+      "val",
+      "dict",
+      "ret",
+      "unit"
+    ],
+    {
+      "lead_num": 1,
+      "ambiguous_param0": true
+    },
+    [
+      [
+        "redo",
+        null,
+        "label_1",
+        "label_87",
+        "label_1",
+        0
+      ],
+      [
+        "next",
+        null,
+        "label_1",
+        "label_87",
+        "label_87",
+        0
+      ]
+    ],
+    [
+      183,
+      "RUBY_EVENT_B_CALL",
+      [
+        "nop"
+      ],
+      "label_1",
+      184,
+      "RUBY_EVENT_LINE",
+      [
+        "opt_getconstant_path",
+        [
+          "ABF",
+          "StoreData"
+        ]
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "instance",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "putstring",
+        "LOSgKqUGim4j"
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "check_dc",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "opt_not",
+        {
+          "mid": "!",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "branchunless",
+        "label_17"
+      ],
+      [
+        "putnil"
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_17",
+      185,
+      "RUBY_EVENT_LINE",
+      [
+        "getinstancevariable",
+        "@source_entity",
+        0
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "parent",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "attribute_dictionaries",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "opt_aref_with",
+        "dynamic_attributes",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "setlocal_WC_0",
+        5
+      ],
+      186,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        5
+      ],
+      [
+        "opt_aref_with",
+        "_lenz_nominal",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "setlocal_WC_0",
+        4
+      ],
+      187,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        5
+      ],
+      [
+        "opt_aref_with",
+        "_lengthunits",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "dup"
+      ],
+      [
+        "branchif",
+        "label_47"
+      ],
+      [
+        "pop"
+      ],
+      [
+        "putstring",
+        "CENTIMETERS"
+      ],
+      "label_47",
+      [
+        "setlocal_WC_0",
+        3
+      ],
+      188,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        3
+      ],
+      [
+        "putstring",
+        "CENTIMETERS"
+      ],
+      [
+        "opt_eq",
+        {
+          "mid": "==",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "branchunless",
+        "label_68"
+      ],
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "to_f",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "putobject",
+        2.54
+      ],
+      [
+        "opt_mult",
+        {
+          "mid": "*",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_68",
+      189,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        3
+      ],
+      [
+        "putstring",
+        "INCHES"
+      ],
+      [
+        "opt_eq",
+        {
+          "mid": "==",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "branchunless",
+        "label_83"
+      ],
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "to_f",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_83",
+      190,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "throw",
+        1
+      ],
+      "label_87",
+      191,
+      "RUBY_EVENT_B_RETURN",
+      [
+        "leave"
+      ]
+    ]
+  ],
+  "yo3oe7ej_1zgk34f": [
+    "YARVInstructionSequence/SimpleDataFormat",
+    3,
+    2,
+    1,
+    {
+      "arg_size": 1,
+      "local_size": 4,
+      "stack_max": 2,
+      "node_id": 549,
+      "code_location": [
+        73,
+        45,
+        81,
+        15
+      ],
+      "node_ids": [
+        -1,
+        492,
+        493,
+        494,
+        496,
+        497,
+        497,
+        -1,
+        490,
+        490,
+        500,
+        501,
+        502,
+        505,
+        499,
+        509,
+        512,
+        508,
+        515,
+        518,
+        520,
+        520,
+        520,
+        519,
+        514,
+        529,
+        530,
+        532,
+        532,
+        522,
+        523,
+        524,
+        526,
+        528,
+        528,
+        539,
+        540,
+        542,
+        542,
+        535,
+        536,
+        538,
+        538,
+        545,
+        547,
+        -1
+      ]
+    },
+    "block in abf_eval",
+    "(eval)",
+    null,
+    73,
+    "block",
+    [
+      "val",
+      "dict",
+      "ret",
+      "unit"
+    ],
+    {
+      "lead_num": 1,
+      "ambiguous_param0": true
+    },
+    [
+      [
+        "redo",
+        null,
+        "label_1",
+        "label_87",
+        "label_1",
+        0
+      ],
+      [
+        "next",
+        null,
+        "label_1",
+        "label_87",
+        "label_87",
+        0
+      ]
+    ],
+    [
+      73,
+      "RUBY_EVENT_B_CALL",
+      [
+        "nop"
+      ],
+      "label_1",
+      74,
+      "RUBY_EVENT_LINE",
+      [
+        "opt_getconstant_path",
+        [
+          "ABF",
+          "StoreData"
+        ]
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "instance",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "putstring",
+        "LOSgKqUGim4j"
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "check_dc",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "opt_not",
+        {
+          "mid": "!",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "branchunless",
+        "label_17"
+      ],
+      [
+        "putnil"
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_17",
+      75,
+      "RUBY_EVENT_LINE",
+      [
+        "getinstancevariable",
+        "@source_entity",
+        0
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "parent",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "attribute_dictionaries",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "opt_aref_with",
+        "dynamic_attributes",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "setlocal_WC_0",
+        5
+      ],
+      76,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        5
+      ],
+      [
+        "opt_aref_with",
+        "_leny_nominal",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "setlocal_WC_0",
+        4
+      ],
+      77,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        5
+      ],
+      [
+        "opt_aref_with",
+        "_lengthunits",
+        {
+          "mid": "[]",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "dup"
+      ],
+      [
+        "branchif",
+        "label_47"
+      ],
+      [
+        "pop"
+      ],
+      [
+        "putstring",
+        "CENTIMETERS"
+      ],
+      "label_47",
+      [
+        "setlocal_WC_0",
+        3
+      ],
+      78,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        3
+      ],
+      [
+        "putstring",
+        "CENTIMETERS"
+      ],
+      [
+        "opt_eq",
+        {
+          "mid": "==",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "branchunless",
+        "label_68"
+      ],
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "to_f",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "putobject",
+        2.54
+      ],
+      [
+        "opt_mult",
+        {
+          "mid": "*",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_68",
+      79,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        3
+      ],
+      [
+        "putstring",
+        "INCHES"
+      ],
+      [
+        "opt_eq",
+        {
+          "mid": "==",
+          "flag": 16,
+          "orig_argc": 1
+        }
+      ],
+      [
+        "branchunless",
+        "label_83"
+      ],
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "opt_send_without_block",
+        {
+          "mid": "to_f",
+          "flag": 16,
+          "orig_argc": 0
+        }
+      ],
+      [
+        "throw",
+        1
+      ],
+      [
+        "pop"
+      ],
+      "label_83",
+      80,
+      "RUBY_EVENT_LINE",
+      [
+        "getlocal_WC_0",
+        4
+      ],
+      [
+        "throw",
+        1
+      ],
+      "label_87",
+      81,
+      "RUBY_EVENT_B_RETURN",
+      [
+        "leave"
+      ]
+    ]
+  ]
+}

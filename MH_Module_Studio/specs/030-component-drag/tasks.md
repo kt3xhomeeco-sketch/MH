@@ -1,0 +1,11 @@
+- [x] Isolate grouping, instance-local persistence and copied member remapping in AssemblyContainers.
+- [x] Resolve module/panel references through managed wrappers and draw in world coordinates.
+- [x] Normalize wrapper Scale and reconstruct owned members through ScaleRedraw.
+- [x] Replace XYZ handles with picked face/body dragging and dark held-face overlay.
+- [x] Keep click-only and canceled previews free of geometry writes.
+- [x] Permit owned parameter updates in a unique managed component editing context.
+- [x] Run portable gate and inspector browser smoke.
+- [x] Verify native grouping, copy, merge, local coordinates, actual mouse callbacks, fit, Scale and repeat.
+- [x] Verify single grouping/solve Undo; clean fixtures and preserve original roots/selection/definitions.
+- [ ] Reopen a saved full-model SKP and exercise Redo in a dedicated user-authorized fixture session.
+- [x] Package and reload in the existing SketchUp session via guarded VBO.

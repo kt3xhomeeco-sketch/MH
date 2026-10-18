@@ -1,0 +1,6 @@
+/.devtools/
+/outputs/
+/.bundle/
+/.rubocop_cache/
+__pycache__/
+*.pyc

@@ -1,0 +1,5 @@
+- [x] Inspect current failure report and actual non-curved source frames.
+- [x] Support reflected frames consistently in evaluator and parametric sheet.
+- [x] Regression tests and scoped gate.
+- [x] Native conversion retry and verification of new exports.
+- [x] Document result and package runtime, explicitly retain the two non-box Scale limits.

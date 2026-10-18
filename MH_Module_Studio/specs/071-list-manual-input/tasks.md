@@ -1,0 +1,4 @@
+- [x] Reproduce actual formula-valued LIST and implement portable bindings.
+- [x] Support manual/preset selection in Parametric and compact Module Options.
+- [x] Verify native geometry/persistence/Undo and portable member isolation.
+- [x] Full gate, UI smoke, package and reload through VBO.
