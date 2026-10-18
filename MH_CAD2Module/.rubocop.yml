@@ -1,0 +1,29 @@
+plugins:
+  - rubocop-sketchup
+AllCops:
+  TargetRubyVersion: 3.2
+  DisabledByDefault: true
+  NewCops: disable
+  SuggestExtensions: false
+  SketchUp:
+    TargetSketchUpVersion: 2025
+    SourcePath: .
+    EncryptedExtension: false
+Lint:
+  Enabled: true
+Security:
+  Enabled: true
+SketchupBugs:
+  Enabled: true
+SketchupDeprecations:
+  Enabled: true
+SketchupPerformance:
+  Enabled: true
+SketchupRequirements:
+  Enabled: true
+SketchupSuggestions:
+  Enabled: true
+SketchupRequirements/FileStructure:
+  Enabled: false
+SketchupRequirements/SketchupExtension:
+  Enabled: false

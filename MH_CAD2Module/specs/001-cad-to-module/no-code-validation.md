@@ -1,0 +1,7 @@
+# 0.4.2 direct scans without manual codes
+
+- Region completion invokes the existing build flow directly; no code-entry dialog. Native request creation supplies unique internal SCAN IDs, friendly name and automatic_scan=true. Worker requests without code are also supported. Direct-scan placement and DWG code entry remain separate.
+- Geometry/learning identity regression: two independent automatic IDs and an explicit SP32 code produce identical measured modules, geometry signatures and source placement from the same scanned edges. Accepted correction matching still uses geometric signature/evidence; provisional plan-only examples stay excluded from full-height learning.
+- 73 pytest tests passed. Ruby: 8 tests / 33 assertions. RuboCop/rubocop-sketchup: 12 runtime files clean. All three existing browser suites passed.
+- Native SketchUp PID changed to 7616 after the user restarted. Refreshed inventory and reloaded only this app. Native routing check used actual source capture and selection_ready, intercepted only asynchronous job dispatch, and verified that no code-entry method was invoked, an automatic source-plane request was emitted and an existing source/stage could not be duplicated. All original model roots/geometry were preserved. Receipt: outputs/no-code-native-result.json.
+- Packaged outputs/MH_CAD2Module-0.4.2.rbz. No new product was constructed in the user's model during verification.

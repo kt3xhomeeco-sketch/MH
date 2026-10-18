@@ -1,0 +1,9 @@
+# 0.4.1 short trims and direct scan placement
+
+- Real SP32 selected edges reproduced missing 18 × 50 mm rectangles: the previous LINE recovery discarded lengths under 100 mm. Plan-only extraction now includes these short loops; full-elevation extraction remains unchanged.
+- The two source strips bind uniquely to adjacent cabinet front/back planes. Proxy size is 18 × 250 × 1600 mm; measured source footprint remains 18 × 50 mm. They render as solid auxiliary entities and do not add modules. Conflicting neighbour depths are rejected.
+- Python: 72 tests passed. Ruby: 7 tests / 26 assertions passed. RuboCop/rubocop-sketchup: 12 runtime files clean. Existing management, stage and learning browser checks passed.
+- Native temporary check passed: two manifold trim solids, correct dimensions/roles/coordinates, module XY aligned with scanned source boxes and nonzero source-plane offset retained; aborted operation left original geometry unchanged. Receipt: outputs/sp32-trim-native-result.json.
+- Direct scans now supply an explicit source-plane placement; no label required. DWG-path placement keeps existing label centring. Capture records world plane offset and hashes it with plane/geometry. Correction rebasing preserves the source anchor.
+- Before applying SP32 repair, current source group 963192 was re-captured because it had moved since the original job. Current origin is XY (247307.5, 0), plane offset 0. The result retained four original module entity IDs, sizes and local transforms; added solid trim IDs 964510 and 964542. Source CAD and every other root remained unchanged. Receipt: outputs/sp32-trim-repair-result.json. Before/after SKP snapshots and a non-training repair event are in the library.
+- Live model repair is one named Undo operation; no save-over of the user's model or automatic training acceptance. Packaged outputs/MH_CAD2Module-0.4.1.rbz.

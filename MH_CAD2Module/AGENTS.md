@@ -1,0 +1,2 @@
+# MH CAD2Module development
+Scope all changes to this directory and ../MH_CAD2Module.rb. Apply Spec Kit and .agents/skills/karpathy-guidelines/SKILL.md. Read .specify/memory/constitution.md. Run scoped RuboCop/rubocop-sketchup, Ruby tests, pytest and native SketchUp verification. Preserve other plugins and user geometry. Runtime code must never launch AutoCAD. Library defaults to this app's library/ per user update; relocation must preserve history. Do not commit or switch branches merely for Spec Kit.
