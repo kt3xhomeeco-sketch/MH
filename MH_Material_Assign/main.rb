@@ -985,10 +985,8 @@ module MH
 
     # ========== MATERIAL CREATOR ==========
     module MaterialCreator
-      # Bộ đếm màu để tạo màu khác nhau cho mỗi vật liệu
-      @color_index = 0
-      @generated_colors ||= {}
-      @used_generated_colors ||= {}
+      # Các độ dày và biến thể phủ mặt cùng nhóm dùng chung hue.
+      @generated_family_hues ||= {}
 
       def self.color_seed(name)
         name.to_s.each_byte.reduce(0) { |seed, byte| ((seed * 33) + byte) & 0xffffffff }
@@ -1028,79 +1026,94 @@ module MH
         (dr * dr * 0.30) + (dg * dg * 0.59) + (db * db * 0.11)
       end
 
-      def self.contrast_color_candidates
-        hues = [0, 120, 240, 60, 300, 180, 30, 210, 90, 270, 150, 330]
-        variants = [[0.88, 0.50], [0.76, 0.66], [0.82, 0.36]]
-        hues.flat_map do |hue|
-          variants.map { |saturation, lightness| hsl_color(hue, saturation, lightness) }
+      # Trả về nhóm không có độ dày/biến thể bề mặt và dữ liệu tạo sắc độ.
+      # MDF.17.AC, MDF.9.AC, MDF.18.AC.LK5110D.1M và .2M vì thế có cùng hue.
+      def self.color_profile(name)
+        text = name.to_s.strip
+        family = if defined?(MH::MaterialCode)
+          MH::MaterialCode.without_thickness(text).to_s.strip
+        else
+          ''
+        end
+        family = text.sub(/\.(\d+(?:[.,]\d+)?)(?=\.|\z)/, '') if family.empty?
+        surface_variant = family[/\.(1M|2M|1M-BCT|2M-BCT)\z/i, 1].to_s.upcase
+        family = family.sub(/\.(?:1M|2M|1M-BCT|2M-BCT)\z/i, '')
+        family = 'MATERIAL' if family.empty?
+
+        thickness = nil
+        if defined?(MH::MaterialCode)
+          parsed = MH::MaterialCode.parse(text)
+          thickness = parsed[:layers]['do_day'] if parsed && parsed[:layers]
+        end
+        thickness ||= text[/\.(\d+(?:[.,]\d+)?)(?=\.|\z)/, 1]
+        { family: family.upcase, thickness: thickness.to_s.tr(',', '.').to_f, surface_variant: surface_variant }
+      rescue
+        { family: text.to_s.upcase.empty? ? 'MATERIAL' : text.to_s.upcase, thickness: 0.0, surface_variant: '' }
+      end
+
+      # Tấm mỏng sáng hơn, tấm dày đậm hơn. Đây là trục ưu tiên số một:
+      # bất kể đuôi 1M/2M, tấm dày hơn vẫn không được sáng hơn tấm mỏng hơn.
+      def self.lightness_for_thickness(thickness)
+        value = thickness.to_f
+        return 0.50 if value <= 0
+        # Bắt đầu ở 3 mm để các tấm mỏng cũng có từng màu nhận biết được:
+        # 3 mm = 0.84, 8 mm = 0.64, 9 mm = 0.60, 17 mm = 0.28, 18 mm = 0.24.
+        # Không được tăng giới hạn trên: trước đây 3 và 8 mm từng cùng chạm
+        # trần 0.84, dẫn tới đúng cùng một màu.
+        lightness = 0.84 - ((value - 3.0) * 0.04)
+        [[lightness, 0.16].max, 0.84].min
+      end
+
+      # Đuôi phủ mặt chỉ là phân nhánh nhỏ trong CÙNG một độ dày.
+      # 1M sáng hơn một chút, 2M đậm hơn một chút. Biên độ 0.012 nhỏ hơn
+      # 1/2 bước 1 mm (0.04), nên 8 mm.2M vẫn sáng hơn 9 mm.1M; quy luật
+      # "độ dày tăng => màu đậm" luôn đúng cho mọi tổ hợp.
+      def self.surface_variant_lightness_offset(variant)
+        case variant.to_s.upcase
+        when '1M'     then 0.012
+        when '2M'     then -0.012
+        when '1M-BCT' then 0.006
+        when '2M-BCT' then -0.006
+        else 0.0
         end
       end
 
-      def self.generated_color_for_name(name, forbidden_colors = nil)
-        key = name.to_s.strip
-        key = 'Material' if key.empty?
-        forbidden = forbidden_colors || {}
-        cached = @generated_colors[key]
-        return cached if cached && !forbidden.key?(color_key(cached))
+      def self.color_candidates_for_family(family, lightness)
+        seed = color_seed(family)
+        36.times.map do |i|
+          hue = (seed + i * 137.508) % 360
+          [hue, hsl_color(hue, 0.90, lightness)]
+        end
+      end
 
-        used = forbidden.keys.filter_map do |rgb|
+      # Chọn hue có khoảng cách RGB lớn nhất với mọi material có sẵn. Nhờ vậy
+      # material MH mới không bị giống/gần giống màu đã tồn tại trong model.
+      def self.family_hue(family, lightness, forbidden_colors)
+        cached = @generated_family_hues[family]
+        return cached if cached
+
+        used = forbidden_colors.keys.filter_map do |rgb|
           values = rgb.to_s.split(',').map(&:to_i)
           Sketchup::Color.new(*values) if values.length == 3
         end
-        candidates = contrast_color_candidates
-        seed = color_seed(key.upcase)
-        color =
-          if used.empty?
-            candidates[seed % candidates.length]
-          else
-            candidates.each_with_index.max_by do |candidate, index|
-              nearest = used.map { |other| color_distance_sq(candidate, other) }.min || 0
-              [nearest, (seed + index * 7919) % 104_729]
-            end.first
-          end
-
-        if forbidden.key?(color_key(color))
-          expanded = 180.times.map do |index|
-            hsl_color((seed + index * 137.508) % 360, 0.82, index.even? ? 0.46 : 0.64)
-          end
-          color = expanded.max_by do |candidate|
-            used.map { |other| color_distance_sq(candidate, other) }.min || 0
-          end
+        candidate = color_candidates_for_family(family, lightness).each_with_index.max_by do |pair, index|
+          color = pair[1]
+          nearest = used.map { |other| color_distance_sq(color, other) }.min || Float::INFINITY
+          [nearest, (color_seed(family) + index * 7919) % 104_729]
         end
-
-        @generated_colors[key] = color
-        @used_generated_colors[color_key(color)] = key
-        color
+        @generated_family_hues[family] = candidate ? candidate.first[0] : 0.0
       end
-      
-      # Tạo màu khác biệt dựa trên HSL với hue cách đều
-      def self.distinct_color
-        # Sử dụng golden angle (~137.5°) để phân bố hue đều nhất
-        hue = (@color_index * 137.508) % 360
-        @color_index += 1
-        return hsl_color(hue)
-        
-        # Chuyển HSL -> RGB (S=70%, L=55% để màu tươi, dễ nhìn)
-        s = 0.70
-        l = 0.55
-        c = (1.0 - (2 * l - 1).abs) * s
-        x = c * (1.0 - ((hue / 60.0) % 2 - 1).abs)
-        m = l - c / 2.0
-        
-        case (hue / 60.0).floor
-        when 0 then r1, g1, b1 = c, x, 0
-        when 1 then r1, g1, b1 = x, c, 0
-        when 2 then r1, g1, b1 = 0, c, x
-        when 3 then r1, g1, b1 = 0, x, c
-        when 4 then r1, g1, b1 = x, 0, c
-        else        r1, g1, b1 = c, 0, x
-        end
-        
-        r = ((r1 + m) * 255).round
-        g = ((g1 + m) * 255).round
-        b = ((b1 + m) * 255).round
-        
-        Sketchup::Color.new(r, g, b)
+
+      def self.generated_color_for_name(name, forbidden_colors = nil)
+        profile = color_profile(name)
+        # Hue nhận theo family; độ sáng theo độ dày là trục chính và 1M/2M
+        # chỉ tách nhẹ trong từng nấc độ dày. Vì vậy mọi mã của cùng family
+        # đọc được theo thứ tự đậm dần khi độ dày tăng.
+        base_lightness = lightness_for_thickness(profile[:thickness])
+        lightness = base_lightness + surface_variant_lightness_offset(profile[:surface_variant])
+        lightness = [[lightness, 0.06].max, 0.94].min
+        hue = family_hue(profile[:family], lightness, forbidden_colors || {})
+        hsl_color(hue, 0.90, lightness)
       end
 
       # Tạo hoặc lấy vật liệu trong model
@@ -1127,18 +1140,27 @@ module MH
 
         key = material_name.to_s.strip
         key = material.name.to_s.strip if key.empty?
+        profile = color_profile(key)
         model ||= material.model if material.respond_to?(:model)
         model ||= Sketchup.active_model if defined?(Sketchup)
         forbidden = {}
         if model && model.respond_to?(:materials)
           model.materials.each do |other|
             next if other == material || other.texture
+            other_family = other.get_attribute('MH_MaterialApp', 'GeneratedColorFamily') rescue nil
+            if other_family.to_s.strip.empty?
+              other_key = other.get_attribute('MH_MaterialApp', 'GeneratedColorKey') rescue nil
+              other_family = color_profile(other_key)[:family] unless other_key.to_s.strip.empty?
+            end
+            # Các độ dày cùng nhóm được phép cùng hue, chỉ khác sắc độ.
+            next if other_family.to_s.strip.upcase == profile[:family]
             forbidden[color_key(other.color)] = other.name.to_s
           end
         end
         material.color = generated_color_for_name(key, forbidden)
         begin
           material.set_attribute('MH_MaterialApp', 'GeneratedColorKey', key)
+          material.set_attribute('MH_MaterialApp', 'GeneratedColorFamily', profile[:family])
         rescue
         end
       end
@@ -1151,17 +1173,29 @@ module MH
           next false if material.texture
           key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey') rescue nil
           !key.to_s.strip.empty?
-        end.sort_by { |material| material.name.to_s.upcase }
+        end
 
-        @generated_colors = {}
-        @used_generated_colors = {}
+        @generated_family_hues = {}
         forbidden = {}
-        generated.each do |material|
+        # Chỉ các material không do MH tạo mới là màu cần tránh ngay từ đầu.
+        model.materials.each do |material|
+          next if material.texture || generated.include?(material)
+          forbidden[color_key(material.color)] = material.name.to_s
+        end
+
+        generated.group_by do |material|
           key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey').to_s.strip
-          key = material.name.to_s if key.empty?
-          color = generated_color_for_name(key, forbidden)
-          material.color = color
-          forbidden[color_key(color)] = key
+          color_profile(key.empty? ? material.name : key)[:family]
+        end.sort_by { |family, _| family }.each do |family, members|
+          members.sort_by { |material| material.name.to_s.upcase }.each do |material|
+            key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey').to_s.strip
+            key = material.name.to_s if key.empty?
+            material.color = generated_color_for_name(key, forbidden)
+            material.set_attribute('MH_MaterialApp', 'GeneratedColorFamily', family) rescue nil
+          end
+          # Xong cả nhóm mới đánh dấu forbidden: các độ dày trong nhóm không tự
+          # đẩy nhau sang hue khác, nhưng nhóm tiếp theo phải tránh chúng.
+          members.each { |material| forbidden[color_key(material.color)] = material.name.to_s }
         end
         model.active_view.invalidate if model.respond_to?(:active_view)
         generated.length
