@@ -185,3 +185,21 @@ def test_normal_source_scan_uses_rule_and_keeps_world_origin(tmp_path):
     assert target['learning']['mode']=='plan_rule',target
     assert target['placement']['origin_mm']==[30000,40000]
     assert target['placement']['plane_offset_mm']==73
+
+
+def test_measurement_reuse_does_not_trust_signature_after_cad_changes(tmp_path):
+    lib=PlanRuleLibrary(tmp_path)
+    p,_=plan()
+    initial=lib.measured_features(p)
+    assert lib.measured_features(deepcopy(p)) is initial
+    stock,_=plan(stock=25);stock['signature']=p['signature']
+    assert lib.measured_features(stock)['family']!=initial['family']
+    moved=deepcopy(p)
+    moved['source_plan_envelope'][0]-=18
+    assert lib.measured_features(moved)['base'][0]==initial['base'][0]-18
+    renamed=deepcopy(p)
+    for o in renamed['outlines']:o['handle']='new-'+o['handle']
+    proof=lib.measured_features(renamed)['proof']
+    assert any('new-' in h for axis in proof for handles in axis.values() for h in handles)
+    assert all('new-' not in h for axis in initial['proof'] for handles in axis.values() for h in handles)
+    assert p['signature']==stock['signature']==moved['signature']==renamed['signature']

@@ -90,7 +90,7 @@ module MH
       end
       { 'settings' => settings, 'busy' => Jobs.busy?, 'message' => @message,
         'activities' => activity_rows, 'activity_detail' => activity_detail,
-        'plan_rules' => PlanRules.status(settings['library']),
+        'plan_rules' => PlanRules.status(settings['library']), 'local_ai' => @local_ai,
         'errors' => @errors || [], 'labels' => Model.labels,
         'products' => products.map { |p| p.slice('code', 'name', 'automatic_scan', 'status', 'error', 'bounds', 'source_path') },
         'focused' => focused, 'correction' => Corrections.status, 'manual_acceptance' => @manual_acceptance,
@@ -170,9 +170,19 @@ module MH
 
     def publish(message = nil)
       @message = message if message
+      Sketchup.status_text = message if message
       json = JSON.generate(public_state)
       [@manager, @entry].compact.each do |dialog|
         dialog.execute_script("window.receive && window.receive(#{json})") if dialog.visible?
+      end
+    end
+
+    def publish_progress(message)
+      @message = message
+      Sketchup.status_text = message
+      json = JSON.generate('message' => message)
+      [@manager, @entry].compact.each do |dialog|
+        dialog.execute_script("window.receiveProgress && window.receiveProgress(#{json})") if dialog.visible?
       end
     end
 
@@ -209,6 +219,7 @@ module MH
       when 'entry' then entry
       when 'entry_selection', 'scan_selection' then start_scan
       when 'save_settings' then Settings.save(packet.fetch('settings')); publish('Đã nhớ cấu hình theo model/dự án.')
+      when 'ai_status' then check_local_ai
       when 'choose_library' then choose_library
       when 'choose_source' then choose_source
       when 'choose_python', 'choose_converter' then choose_program(action)
@@ -328,12 +339,26 @@ module MH
           model.selection.clear
           model.selection.add(built.flat_map { |product| Model.selection_entities(product) })
         end
-        publish("Đã dựng #{built.length}/#{requests.length} SP. Lỗi chi tiết ở bảng Quản lý.")
+        summary = "Đã dựng #{built.length}/#{requests.length} SP."
+        previews = built.filter_map { |item| JSON.parse(item.get_attribute(Model::DICT, 'analysis'))['envelope_preview'] }
+        summary += " #{previews.length} SP là khối tạm theo khung bao; chưa chia module. Bấm Sai để sửa. Lý do: #{previews.first['reason']}" unless previews.empty?
+        reasons = Array(@errors).filter_map { |item| item['error'] }.uniq
+        summary += " Chưa dựng: #{reasons.first}" unless reasons.empty?
+        publish(summary)
+        manager unless reasons.empty? && previews.empty?
       end
     end
 
     def fold(value)
       value.to_s.unicode_normalize(:nfd).gsub(/\p{Mn}/, '').tr('đĐ', 'dD').upcase.strip
+    end
+
+    def check_local_ai
+      Jobs.start('ai_status') do |result, _job|
+        @local_ai = result['local_ai'] || { 'ready' => false, 'message' => result['error'] }
+        publish(@local_ai['message'])
+      end
+      publish('Đang kiểm tra AI local trên máy…')
     end
 
     def excel

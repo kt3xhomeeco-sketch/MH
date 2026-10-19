@@ -14,7 +14,8 @@ module MH
       source_file.force_encoding('UTF-8')
       ROOT = File.dirname(source_file).freeze
       DEFAULTS = { 'sources' => [], 'library' => File.join(ROOT, 'library'), 'python' => '', 'converter' => '',
-                   'build_plan' => true, 'build_elevation' => false, 'build_auxiliary' => true }.freeze
+                   'build_plan' => true, 'build_elevation' => false, 'build_auxiliary' => true,
+                   'ai_enabled' => false }.freeze
       module_function
 
       def read(model = Sketchup.active_model)

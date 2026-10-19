@@ -9,10 +9,10 @@ import math
 from geometry import TOL, Rect, inside, union, overlapping_modules
 from library import VERSION, atomic_json
 from materials import BOARD_MM
-from plan_profiles import axis_edge, fit_arc
+from plan_profiles import arc_runs
 from learning import pattern, levels, valid_state, plan_event_offset
 
-SCHEMA = 3
+SCHEMA = 4
 MIN_EXAMPLES = 3
 MAX_DELTA = 36.0
 KINDS = ('modules', 'trim_parts', 'panel_parts')
@@ -27,34 +27,7 @@ def digest(value):
 
 
 def circles(outlines):
-    graph=defaultdict(set);points={};handles=defaultdict(set)
-    for o in outlines:
-        for a,b in zip(o['points'],o['points'][1:]):
-            if axis_edge(a,b):continue
-            ka=tuple(round(v,3) for v in a);kb=tuple(round(v,3) for v in b)
-            if ka==kb:continue
-            points[ka]=a;points[kb]=b;graph[ka].add(kb);graph[kb].add(ka)
-            handles[tuple(sorted((ka,kb)))].add(o['handle'])
-    remaining=set(graph);result=[]
-    while remaining:
-        stack=[remaining.pop()];group=set(stack)
-        while stack:
-            for p in graph[stack.pop()]:
-                if p in remaining:remaining.remove(p);group.add(p);stack.append(p)
-        ends=sorted(p for p in group if len(graph[p])==1)
-        if len(ends)!=2 or any(len(graph[p])>2 for p in group):continue
-        order=[ends[0]];previous=None;current=ends[0]
-        while True:
-            following=next((p for p in graph[current] if p!=previous),None)
-            if following is None:break
-            order.append(following);previous,current=current,following
-        arc=fit_arc([points[p] for p in order]) if len(order)>=4 else None
-        if arc:
-            edges=[tuple(sorted((a,b))) for a,b in zip(order,order[1:])]
-            arc['source_edges']=edges
-            arc['handles']=sorted({h for edge in edges for h in handles[edge]})
-            result.append(arc)
-    return sorted(result,key=lambda a:(a['center'],a['radius']))
+    return arc_runs(outlines)
 
 
 def features(product):
@@ -252,6 +225,19 @@ def matches(state,offset,sample):
 class PlanRuleLibrary:
     def __init__(self,root):
         self.root=root;self.folder=root/'rules'/'plan-v1';self.catalog=None
+        self._measurements={}
+
+    def measured_features(self,product):
+        # Per-worker reuse only. Hash the actual measurement inputs rather than
+        # trusting a product code or an old signature after edits/translation.
+        key=digest([product.get('views'),product.get('rectangles'),product.get('outlines'),
+                    product.get('source_plan_envelope'),
+                    product.get('geometry_pipeline',{}).get('vertical',{}).get('view_id')])
+        if key not in self._measurements:
+            cad=features(product)
+            if len(self._measurements)>=8:self._measurements.pop(next(iter(self._measurements)))
+            self._measurements[key]=cad
+        return self._measurements[key]
 
     def refresh(self):
         files=sorted((self.root/'experiences').glob('*/*.json'))
@@ -324,7 +310,7 @@ class PlanRuleLibrary:
 
     def apply(self,product):
         self.refresh()
-        try:cad=features(product)
+        try:cad=self.measured_features(product)
         except (ValueError,TypeError,KeyError,IndexError):return False
         candidate=next((c for c in self.catalog['candidates'] if c['id']==cad['family']),None)
         if not candidate:return False

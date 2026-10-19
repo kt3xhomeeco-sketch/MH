@@ -39,4 +39,26 @@ class PlanProfileTest < Minitest::Test
     boxes[0]['size'][0] = 1310
     assert_raises(ArgumentError) { MH::CAD2Module::ManualBoxes.parts({ 'boxes' => boxes }, analysis) }
   end
+
+  def test_manual_stepped_prism_keeps_recess_in_feedback
+    points = [[0, 0], [800, 0], [800, 600], [200, 600], [200, 400], [0, 400]]
+    lines = [0, 1600].flat_map { |z| (points + [points.first]).each_cons(2).map { |a, b| [a + [z], b + [z]] } }
+    lines += points.map { |p| [p + [0], p + [1600]] }
+    result = MH::CAD2Module::PlanProfile.prism(lines)
+    assert_equal [800, 600, 1600], result['size']
+    assert_equal 6, result['plan_profile']['segments'].length
+    assert_includes result['plan_profile']['segments'].map { |s| s['start'] }, [200, 400]
+  end
+
+  def test_arc_extremum_axial_chord_does_not_split_true_circle
+    outer = 10.times.map { |i| angle = (-90 + i * 20) * Math::PI / 180; [118 * Math.cos(angle), 118 * Math.sin(angle)] }
+    inner = 10.times.map { |i| angle = (90 - i * 20) * Math::PI / 180; [100 * Math.cos(angle), 100 * Math.sin(angle)] }
+    profile = MH::CAD2Module::PlanProfile.from_points(outer + inner)
+    arcs = profile['segments'].select { |s| s['type'] == 'arc' }
+    assert_equal 2, arcs.length
+    assert_equal [100, 118], arcs.map { |s| s['radius'].round }.sort
+    assert arcs.all? { |s| (s['sweep'].abs - Math::PI).abs < 0.001 }
+    assert arcs.all? { |s| MH::CAD2Module::PlanProfile.segment_count(s).even? }
+    assert_in_delta 18, MH::CAD2Module::PlanProfile.concentric_thickness(profile), 0.001
+  end
 end

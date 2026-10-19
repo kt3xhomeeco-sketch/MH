@@ -1,7 +1,8 @@
 """Measured closed side profiles; circular runs remain analytic arcs."""
 import math
 from collections import defaultdict
-from geometry import TOL, union, gap_boxes
+from geometry import TOL, union, gap_boxes, near, inside, covers
+from materials import BOARD_MM
 
 
 def axis_edge(a,b):
@@ -9,6 +10,7 @@ def axis_edge(a,b):
 
 
 def fit_arc(points):
+    if len(points)<4:return None
     a=points[0];b=[v-o for v,o in zip(points[len(points)//2],a)];c=[v-o for v,o in zip(points[-1],a)]
     det=2*(b[0]*c[1]-b[1]*c[0])
     if abs(det)<1e-9:return None
@@ -26,25 +28,112 @@ def fit_arc(points):
     return dict(type='arc',start=a,end=points[-1],center=center,radius=radius,sweep=sweep,segments=len(points)-1)
 
 
+def longest_arc(points,start):
+    finish=start+3
+    if finish>=len(points):return None
+    arc=fit_arc(points[start:finish+1])
+    if not arc:return None
+    while finish+1<len(points):
+        extended=fit_arc(points[start:finish+2])
+        if not extended:break
+        finish+=1;arc=extended
+    return finish,arc
+
+
 def profile_from_points(points):
-    index=next((i for i,p in enumerate(points) if axis_edge(p,points[(i+1)%len(points)])),None)
+    # An axial chord at an arc extremum is still curved, not a straight seam.
+    count=len(points)
+    index=next((i for i,p in enumerate(points) if axis_edge(p,points[(i+1)%count]) and not any(
+        fit_arc([points[(j+k)%count] for k in range(4)]) for j in (i-2,i-1,i))),None)
     if index is None:raise ValueError('Chưa hỗ trợ spline hoặc vòng tròn kín làm khối mặt bằng.')
     points=points[index:]+points[:index]
     closed=points+[points[0]];segments=[];i=0
     while i<len(points):
         finish=i+1
-        if axis_edge(closed[i],closed[finish]):
+        fitted=longest_arc(closed,i)
+        if fitted:
+            finish,arc=fitted
+            if segments and segments[-1]['type']=='arc' and (math.dist(segments[-1]['center'],arc['center'])>.02 or abs(segments[-1]['radius']-arc['radius'])>.02):
+                raise ValueError('Biên cong đổi tâm/bán kính liên tục; chưa xác nhận được cung tròn CAD.')
+            segments.append(arc)
+        elif axis_edge(closed[i],closed[finish]):
             while (finish<len(points) and axis_edge(closed[finish],closed[finish+1]) and
                    (abs(closed[i][0]-closed[finish+1][0])<.001 or abs(closed[i][1]-closed[finish+1][1])<.001)):
                 finish+=1
             segments.append(dict(type='line',start=closed[i],end=closed[finish]))
-        else:
-            while finish<len(points) and not axis_edge(closed[finish],closed[finish+1]):finish+=1
-            arc=fit_arc(closed[i:finish+1]) if finish-i>=3 else None
-            if not arc:raise ValueError('Biên cong chưa khớp cung tròn đo từ CAD; cần kiểm tra spline/cạnh xiên.')
-            segments.append(arc)
+        else:raise ValueError('Biên cong chưa khớp cung tròn đo từ CAD; cần kiểm tra spline/cạnh xiên.')
         i=finish
     return dict(schema=1,segments=segments)
+
+
+def arc_runs(outlines):
+    """Recover circular runs from un-welded LINEs, including axial chords."""
+    graph=defaultdict(set);coords={};handles=defaultdict(set)
+    for outline in outlines:
+        for a,b in zip(outline['points'],outline['points'][1:]):
+            ka,kb=(tuple(round(v,3) for v in p) for p in (a,b))
+            if ka==kb:continue
+            coords[ka]=a;coords[kb]=b;graph[ka].add(kb);graph[kb].add(ka)
+            handles[tuple(sorted((ka,kb)))].add(outline['handle'])
+    seen=set();runs=[]
+    starts=sorted(graph,key=lambda p:(len(graph[p])==2,p))
+    for start in starts:
+        for second in sorted(graph[start]):
+            edge=tuple(sorted((start,second)))
+            if edge in seen:continue
+            order=[start,second];seen.add(edge);previous,current=start,second
+            while len(graph[current])==2 and current!=start:
+                following=next(p for p in graph[current] if p!=previous)
+                edge=tuple(sorted((current,following)))
+                if edge in seen:break
+                seen.add(edge);order.append(following);previous,current=current,following
+            points=[coords[p] for p in order];closed=order[0]==order[-1];n=len(points)-1
+            def straight(k):
+                a,b=points[k:k+2]
+                local=[j for j in (k-2,k-1,k) if closed or 0<=j and j+3<len(points)]
+                if any(fit_arc([points[(j+t)%n] if closed else points[j+t] for t in range(4)]) for j in local):return False
+                if axis_edge(a,b):return True
+                neighbours=[]
+                if closed or k>0:neighbours.append((points[(k-1)%n],a,b))
+                if closed or k+2<len(points):neighbours.append((a,b,points[(k+2)%n] if closed else points[k+2]))
+                turns=[];lengths=[]
+                for x,y,z in neighbours:
+                    u=[y[i]-x[i] for i in (0,1)];v=[z[i]-y[i] for i in (0,1)]
+                    turns.append(abs(math.atan2(u[0]*v[1]-u[1]*v[0],sum(u[i]*v[i] for i in (0,1)))))
+                    lengths.append(min(math.dist(x,y),math.dist(y,z)))
+                return any(t<1e-7 for t in turns) or (len(turns)==2 and min(turns)>math.pi/3) or (lengths and math.dist(a,b)>3*max(lengths))
+            flags=[straight(i) for i in range(n)]
+            if closed:
+                if not any(flags):continue
+                seam=flags.index(True);unique=order[:-1];order=unique[seam:]+unique[:seam];order.append(order[0])
+                points=[coords[p] for p in order];flags=flags[seam:]+flags[:seam]
+            i=0
+            while i<n:
+                if flags[i]:i+=1;continue
+                finish=i+1
+                while finish<n and not flags[finish]:finish+=1
+                arc=fit_arc(points[i:finish+1])
+                if arc:
+                    keys=order[i:finish+1]
+                    if keys[0]>keys[-1]:keys=list(reversed(keys));arc=fit_arc([coords[p] for p in keys])
+                    edges=[tuple(sorted((a,b))) for a,b in zip(keys,keys[1:])]
+                    arc.update(source_edges=edges,handles=sorted({h for e in edges for h in handles[e]}))
+                    runs.append(arc)
+                i=finish
+    # Never turn a smooth non-circular run into a succession of fitted circles.
+    runs=[a for a in runs if not any(a is not b and any(math.dist(a[p],b[q])<.002 for p in ('start','end') for q in ('start','end'))
+        and (math.dist(a['center'],b['center'])>.02 or abs(a['radius']-b['radius'])>.02) for b in runs)]
+    return sorted(runs,key=lambda a:(a['center'],a['radius'],a['start']))
+
+
+def arc_bounds(arc):
+    points=[arc['start'],arc['end']]
+    start=math.atan2(arc['start'][1]-arc['center'][1],arc['start'][0]-arc['center'][0])
+    for angle in (0,math.pi/2,math.pi,3*math.pi/2):
+        delta=((angle-start) if arc['sweep']>0 else (start-angle))%(2*math.pi)
+        if delta<=abs(arc['sweep'])+1e-8:
+            points.append([arc['center'][0]+arc['radius']*math.cos(angle),arc['center'][1]+arc['radius']*math.sin(angle)])
+    return [round(v,9) for v in union([[*p,*p] for p in points])]
 
 
 def expand_plan_outlines(views,outlines):
@@ -95,6 +184,71 @@ def exterior_loop(lines):
     return max(loops,key=lambda row:row[0])[1] if loops else None
 
 
+def stepped_bay(rects,outlines):
+    """Unequal-depth sides need a connected stepped rear, not an invented rectangle."""
+    sides=[r for r in rects if 12<=r.w<=40 and r.h>=100 and r.h>5*r.w]
+    if len(sides)<3:return []
+    left=min(sides,key=lambda r:(r.x0,-r.h));right=max(sides,key=lambda r:(r.x1,r.h))
+    if (not near(left.y0,right.y0) or near(left.y1,right.y1) or right.x0-left.x1<100
+            or max(left.h,right.h)>1200):return []
+    if any(r is not left and r is not right and left.x1+TOL<r.x0<right.x0-TOL
+           and near(r.y0,left.y0) for r in sides):return []
+    rear=[left,right]+[r for r in rects if r not in (left,right) and r.y0>left.y0+60
+        and inside(r.box(),[left.x0,left.y0,right.x1,max(left.y1,right.y1)])
+        and any(near(min(r.w,r.h),s) for s in BOARD_MM) and max(r.w,r.h)>72]
+    paths=[[left]];path=None
+    while paths:
+        run=paths.pop(0)
+        if run[-1] is right:path=run;break
+        for r in rear:
+            if r not in run and max(gap_boxes(run[-1].box(),r.box()))<=TOL:paths.append(run+[r])
+        if len(paths)>128:return []
+    if not path or sum(r.w>r.h for r in path)<2 or not any(r in sides for r in path[1:-1]):return []
+    fronts=[r for r in rects if 2<=r.h<=60 and r.w>100 and near(r.y1,left.y0)]
+    if not covers([(r.x0,r.x1) for r in fronts],left.x0,right.x1):return []
+    box=[left.x0,min(r.y0 for r in fronts),right.x1,max(left.y1,right.y1)]
+    selected=[o for o in outlines if o['points'] and all(inside([*p,*p],box) for p in o['points'])]
+    lines=[(a,b) for o in selected for a,b in zip(o['points'],o['points'][1:])]
+    if not lines or any(not axis_edge(a,b) for a,b in lines):return []
+    points=exterior_loop(lines)
+    if not points or any(not near(a,b) for a,b in zip(union([[*p,*p] for p in points]),box)):return []
+    profile=profile_from_points([[p[i]-box[i] for i in (0,1)] for p in points])
+    if len(profile['segments'])<=4:return []
+    return [dict(box=box,core_box=box,handles=sorted({o['handle'] for o in selected}),
+                 plan_profile=profile,stepped_rear=True)]
+
+
+def point_in_polygon(point,polygon):
+    x,y=point;result=False
+    for a,b in zip(polygon,polygon[1:]+polygon[:1]):
+        if (a[1]>y)!=(b[1]>y) and x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]:result=not result
+    return result
+
+
+def check_stepped_footprints(product,parts,base):
+    """Grouping may change; filling the measured rear recess may not."""
+    for measured in product.get('geometry_pipeline',{}).get('measured_stepped_footprints',[]):
+        box=measured['box']
+        expected=[[s['start'][i]+box[i] for i in (0,1)] for s in measured['profile']['segments']]
+        polygons=[]
+        for part in parts:
+            origin=[base[i]+part['origin'][i] for i in (0,1)]
+            if any(min(origin[i]+part['size'][i],box[i+2])-max(origin[i],box[i])<=TOL for i in (0,1)):continue
+            profile=part.get('plan_profile')
+            if profile and any(s['type']!='line' for s in profile['segments']):
+                raise ValueError('Phương án đổi biên hậu giật cấp thành cung không có trên CAD.')
+            points=[s['start'] for s in profile['segments']] if profile else [[0,0],[part['size'][0],0],part['size'][:2],[0,part['size'][1]]]
+            polygons.append([[p[i]+origin[i] for i in (0,1)] for p in points])
+        axes=[sorted({box[i],box[i+2]}|{p[i] for poly in [expected]+polygons for p in poly if box[i]<p[i]<box[i+2]}) for i in (0,1)]
+        if len(axes[0])*len(axes[1])>20000:raise ValueError('Biên hậu giật cấp quá phức tạp để đối chiếu.')
+        for x0,x1 in zip(axes[0],axes[0][1:]):
+            for y0,y1 in zip(axes[1],axes[1][1:]):
+                if min(x1-x0,y1-y0)<=TOL:continue
+                point=[(x0+x1)/2,(y0+y1)/2]
+                if point_in_polygon(point,expected)!=any(point_in_polygon(point,p) for p in polygons):
+                    raise ValueError('Phương án lấp phần lõm hoặc làm mất biên hậu giật cấp đã đo trên CAD.')
+
+
 def curved_ends(plan,footprints):
     """Filled outer end proxies, separate from the measured rectangular bays."""
     base=union([p['box'] for p in footprints]);found=[]
@@ -109,11 +263,13 @@ def curved_ends(plan,footprints):
         if not any(not axis_edge(a,b) for a,b in lines):continue
         points=exterior_loop(lines)
         if not points:raise ValueError('Phần bo cuối tủ chưa có biên kín; cần quét đủ đường arc và cạnh nối.')
-        box=union([[*p,*p] for p in points]);width=box[2]-box[0]
+        profile=profile_from_points(points)
+        box=union([arc_bounds(s) if s['type']=='arc' else union([[*s[p],*s[p]] for p in ('start','end')]) for s in profile['segments']]);width=box[2]-box[0]
         if abs(box[2 if side=='left' else 0]-boundary)>TOL:continue
         if width>TOL and width<=base[3]-base[1]+60:
-            relative=[[p[i]-box[i] for i in (0,1)] for p in points]
-            profile=profile_from_points(relative)
+            for segment in profile['segments']:
+                for field in ('start','end','center'):
+                    if field in segment:segment[field]=[segment[field][i]-box[i] for i in (0,1)]
             if any(s['type']=='arc' for s in profile['segments']):
                 found.append(dict(box=box,handles=sorted(set(handles)),plan_profile=profile,curved_end=True))
             else:raise ValueError('Phần bo cuối tủ thiếu biên arc kín; chưa dựng phần cong.')
@@ -144,4 +300,6 @@ def _valid_profile(profile,size):
             if any(abs(math.dist(s[p],c)-r)>.02 for p in ('start','end')):return False
             a=math.atan2(s['start'][1]-c[1],s['start'][0]-c[0])+sweep
             if math.dist([c[0]+r*math.cos(a),c[1]+r*math.sin(a)],s['end'])>.02:return False
+            limits=arc_bounds(s)
+            if any(limits[i]<-.1 or limits[i+2]>size[i]+.1 for i in (0,1)):return False
     return True

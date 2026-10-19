@@ -23,7 +23,8 @@ module MH
         FileUtils.mkdir_p(directory)
         request = File.join(directory, 'request.json')
         response = File.join(directory, 'response.json')
-        packet = settings.merge(values).merge('action' => action, 'library' => root)
+        progress = File.join(directory, 'progress.json')
+        packet = settings.merge(values).merge('action' => action, 'library' => root, 'progress_file' => progress)
         Storage.write_json(request, packet)
         python = Settings.python(settings)
         windowless = python.sub(/python\.exe\z/i, 'pythonw.exe')
@@ -33,7 +34,7 @@ module MH
         pid = Process.spawn(python, '-X', 'utf8', script, '--request', request, '--response', response,
                             out: log, err: [:child, :out], chdir: Settings::ROOT)
         @job = { id: id, pid: pid, response: response, model: model, root: root,
-                 started: Time.now, log: log, python: python, completion: completion }
+                 started: Time.now, log: log, python: python, completion: completion, progress: progress }
         @timer = UI.start_timer(0.3, true) { poll }
         id
       end
@@ -48,6 +49,7 @@ module MH
           cancel
           job[:completion].call({ 'ok' => false, 'error' => 'Đọc CAD quá 10 phút. Xem nhật ký tác vụ.' }, job)
         else
+          publish_progress(job)
           status = Process.waitpid2(job[:pid], Process::WNOHANG)
           return unless status
           # The response may have appeared between the first test and process exit.
@@ -61,6 +63,28 @@ module MH
         finish(job, { 'ok' => false, 'error' => 'Mất tiến trình đọc CAD; xem nhật ký trong thư viện.' })
       rescue StandardError => error
         finish(job, { 'ok' => false, 'error' => error.message })
+      end
+
+      def publish_progress(job)
+        return unless job[:model].equal?(Sketchup.active_model)
+        now = Time.now
+        return if job[:progress_emitted] && now - job[:progress_emitted] < 1
+        progress = if File.file?(job[:progress])
+                     JSON.parse(File.read(job[:progress], encoding: 'UTF-8'))
+                   else
+                     { 'stage' => 'starting', 'message' => 'Đang khởi động bộ đọc CAD…' }
+                   end
+        if job[:progress_stage] != progress['stage']
+          job[:progress_stage] = progress['stage']
+          job[:progress_started] = now
+          (job[:progress_seen] ||= []) << progress['stage']
+        end
+        job[:progress_emitted] = now
+        elapsed = (now - job[:started]).to_i
+        stage_elapsed = (now - job[:progress_started]).to_i
+        CAD2Module.publish_progress("#{progress['message']} · Bước này #{stage_elapsed}s · Tổng #{elapsed}s")
+      rescue JSON::ParserError, SystemCallError
+        nil
       end
 
       def finish(job, result)

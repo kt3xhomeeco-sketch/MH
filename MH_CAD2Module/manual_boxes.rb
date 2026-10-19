@@ -7,7 +7,7 @@ module MH
     # Read actual transformed edges, never the instance's axis-dependent bounds.
     module ManualBoxes
       TOLERANCE = 0.1
-      STOCK = [6, 8, 12, 15, 18, 25, 36].freeze
+      STOCK = [3, 6, 8, 9, 12, 15, 18, 25, 36].freeze
       module_function
 
       def collect_edges(entities, transform, result, depth = 0)
@@ -92,7 +92,7 @@ module MH
       def parts(capture, analysis)
         modules = []; trims = []
         capture.fetch('boxes').each do |box|
-          thin = [box['size'][0], box['size'][1]].min
+          thin = PlanProfile.concentric_thickness(box['plan_profile']) || [box['size'][0], box['size'][1]].min
           stock = STOCK.find { |s| (s - thin).abs <= TOLERANCE }
           part = box.merge('rule' => 'user-drawn-box-v1', 'handles' => [],
                            'explanation' => 'Box do người dùng xác nhận; đo từ các đỉnh thực, bỏ qua gốc và trục riêng của group.')
@@ -129,10 +129,20 @@ module MH
         { 'modules' => modules, 'trim_parts' => trims, 'panel_parts' => [], 'bounds' => bounds }
       end
 
-      def plan_offset(parts, analysis)
+      def plan_offset(parts, analysis, capture = nil)
         previous = analysis.fetch('plan_origin_offset_mm', [0, 0])
         return previous unless analysis.dig('build_stages', 'elevation') == false
         base = analysis.fetch('source_plan_envelope', analysis.fetch('envelope', [0, 0]))
+        # Box origins are normalised as a set. Put that measured minimum back
+        # when the user drew on the source; changed module widths must not lose Y.
+        if capture && analysis.dig('placement', 'mode') == 'source_plan'
+          minimum = capture['normalised_from']
+          origin = analysis.dig('placement', 'origin_mm')
+          if minimum.is_a?(Array) && origin.is_a?(Array) && minimum.length == 3 && origin.length == 2
+            measured = 2.times.map { |i| origin[i] + minimum[i] - base[i] }
+            return measured.map { |v| v.round(4) } if measured.all? { |v| v.finite? && v.abs <= 2 * STOCK.max }
+          end
+        end
         shift = if analysis['plan_origin_basis'] == 'source_plan_envelope'
                   [0, 0]
                 else

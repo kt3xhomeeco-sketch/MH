@@ -90,7 +90,7 @@ module MH
         if analysis
           result['analysis'] = analysis.slice('code', 'name', 'automatic_scan', 'status', 'error', 'source_path',
                                              'source_hash', 'signature', 'bounds', 'build_stages', 'placement',
-                                             'plan_origin_offset_mm', 'learning', 'explanation', 'modules', 'trim_parts', 'panel_parts')
+                                             'plan_origin_offset_mm', 'envelope_preview', 'plan_evidence', 'learning', 'local_ai', 'explanation', 'modules', 'trim_parts', 'panel_parts')
         end
         result
       end

@@ -18,6 +18,21 @@ const {pathToFileURL}=require('url'),{chromium}=require('playwright');
   assert.equal(await page.locator('#modules tr').count(),3);
   assert(await page.evaluate(()=>document.body.scrollWidth<=innerWidth+1));
   await page.screenshot({path:path.join(root,'outputs/sp41-arc-manager.png'),fullPage:true});
+  await page.evaluate(p=>{
+   p.plan_evidence={stock_counts:{3:1,6:1,9:1,12:1,15:1,18:2,25:1,36:1},arcs:[{},{}]};
+   window.receive({settings:{sources:[]},products:[p],focused:p,current_modules:p.modules,errors:[],history:[],busy:false});
+  },product);
+  const evidence=await page.locator('#explanation').textContent();
+  for(const mm of [3,6,9,12,15,18,25,36])assert(evidence.includes(`${mm} mm:`));
+  assert(evidence.includes('2 cung tròn'));
+  assert(evidence.includes('không tự coi mọi tấm là ranh giới module'));
+  assert(evidence.includes('18 + 18'));
+  await page.screenshot({path:path.join(root,'outputs/stock-arc-manager.png'),fullPage:true});
+  await page.evaluate(p=>{
+   p.plan_evidence={stock_counts:{}};
+   window.receive({settings:{sources:[]},products:[p],focused:p,current_modules:p.modules,errors:[],history:[],busy:false});
+  },product);
+  assert((await page.locator('#explanation').textContent()).includes('Chưa có cặp biên đủ bằng chứng'));
   assert.deepEqual(errors,[]);
   console.log('Arc UI passed: analytic curved overlay, explanation, module list and layout.');
  } finally {await browser.close()}

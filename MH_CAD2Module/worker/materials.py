@@ -1,7 +1,7 @@
 """User-supplied material priors. Dimensions themselves are never rounded to stock."""
 from geometry import TOL, near, inside
 
-BOARD_MM=(6,8,12,15,18,25,36)
+BOARD_MM=(3,6,8,9,12,15,18,25,36)
 # Confirmed by the user: an exterior 24 mm frontal strip can be 18 mm stock turned out.
 TURNED_TRIM=({'face_mm':24,'stock_mm':18},)
 

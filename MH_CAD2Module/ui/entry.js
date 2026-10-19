@@ -1,6 +1,7 @@
 'use strict';
 const send = (action, payload = {}) => window.sketchup?.request(JSON.stringify({action, ...payload}));
 let previousList = null;
+window.receiveProgress = state => { document.getElementById('message').textContent = state.message; };
 window.receive = (state) => {
   document.querySelector('label').textContent = state.entry_mode === 'selection' ? 'Mã SP — dựng ngay tại CAD đang quét' : 'Tên hoặc mã sản phẩm';
   document.getElementById('build').disabled = state.busy;

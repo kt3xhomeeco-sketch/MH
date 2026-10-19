@@ -88,6 +88,7 @@ module MH
         entities.place(instance) if entities.respond_to?(:place)
         raise ArgumentError, 'Khối cong chưa kín sau khi dựng.' if mod['plan_profile'] && !instance.manifold?
         instance.name = mod.fetch('name', mod['id'])
+        instance.material = Sketchup::Color.new(255, 180, 70) if mod['envelope_preview']
         instance.set_attribute(DICT, 'role', 'module')
         instance.set_attribute(DICT, 'module_id', mod['id'])
         instance.set_attribute(DICT, 'source_module', JSON.generate(mod))
@@ -95,17 +96,12 @@ module MH
       end
 
       def build(product, root, job_id, model = Sketchup.active_model)
-        raise ArgumentError, product['error'] || 'Phân tích chưa đủ dữ liệu để dựng.' unless product['status'] == 'ready'
+        preview = Placement.validate_envelope_preview(product)
+        raise ArgumentError, product['error'] || 'Phân tích chưa đủ dữ liệu để dựng.' unless product['status'] == 'ready' || preview
         product = product.merge('build_auxiliary' => Settings.read(model)['build_auxiliary'] != false,
                                 'activity_id' => product['activity_id'] || Ids.uuid)
         code = normalise(product.fetch('code'))
         on_source = product.dig('placement', 'mode') == 'source_plan'
-        if product['automatic_scan'] && products(model).any? do |entity|
-             existing = JSON.parse(entity.get_attribute(DICT, 'analysis'))
-             existing['source_hash'] == product['source_hash'] && existing['build_stages'] == product['build_stages']
-           end
-          raise ArgumentError, 'Vùng CAD này đã được dựng. Chọn khối hiện có để sửa hoặc Undo lần dựng cũ trước khi quét lại.'
-        end
         matched = on_source ? [] : labels(model).select { |label| label['code'] == code }
         unless on_source
           raise ArgumentError, "Không có nhãn #{code} trong model. Thêm nhãn đúng mã rồi dựng lại." if matched.empty?
@@ -117,6 +113,18 @@ module MH
         (Array(product['trim_parts']) + Array(product['panel_parts'])).each { |part| Placement.validate_module(part) }
         if product['modules'].combination(2).any? { |a, b| Placement.overlap?(a, b) }
           raise ArgumentError, 'Các khối nhận dạng đang chồng nhau; cần kiểm tra trước khi dựng.'
+        end
+        Placement.validate_ai_product(product) unless preview
+        if product['source_watch']
+          begin
+            SelectionSource.validate_watch(product['source_watch'], model)
+          rescue StandardError => error
+            checked = { 'passed' => false, 'error' => error.message }
+            product['source_preflight'] = checked
+            product['local_ai']['native_preflight'] = checked if product['local_ai']
+            product['envelope_preview']['native_preflight'] = checked if product['envelope_preview']
+            raise
+          end
         end
         model.start_operation("CAD2Module: dựng #{code}", true)
         operation = true

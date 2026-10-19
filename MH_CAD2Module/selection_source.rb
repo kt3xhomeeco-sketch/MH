@@ -17,26 +17,27 @@ module MH
         selected = model.selection.to_a
         raise ArgumentError, 'Chọn group hoặc các nét CAD đã dán/import vào SketchUp trước.' if selected.empty?
         lines = []
-        walk = lambda do |entities, transform, depth|
+        initial_path = Array(model.active_path).map(&:persistent_id)
+        walk = lambda do |entities, transform, depth, path|
           raise ArgumentError, 'Nguồn CAD lồng quá 15 cấp.' if depth > 15
           entities.each do |entity|
             if entity.is_a?(Sketchup::Edge)
               a = entity.start.position.transform(transform).to_a.map(&:to_mm)
               b = entity.end.position.transform(transform).to_a.map(&:to_mm)
-              lines << { 'a' => a, 'b' => b, 'handle' => entity.persistent_id.to_s, 'layer' => entity.layer.name }
+              lines << { 'a' => a, 'b' => b, 'handle' => entity.persistent_id.to_s, 'layer' => entity.layer.name, 'path' => path }
             elsif Model.container?(entity)
               next if entity.get_attribute(Model::DICT, 'role') || entity.get_attribute('Curic Single-Line Text', 'text')
-              walk.call(entity.definition.entities, transform * entity.transformation, depth + 1)
+              walk.call(entity.definition.entities, transform * entity.transformation, depth + 1, path + [entity.persistent_id])
             elsif entity.is_a?(Sketchup::Face)
               entity.edges.each do |edge|
                 a = edge.start.position.transform(transform).to_a.map(&:to_mm)
                 b = edge.end.position.transform(transform).to_a.map(&:to_mm)
-                lines << { 'a' => a, 'b' => b, 'handle' => edge.persistent_id.to_s, 'layer' => edge.layer.name }
+                lines << { 'a' => a, 'b' => b, 'handle' => edge.persistent_id.to_s, 'layer' => edge.layer.name, 'path' => path }
               end
             end
           end
         end
-        walk.call(selected, model.edit_transform, 0)
+        walk.call(selected, model.edit_transform, 0, initial_path)
         lines.uniq! { |line| [line['a'], line['b']].sort }
         if window
           lines.select! do |line|
@@ -54,7 +55,8 @@ module MH
         raise ArgumentError, 'Nét CAD chưa nằm trên cùng mặt phẳng XY/XZ/YZ. Chọn đúng nhóm hình chiếu 2D.' unless flat
         axes = [0, 1, 2] - [flat]
         data = { 'lines' => lines.map { |line| line.merge('a' => axes.map { |i| line['a'][i] }, 'b' => axes.map { |i| line['b'][i] }) },
-                 'plane' => %w[YZ XZ XY][flat], 'plane_offset_mm' => ranges[flat].sum / 2.0, 'model_path' => model.path }
+                 'plane' => %w[YZ XZ XY][flat], 'plane_offset_mm' => ranges[flat].sum / 2.0, 'model_path' => model.path,
+                 'source_watch' => lines.map { |line| [line['handle'], line['path'], line['a'], line['b']] } }
         root = Settings.library
         # Content-address the selected geometry, independent of model filename and native entity IDs.
         canonical = data['lines'].map { |line| [line['a'], line['b']].sort }.sort
@@ -76,6 +78,37 @@ module MH
         data
       ensure
         model.abort_operation if operation
+      end
+
+      def validate_watch(watch, model = Sketchup.active_model)
+        transforms = {}
+        owner_edges = {}
+        Array(watch).each do |identity, path, a, b|
+          transform, owner = transforms[path] ||= begin
+            current = model
+            matrix = Geom::Transformation.new
+            Array(path).each do |id|
+              instance = model.find_entity_by_persistent_id(id)
+              unless Model.container?(instance) && instance.parent == current
+                raise ArgumentError, 'Nguồn CAD đã đổi/xóa nhóm trong lúc AI chạy; quét lại nguồn.'
+              end
+              matrix *= instance.transformation
+              current = instance.definition
+            end
+            [matrix, current]
+          end
+          # Resolve the owner once, then index its direct edges once. A global
+          # model lookup for every CAD segment is costly in a nesting drawing.
+          edges = owner_edges[owner] ||= owner.entities.grep(Sketchup::Edge).to_h { |item| [item.persistent_id, item] }
+          edge = edges[identity.to_i]
+          unless edge.is_a?(Sketchup::Edge) && edge.valid? && edge.parent == owner
+            raise ArgumentError, 'Cạnh CAD đã thay đổi trong lúc AI chạy; quét lại nguồn.'
+          end
+          now = [edge.start.position, edge.end.position].map { |point| point.transform(transform).to_a.map(&:to_mm) }
+          same = [[a, b], [b, a]].any? { |points| now.zip(points).all? { |x, y| x.zip(y).all? { |u, v| (u - v).abs <= 0.05 } } }
+          raise ArgumentError, 'Vị trí CAD đã thay đổi trong lúc AI chạy; quét lại nguồn.' unless same
+        end
+        true
       end
     end
   end

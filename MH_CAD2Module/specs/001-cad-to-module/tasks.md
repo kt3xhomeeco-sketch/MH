@@ -95,3 +95,49 @@ Dependencies: T003 -> T004/T005 -> T006 -> T007/T008 -> T009/T010 -> T011/T012 -
 - [x] T059 Implement stable activity identities, complete lazy timelines and safe row-scoped native actions.
 - [x] T060 Replace error/history feeds with expandable product work rows and Select-first correction controls.
 - [x] T061 Verify Ruby/Python/RuboCop/browser/native behavior, preserve user geometry, reload and package.
+
+## Inline product-row controls (0.7.2)
+- [x] T062 Move four primary actions beside every product heading and scope collapsed-row feedback/acceptance.
+- [x] T063 Verify browser transport and native dialog, preserve model, reload/package.
+
+## Local AI plan assistant (0.8.0)
+- [x] T064 Install/verify portable runtime and model on E, benchmark real inference.
+- [x] T065 Integrate measured-candidate AI selection, safe fallback/cache/audit and settings/status UI.
+- [x] T066 Pass worker/Ruby/RuboCop/browser/native gates, enable in live app, document and package.
+
+## Shared plan measurements (0.8.1)
+- [x] T067 Profile identical scan/library with AI off/on; remove duplicate source measurement without changing output.
+- [x] T068 Verify cache invalidation, full quality/native gates, reload and package.
+
+## AI-led search and automatic construction (0.9.0)
+- [x] T069 Implement broad accepted-sample search, current-CAD proposal remapping/composition and physical validation.
+- [x] T070 Integrate AI search/final choice, bounded runtime/cache/deadline, trace/UI and automatic native preflight.
+- [x] T071 Verify unit/browser/RuboCop/real-model/native gates, preserve live model, reload and package.
+
+## Unequal-depth scan fix (0.9.1)
+- [x] T072 Reproduce the failed 35-edge scan; recognise measured stepped rear and preserve unresolved source geometry.
+- [x] T073 Guard measured recess coverage across AI proposals/native preflight and feedback capture.
+- [x] T074 Pass quality/native/real-model gates, reload/package and rebuild only the verified failed source.
+
+## Recessed trims and visible scan feedback (0.9.2)
+- [x] T075 Reproduce all three latest scans; fix carcass/door registration and measured front return width.
+- [x] T076 Expose scan progress/result and open Management with the concrete reason on failure.
+- [x] T077 Verify tests/lint/native/real AI, reload/package, and retry only unchanged sources matching the current model.
+
+- [x] T078 Add explicitly provisional source-envelope fallback, retained diagnostics and native source checks.
+- [x] T079 Preserve manual correction/exact replay of failed sources; compact AI prompts while retaining both rounds and all choices.
+- [x] T080 Verify preview correction natively, benchmark real inference, finish gates and deploy 0.9.2.
+
+## Keep old boxes and repeat direct scans (0.9.3)
+- [x] T081 Diagnose source-hash guard blocking intentional new scans; remove it while retaining scan-code protection.
+- [x] T082 Verify quality/native isolation and unchanged originals; reload/package and retry the failed new scan.
+
+## Arc and stock evidence (0.10.0)
+- [x] T083 Recognise complete circular runs including axial chords; preserve analytic extrema/native ArcCurves.
+- [x] T084 Measure all requested stock spacings, straight/concentric closed-strip evidence and 18+18 seams; integrate plan/AI/history/manual feedback.
+- [x] T085 Verify regression/performance/native/UI/full gates; reload and package without changing existing products.
+
+## Scan latency and manual Y registration (0.10.1)
+- [x] T086 Profile the actual dense scan and remove redundant rectangle/watch work without losing source checks.
+- [x] T087 Add geometry stages/lightweight elapsed progress and preserve near-source manual box registration.
+- [x] T088 Verify dense equivalence, native correction/source guards/progress, repair accepted result when originals match, and deploy/package.

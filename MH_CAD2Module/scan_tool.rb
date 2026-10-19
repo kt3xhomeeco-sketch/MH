@@ -60,7 +60,7 @@ module MH
       end
 
       def deactivate(view)
-        Sketchup.status_text = ''
+        Sketchup.status_text = '' unless Jobs.busy?
         view.invalidate
       end
 

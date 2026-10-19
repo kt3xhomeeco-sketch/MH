@@ -117,4 +117,17 @@ class SettingsTest < Minitest::Test
       assert_equal false, settings.read['build_elevation']
     end
   end
+
+  def test_local_ai_default_off_and_toggle_persists
+    settings = MH::CAD2Module::Settings
+    assert_equal false, settings.read['ai_enabled']
+    Dir.mktmpdir do |root|
+      settings.save('library' => root, 'ai_enabled' => true)
+      assert_equal true, settings.read['ai_enabled']
+      Sketchup.model = SettingsModel.new
+      assert_equal true, settings.read['ai_enabled']
+      settings.save('ai_enabled' => false)
+      assert_equal false, settings.read['ai_enabled']
+    end
+  end
 end

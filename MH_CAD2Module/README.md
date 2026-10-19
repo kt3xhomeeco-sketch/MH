@@ -1,4 +1,38 @@
-# MH CAD2Module 0.5.5
+# MH CAD2Module 0.10.1
+
+Bản 0.10.1 ghép cạnh song song Y theo thứ tự X từ trái sang phải; trong mỗi cặp, xét đoạn liên tục chung dài nhất trước, sau đó mới các chi tiết ngắn. Không ghép chéo các đầu mút thuộc những đoạn rời. Sắp xếp khoảng cạnh một lần và dùng lại bằng chứng cạnh bịt, giữ kiểm tra biên kín/độ dày. Trên nguồn thật 2017 cạnh, riêng bước ghép tấm giảm từ 21,88 xuống 1,37 giây với cùng 496 hình và cạnh đối chiếu; toàn bộ phần đọc/chia CAD đo riêng mất 2,07 giây, chưa gồm đối chiếu mẫu/AI/dựng. Kiểm tra lại cạnh nguồn theo nhóm chứa giảm từ 13,50 xuống 0,03 giây trên model này. Đây là số đo của nguồn này, không phải cam kết mọi bản vẽ.
+
+Hiện rõ bước đọc cạnh, xác định mặt bằng, chia module, đối chiếu kinh nghiệm, AI và chuyển kết quả; số giây của bước/tổng cập nhật mỗi giây qua kênh nhẹ. Không tải lại toàn bộ bảng và canvas mỗi lần báo tiến trình. AI vẫn bật theo Settings và có thể mất tới giới hạn 60 giây ở lượt chưa có mẫu/cache phù hợp. Bản này sửa lỗi **Kết quả đúng kéo box về phía Y âm** khi thay kích thước module: box vẽ gần nguồn CAD giữ độ lệch vị trí đã đo của cả bộ; box vẽ ở xa vẫn tự đăng ký theo cách cũ. Kinh nghiệm lưu độ lệch đúng để dựng lại, không sửa đè lịch sử đã nhận.
+
+Bản 0.10.0 nhận lại cung tròn từ chuỗi LINE ngắn nối tiếp, kể cả đoạn ngang/dọc ở đỉnh cung; dựng bằng ArcCurve và giữ kích thước bao theo cực trị cung. Nhận dạng ứng viên tấm bằng khoảng cách vuông góc giữa hai biên thẳng, hoặc chênh bán kính hai cung đồng tâm, có cạnh bịt kín hai đầu. Các mức tham chiếu: **3, 6, 8, 9, 12, 15, 18, 25, 36 mm**; giữ số đo thực, không ép kích thước về độ dày chuẩn. Mức 8 mm giữ tương thích bản cũ. Báo quá trình và AI nhận thêm bằng chứng tấm/cung này; Kết quả đúng cũng đo độ dày tấm cong theo bán kính.
+
+Độ dày là bằng chứng nhận dạng, chưa đủ để tự coi mọi khoảng cách là ranh giới module. Cặp 18 + 18 giữ đường tiếp giáp để đối chiếu vách ghép 36 mm hoặc hai module cạnh nhau. Nét không tròn/thiếu biên kín không bị ép thành cung hay tấm. Đây là bổ sung bằng chứng cho bộ chia hiện tại, chưa thay toàn bộ thuật toán chia module; Mặt bằng vẫn cao tạm 1600 mm. Khối và kinh nghiệm cũ giữ nguyên.
+
+Bản 0.9.3 cho phép **giữ box cũ và Quét chọn để tạo bộ mới**, kể cả cùng vùng CAD và cùng giai đoạn dựng. Mỗi lượt có định danh sản phẩm, dòng lịch sử và bộ Group riêng; Select/Sai/Kết quả đúng theo đúng lượt. Khối mới vẫn đặt trên tọa độ CAD, nên quét lại cùng vùng sẽ nằm trùng vị trí cũ. Bảo vệ cùng mã lượt quét vẫn giữ để callback bị lặp không tạo thêm bộ ngoài ý muốn. Hoàn tất hoặc hủy phiên Sai đang mở trước khi bắt đầu lượt quét khác.
+
+Bản 0.9.2 ghép nẹp sâu 50 mm theo mặt trước thùng kể cả khi cánh nằm phía trước; bản nẹp ngang nối ngoài được đo và gom đủ chiều rộng khối phụ. Quét trực tiếp ở giai đoạn Mặt bằng mà chưa phân tích được sẽ dựng một **khối tạm màu cam theo khung bao CAD**, đúng vị trí nguồn, cao tạm 1600 mm. Trạng thái vẫn là cần kiểm tra, giữ lý do lỗi. Dùng Select → Sai → vẽ/chọn các box đúng → Kết quả đúng như các sản phẩm khác; khối tạm không tự trở thành mẫu đúng. Nguồn không có diện tích hoặc mặt phẳng hợp lệ vẫn báo rõ lỗi vì không thể đặt khối đúng vị trí.
+
+Tiến trình và kết quả hiện trên thanh trạng thái SketchUp; khi chỉ có khối tạm hoặc lỗi, bảng Quản lý mở để xem lý do. Giảm dữ liệu thập phân thừa khi gửi AI, gửi schema một lần và tham chiếu hình học trùng thay vì gửi lặp; giữ nguyên số đo dựng, ID phương án, hai bước AI và kiểm tra cuối. Lượt dữ liệu nhỏ dùng ngữ cảnh 2048, lượt lớn 4096; kiểm tra ngữ cảnh không đủ thì không nhận kết quả AI. Bài đo thực trên máy này, không dùng cache: khoảng 46–47 giây trước và 37,7 giây sau cho cùng nguồn ba khoang. AI vẫn chiếm phần lớn thời gian; đây không phải cam kết tốc độ mọi bản vẽ. Lượt trùng dữ liệu dùng cache nhanh hơn nhiều.
+
+Bản 0.9.1 sửa vùng quét mặt bằng có hai vách sâu khác nhau và hậu giật cấp: ghép bằng vách/hậu nối liền, đường trước phủ đủ và biên kín CAD. Module giữ biên lõm thực, hai nẹp phụ vẫn là Group đặc riêng. App và kiểm tra native chặn phương án AI lấp phần lõm dù kích thước bao giống nhau; vẫn cho đổi cách chia khi diện tích biên được giữ đúng. Các nét nguồn của lượt lỗi được giữ lại; cụm tấm mặt bằng chọn trực tiếp chưa ghép khoang vẫn có thể chuyển sang bước tìm mẫu. Nhận Kết quả đúng cũng giữ được khối giật cấp vuông góc. Chiều cao vẫn tạm 1600 mm.
+
+Bản 0.9.0 triển khai **AI tìm mẫu → app tạo/đánh giá phương án → AI quyết định → lệnh dựng kiểm tra cuối và dựng tự động**. Mẫu khớp hình học và quy tắc đã kiểm thử vẫn dùng đường nhanh. AI được tìm mẫu gần giống, so sánh các biến thể đã xác nhận, dùng phần có sẵn của mẫu chưa đầy đủ và ghép các khoang CAD đo được; không yêu cầu trùng hoàn toàn cấu tạo hoặc số khoang. Mẫu bị loại, hỏng hoặc không xác minh được nguồn không tham gia. Thư viện mẫu SKP để thay module vẫn là chức năng riêng; nâng cấp này chọn kinh nghiệm chia khối.
+
+AI chỉ trả ID mẫu/phương án. App tạo tọa độ từ cạnh, điểm tiếp giáp, tâm tấm và cung trên CAD hiện tại. Điểm cấu tạo chỉ hỗ trợ so sánh, không phải xác suất đúng và không phải điều kiện phải giống mẫu 100%. Kiểm tra cuối chặn chồng khối, đường chia xuyên tấm liền, dữ liệu cung/gốc không đúng và nguồn đã di chuyển/xóa trong lúc AI xử lý. Hình bao LINE 36 mm tạo từ hai vách 18 mm có đường tiếp giáp được phân biệt với một tấm 36 mm liền. Chế độ Mặt bằng vẫn cao tạm 1600 mm.
+
+Mỗi lượt quét hỗ trợ AI cho một SP; tối đa hai trang tìm mẫu (8 mẫu/trang, chọn tối đa 3 mẫu) và một lượt quyết định. Tổng thời gian yêu cầu AI dùng chung giới hạn 60 giây trên máy đã cài; mô hình giữ trong bộ nhớ giữa các lượt, được yêu cầu dỡ khi xong. Có tiến trình tìm mẫu/đánh giá/quyết định/kiểm tra cuối. Kết quả, mẫu nguồn, lý do loại và kiểm tra cuối được lưu trong quá trình SP. AI từ chối vì phân vân thì không tự dựng phương án đó. Khi AI lỗi, app chỉ dùng lại phương án CAD nếu phương án đó vượt kiểm tra hình học; nếu không thì báo cần kiểm tra.
+
+Các bài thử mô hình thật hai lượt mất khoảng 21–27 giây trên máy này, gồm cả nạp mô hình; đó là bài thử nhỏ, không phải cam kết mọi SP. Đã thử đổi kích thước hai khoang và dùng mẫu hai khoang cho CAD ba khoang. Xác nhận/sửa box vẫn không gọi AI; chỉ kết quả được người dùng xác nhận mới trở thành kinh nghiệm. Không tự huấn luyện lại trọng số mô hình.
+
+Bản 0.8.1 bỏ việc tính lại cùng đặc trưng mặt bằng giữa bước đối chiếu quy tắc và kiểm tra điều kiện AI. Kết quả đo được dùng chung trong một worker và được kiểm tra theo toàn bộ dữ liệu hình học; thay điểm nguồn, độ dày, hình chiếu hoặc gốc nguồn sẽ tính lại. Khi AI không có mẫu phù hợp, kiểm tra điều kiện không phải ghép lại các vòng LINE một lần nữa. Lượt thật sự gọi mô hình vẫn cần thêm thời gian suy luận.
+
+Bản 0.8.0 thêm **Settings → AI local → Hỗ trợ chọn cách chia từ mẫu đúng** và nút **Kiểm tra AI**. Bộ chạy/mô hình được cài trên máy này tại `E:\MH_CAD2Module_QA\AI`: Ollama portable 0.40.6, Qwen3 4B Instruct 2507 Q4_K_M. App tự mở bộ chạy ẩn khi cần; không cần mở Ollama bằng tay. Chỉ kết nối `127.0.0.1:11435`, tắt dịch vụ cloud, không tự tải/cập nhật mô hình khi quét. Cấu hình riêng máy nằm tại `local_ai.json` cạnh code app; không đóng gói file này hoặc mô hình vào RBZ.
+
+Trong luồng 0.8.0 trước đây, AI hỗ trợ **mặt bằng** khi có mẫu đúng cùng cấu tạo nhưng chưa đủ ba mẫu để kích hoạt quy tắc tự học. App tạo phương án bằng cách đo lại cạnh, tâm tấm, độ dày và cung CAD; AI chỉ chọn mã phương án hoặc từ chối. App kiểm tra lại trước khi dựng. Mẫu đúng cùng hình học và quy tắc đã qua kiểm thử vẫn được ưu tiên. Mẫu thiếu, bị loại, mâu thuẫn hoặc khác cấu tạo/ván không được dùng để suy rộng. Chưa có mẫu đủ điều kiện thì giữ bộ nhận dạng hiện tại; đây chưa phải mô hình đọc hiểu mọi bản CAD tự do. Chiều cao mặt bằng vẫn tạm 1600 mm.
+
+AI chạy trong worker, không nằm trong bước nhận/lưu **Kết quả đúng**. Mỗi lượt quét gọi AI tối đa một sản phẩm; nguồn có nhiều SP nên quét riêng SP cần AI đối chiếu. Lỗi/mất kết nối/quá hạn suy luận 60 giây sẽ giữ kết quả hình học và ghi lý do tại SP. Dữ liệu gửi AI chỉ gồm số đo hình học và phương án, không gửi tên/đường dẫn/nội dung chữ CAD. Cache và nhật ký AI nằm trong `AI/tests`; mẫu đúng gốc vẫn ở thư viện kinh nghiệm của app. Từ 0.9.0, mô hình giữ giữa các lượt của cùng tác vụ rồi dỡ khi tác vụ kết thúc để trả bộ nhớ GPU cho SketchUp.
+
+Đo trên máy này với bài thử hai khoang: lượt chưa có cache khoảng **12,5 giây**, gồm khoảng **5,5 giây nạp mô hình**; lượt trùng dữ liệu khoảng **0,1 giây**. Đây là bài thử nhỏ; thời gian thay đổi theo nguồn và tải SketchUp. Receipt: `E:\MH_CAD2Module_QA\AI\tests\benchmark.json`.
 
 Bản 0.5.5 sửa SP40: ghép chuỗi khoang mặt bằng không chồng lấn, giữ đường chia hợp lệ khi có thêm đường bao ứng viên, và gộp các vòng phụ trùng nhau của cùng một nẹp. Không cần nhập tên/mã SP khi quét; mỗi lần vẫn có mã nội bộ riêng.
 
@@ -6,7 +40,7 @@ Trong **Settings → Giai đoạn dựng**, mặc định chỉ tích **Mặt b�
 
 **Quét trực tiếp trong SketchUp:** khối dựng ngay trên mặt bằng CAD đã quét, giữ tọa độ và mặt phẳng nguồn; không cần nhãn SP để đặt vị trí. Đọc DWG bằng đường dẫn vẫn căn theo nhãn SP. Nẹp sâu 50 mm trong chế độ Mặt bằng được dựng thành khối phụ đặc có chiều sâu bằng tủ bên cạnh theo yêu cầu người dùng; dữ liệu vẫn giữ số đo nguồn 50 mm để đối chiếu. Chiều cao khối phụ tạm 1600 mm.
 
-Từ 0.4.2, **Quét chọn không cần nhập mã SP**: thả chuột hoàn tất vùng quét sẽ bắt đầu dựng. App tự tạo định danh để nối nguồn, tác vụ và lịch sử sửa; tên hiển thị là Vùng quét CAD. Mã này không tham gia chữ ký hình học hay cách đối chiếu kinh nghiệm. Kết quả cao tạm 1600 mm vẫn không dùng làm mẫu chiều cao thực. Quét lại cùng nguồn/giai đoạn đã dựng sẽ báo chọn khối hiện có để sửa, tránh dựng chồng lên nhau.
+Từ 0.4.2, **Quét chọn không cần nhập mã SP**: thả chuột hoàn tất vùng quét sẽ bắt đầu dựng. App tự tạo định danh để nối nguồn, tác vụ và lịch sử sửa; tên hiển thị là Vùng quét CAD. Mã này không tham gia chữ ký hình học hay cách đối chiếu kinh nghiệm. Kết quả cao tạm 1600 mm vẫn không dùng làm mẫu chiều cao thực. Từ 0.9.3, quét lại cùng nguồn/giai đoạn tạo bộ mới và giữ nguyên bộ cũ, theo yêu cầu giữ box để đối chiếu.
 
 Tích thêm **Mặt đứng** để dùng luồng đầy đủ: **mặt bằng/mặt cắt bằng → chia khoang dọc → mặt đứng bỏ cánh + mặt cắt đứng chia tầng ngang**. Bật Mặt đứng tự bật Mặt bằng; bỏ Mặt bằng cũng bỏ Mặt đứng. Mặt đứng có cánh giữ riêng bằng nút **Mặt đứng đối chiếu**. Cao 1600 mm là giá trị tạm do người dùng chọn, không phải số đo CAD. Các khối đã dựng giữ nguyên khi đổi setting; app không tự ghi đè kết quả cũ.
 
@@ -18,7 +52,7 @@ Khối nóc bao đủ đế hai chân theo mặt cắt. Drawing1/SP60: khối n�
 
 Các khối ứng viên chồng nhau bị chặn ở cả bộ đọc và SketchUp trước khi dựng. Thiếu mặt bằng, mối ghép không khớp, hoặc phần nẹp không có nét đối chiếu sẽ chuyển sang Cần kiểm tra. Các bước chia dọc/ngang và ứng viên được giữ trong hồ sơ để xem nguyên nhân.
 
-Plugin SketchUp 2025: tự đọc hình học CAD vuông góc, chia thành khối thùng và đặt theo nhãn SP. Không dùng AI, không gọi AutoCAD và không đọc số DIM làm kích thước.
+Plugin SketchUp 2025: tự đọc hình học CAD vuông góc, chia thành khối thùng và đặt theo nhãn SP. Có tùy chọn AI local hỗ trợ mặt bằng; không gọi AutoCAD và không đọc số DIM làm kích thước.
 
 ## Dùng nhanh
 
@@ -96,3 +130,6 @@ Kinh nghiệm và các bản quy tắc nằm trong thư viện đã chọn (`rul
 Ngay dưới dòng mở có **Select → Sai → Kết quả đúng → Hủy sửa**, cùng các thao tác sửa khối. Select chọn tất cả khối đầu ra còn tồn tại của đúng SP, gồm phần phụ; không chọn CAD nguồn hoặc box gốc mày tự vẽ. Sai và thao tác sửa dùng đúng SP của dòng đó dù ngoài model đang chọn SP khác. Kết quả đúng giữ lựa chọn box bên ngoài để nhận, không tự Select lại khối cũ. Khối bị xóa hoặc dữ liệu cũ có nhiều bộ trùng nhau sẽ khóa thao tác thay vì chọn nhầm. SP chưa dựng nhưng có hình học để sửa vẫn có bước Khôi phục SP chưa dựng.
 
 Các dòng/sự kiện cũ được đọc từ lịch sử hiện có, không viết lại. Sự kiện cũ không lưu đủ thông tin SP/phiên sửa sẽ không bị tự gán sang SP khác; không tạo lại các bước quét chưa từng được ghi. Trạng thái học và thư viện giữ nguyên.
+
+
+0.7.2: **Select · Sai · Kết quả đúng · Hủy sửa nằm ngay trên dòng tên mỗi SP**, dùng được cả khi dòng thu gọn. Bấm nút thao tác đúng SP của dòng đó; không tự mở lịch sử. Chỉ bấm tên SP mới mở/đóng chi tiết và các thao tác sửa nâng cao. Phản hồi đang lưu/đã lưu/lỗi nằm ngay tại dòng sở hữu yêu cầu. Các nút chưa đủ điều kiện vẫn hiện và được khóa đúng trạng thái; nhận box vẫn dùng lựa chọn hiện tại trong SketchUp.

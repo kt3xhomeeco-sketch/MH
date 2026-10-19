@@ -4,6 +4,29 @@ require 'minitest/autorun'
 require_relative '../manual_boxes'
 
 class ManualBoxesTest < Minitest::Test
+  def test_source_correction_keeps_box_y_when_module_widths_changed
+    source = { 'build_stages' => { 'elevation' => false }, 'envelope' => [1000, 377.606283, 4588, 951.592283],
+               'placement' => { 'mode' => 'source_plan', 'origin_mm' => [1000, 377.606283] },
+               'modules' => [{ 'origin' => [0, 23.986, 0], 'size' => [1336, 573.986, 1600] }] }
+    parts = { 'modules' => [{ 'origin' => [0, 0, 0], 'size' => [1300, 550, 1600] }] }
+    capture = { 'normalised_from' => [0, 23.986, 0] }
+    assert_equal [0, 23.986], MH::CAD2Module::ManualBoxes.plan_offset(parts, source, capture)
+    source['plan_origin_offset_mm'] = [0, 23.986]
+    source['plan_origin_basis'] = 'source_plan_envelope'
+    source['placement']['origin_mm'][1] += 23.986
+    capture['normalised_from'] = [0, 0, 0]
+    assert_equal [0, 23.986], MH::CAD2Module::ManualBoxes.plan_offset(parts, source, capture)
+    capture['normalised_from'] = [0, -5000, 0]
+    assert_equal [0, 23.986], MH::CAD2Module::ManualBoxes.plan_offset(parts, source, capture)
+  end
+  def test_new_thin_stock_sizes_remain_auxiliary_in_manual_feedback
+    [3, 9].each do |stock|
+      boxes = [{ 'origin' => [stock, 0, 0], 'size' => [800, 600, 1600] }, { 'origin' => [0, 0, 0], 'size' => [stock, 600, 1600] }]
+      result = MH::CAD2Module::ManualBoxes.parts({ 'boxes' => boxes }, {})
+      assert_equal 1, result['modules'].length
+      assert_equal stock, result['trim_parts'].first['stock_thickness_mm']
+    end
+  end
   def edges
     points = 8.times.map { |n| [100 + n[0] * 800, -700 + n[1] * 600, 300 + n[2] * 1600] }
     3.times.flat_map do |axis|

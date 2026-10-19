@@ -72,9 +72,27 @@ def line_rectangles(lines, min_length=100):
             xpos.setdefault(key, a[0])
             vertical[key].append((min(a[1], b[1]), max(a[1], b[1]), handle, layer))
 
+    # Lists do not change below. Sort once, and reject impossible spans before
+    # enumerating end-cap pairs from unrelated details elsewhere in the drawing.
+    limits, runs = {}, {}
+    for group in (horizontal, vertical):
+        for intervals in group.values():
+            intervals.sort()
+            limits[id(intervals)] = (intervals[0][0], max(row[1] for row in intervals))
+            joined = []
+            for a, b, *_ in intervals:
+                if not joined or a > joined[-1][1]+TOL:
+                    joined.append([a, b])
+                else:
+                    joined[-1][1] = max(joined[-1][1], b)
+            runs[id(intervals)] = joined
+
     def covered(intervals, start, finish):
+        low, high = limits[id(intervals)]
+        if start < low-TOL or finish > high+TOL:
+            return None
         reach, used = start, []
-        for a, b, identity, layer in sorted(intervals):
+        for a, b, identity, layer in intervals:
             if b < start - TOL or a > finish + TOL:
                 continue
             if a > reach + TOL:
@@ -98,28 +116,36 @@ def line_rectangles(lines, min_length=100):
                     break
                 if thickness < 2 - TOL:
                     continue
-                caps = [key for key, intervals in secondary.items()
-                        if covered(intervals, primary_pos[left], primary_pos[right])]
-                caps.sort()
-                if len(caps) > 200:
+                cap_proofs = {key: proof for key, intervals in secondary.items()
+                              if (proof := covered(intervals, primary_pos[left], primary_pos[right]))}
+                # Retain the existing complexity guard before spatial pruning.
+                if len(cap_proofs) > 200:
                     continue
-                for i, bottom in enumerate(caps):
-                    for top in caps[i+1:]:
-                        lo, hi = secondary_pos[bottom], secondary_pos[top]
-                        if hi-lo <= min_length:
-                            continue
-                        side_a = covered(primary[left], lo, hi)
-                        side_b = covered(primary[right], lo, hi)
-                        if not side_a or not side_b:
-                            continue
-                        cap_a = covered(secondary[bottom], primary_pos[left], primary_pos[right])
-                        cap_b = covered(secondary[top], primary_pos[left], primary_pos[right])
-                        ids = '+'.join(side_a[0]+side_b[0]+cap_a[0]+cap_b[0])
-                        box = (lo, primary_pos[left], hi, primary_pos[right]) if swap else (primary_pos[left], lo, primary_pos[right], hi)
-                        key = tuple(round(v, 3) for v in box)
-                        result[key] = Rect(*box, ids, side_a[1])
-                        if len(result) > 20000:
-                            raise ValueError('Vùng LINE quá phức tạp để ghép panel; hãy quét gọn một sản phẩm.')
+                windows = [(max(a, c)-TOL, min(b, d)+TOL)
+                           for a, b in runs[id(primary[left])] for c, d in runs[id(primary[right])]
+                           if max(a, c)-TOL < min(b, d)+TOL]
+                # Sweep parallel Y faces left-to-right, testing their longest
+                # continuous common span first. Short details follow separately.
+                for low, high in sorted(windows, key=lambda w: w[0]-w[1]):
+                    caps = sorted(key for key in cap_proofs if low <= secondary_pos[key] <= high)
+                    for i, bottom in enumerate(caps):
+                        for top in caps[i+1:]:
+                            lo, hi = secondary_pos[bottom], secondary_pos[top]
+                            if hi-lo <= min_length:
+                                continue
+                            side_a = covered(primary[left], lo, hi)
+                            if not side_a:
+                                continue
+                            side_b = covered(primary[right], lo, hi)
+                            if not side_b:
+                                continue
+                            cap_a, cap_b = cap_proofs[bottom], cap_proofs[top]
+                            ids = '+'.join(side_a[0]+side_b[0]+cap_a[0]+cap_b[0])
+                            box = (lo, primary_pos[left], hi, primary_pos[right]) if swap else (primary_pos[left], lo, primary_pos[right], hi)
+                            key = tuple(round(v, 3) for v in box)
+                            result[key] = Rect(*box, ids, side_a[1])
+                            if len(result) > 20000:
+                                raise ValueError('Vùng LINE quá phức tạp để ghép panel; hãy quét gọn một sản phẩm.')
     return list(result.values())
 
 

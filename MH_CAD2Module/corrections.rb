@@ -98,7 +98,7 @@ module MH
         capture = ManualBoxes.capture(model, product, model.selection.to_a)
         inputs = capture['source_ids'].map { |id| model.find_entity_by_persistent_id(id) }
         replacement = ManualBoxes.parts(capture, session[:analysis])
-        offset = ManualBoxes.plan_offset(replacement, session[:analysis])
+        offset = ManualBoxes.plan_offset(replacement, session[:analysis], capture)
         (replacement['modules'] + replacement['trim_parts']).each do |part|
           next unless part['source_box']
           part['source_box'] = part['source_box'].each_with_index.map { |v, i| v + offset[i % 2] }
@@ -108,6 +108,7 @@ module MH
         analysis['plan_origin_offset_mm'] = offset if analysis.dig('build_stages', 'elevation') == false
         analysis['plan_origin_basis'] = 'source_plan_envelope' if analysis.dig('build_stages', 'elevation') == false
         analysis.merge!('status' => 'ready', 'manual_boxes' => true)
+        analysis.delete('envelope_preview')
         analysis['learning'] = { 'mode' => 'user_confirmed', 'message' => 'Bố trí từ các box người dùng đã xác nhận.' }
         analysis.delete('error')
         analysis['explanation'] = ['Kết quả do người dùng vẽ và xác nhận. Đo các đỉnh thực, chuẩn hóa cả bộ box, giữ vị trí tương đối; không phụ thuộc gốc/trục riêng.']

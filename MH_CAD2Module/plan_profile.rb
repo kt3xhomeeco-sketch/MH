@@ -40,6 +40,7 @@ module MH
       end
 
       def arc(points)
+        return nil if points.length < 4
         a = points.first
         b = points[points.length / 2].zip(a).map { |v, origin| v - origin }
         c = points.last.zip(a).map { |v, origin| v - origin }
@@ -60,15 +61,42 @@ module MH
           'radius' => radius, 'sweep' => sweep, 'segments' => points.length - 1 }
       end
 
+      def longest_arc(points, start)
+        finish = start + 3
+        return nil if finish >= points.length
+        fitted = arc(points[start..finish])
+        return nil unless fitted
+        while finish + 1 < points.length
+          extended = arc(points[start..finish + 1])
+          break unless extended
+          finish += 1; fitted = extended
+        end
+        [finish, fitted]
+      end
+
       def from_points(points)
         # Start on a straight edge so a rounded corner cannot be split at the seam.
-        index = points.each_index.find { |i| axis_edge?(points[i], points[(i + 1) % points.length]) }
+        count = points.length
+        index = points.each_index.find do |i|
+          axis_edge?(points[i], points[(i + 1) % count]) &&
+            [i - 2, i - 1, i].none? { |j| arc(4.times.map { |k| points[(j + k) % count] }) }
+        end
         raise ArgumentError, 'Biên cong cần cạnh thẳng và cung tròn; chưa hỗ trợ đường spline hoặc vòng tròn kín.' unless index
         points = points.rotate(index)
         closed = points + [points.first]
         result = []; i = 0
         while i < points.length
-          if axis_edge?(closed[i], closed[i + 1])
+          fitted = longest_arc(closed, i)
+          if fitted
+            finish, segment = fitted
+            previous = result.last
+            if previous && previous['type'] == 'arc' &&
+               (Math.hypot(previous['center'][0] - segment['center'][0], previous['center'][1] - segment['center'][1]) > TOL ||
+                (previous['radius'] - segment['radius']).abs > TOL)
+              raise ArgumentError, 'Biên cong đổi tâm/bán kính liên tục; chưa xác nhận được cung tròn CAD.'
+            end
+            result << segment
+          elsif axis_edge?(closed[i], closed[i + 1])
             finish = i + 1
             while finish < points.length && axis_edge?(closed[finish], closed[finish + 1]) &&
                   ((closed[i][0] - closed[finish + 1][0]).abs < 0.001 || (closed[i][1] - closed[finish + 1][1]).abs < 0.001)
@@ -76,11 +104,7 @@ module MH
             end
             result << { 'type' => 'line', 'start' => closed[i], 'end' => closed[finish] }
           else
-            finish = i + 1
-            finish += 1 while finish < points.length && !axis_edge?(closed[finish], closed[finish + 1])
-            fitted = finish - i >= 3 ? arc(closed[i..finish]) : nil
-            raise ArgumentError, 'Đường cong chưa khớp cung tròn; chưa nhận spline hoặc cạnh xiên làm góc bo.' unless fitted
-            result << fitted
+            raise ArgumentError, 'Đường cong chưa khớp cung tròn; chưa nhận spline hoặc cạnh xiên làm góc bo.'
           end
           i = finish
         end
@@ -94,9 +118,9 @@ module MH
         high = 3.times.map { |i| pts.map { |p| p[i] }.max }
         return nil if 3.times.any? { |i| high[i] - low[i] < 0.1 }
         bottom = edges.select { |e| e.all? { |p| (p[2] - low[2]).abs < 0.1 } }.map { |e| e.map { |p| p[0, 2] } }
-        return nil if bottom.all? { |a, b| axis_edge?(a, b) }
         top = edges.select { |e| e.all? { |p| (p[2] - high[2]).abs < 0.1 } }.map { |e| e.map { |p| p[0, 2] } }
         points = loop_points(bottom)
+        return nil if bottom.all? { |a, b| axis_edge?(a, b) } && from_points(points)['segments'].length == 4
         raise ArgumentError, 'Mặt trên và dưới của khối cong phải cùng biên dạng.' unless bottom.map { |e| e.map { |p| key(p) }.sort }.sort == top.map { |e| e.map { |p| key(p) }.sort }.sort
         vertical = edges - edges.select { |e| e.all? { |p| (p[2] - low[2]).abs < 0.1 } || e.all? { |p| (p[2] - high[2]).abs < 0.1 } }
         raise ArgumentError, 'Khối cong phải đùn thẳng theo chiều cao, không vát hoặc xoắn.' unless vertical.all? { |a, b| 2.times.all? { |i| (a[i] - b[i]).abs < 0.1 } }
@@ -140,7 +164,7 @@ module MH
             xaxis = Geom::Vector3d.new(a[0] - center[0], a[1] - center[1], 0)
             # Positive sweeps keep the entire corner in one ArcCurve (MH_panel).
             normal = Geom::Vector3d.new(0, 0, sweep.negative? ? -1 : 1)
-            entities.add_arc(point, xaxis, normal, segment.fetch('radius').mm, 0, sweep.abs, segment.fetch('segments'))
+            entities.add_arc(point, xaxis, normal, segment.fetch('radius').mm, 0, sweep.abs, segment_count(segment))
           elsif segment['type'] == 'line'
             [entities.add_line([a[0].mm, a[1].mm, 0], [b[0].mm, b[1].mm, 0])]
           else
@@ -152,6 +176,36 @@ module MH
         raise ArgumentError, 'Không tạo được mặt kín từ biên cong.' unless face
         face.reverse! if face.normal.z.negative?
         face
+      end
+
+      def segment_count(segment)
+        center = segment.fetch('center')
+        start = Math.atan2(segment['start'][1] - center[1], segment['start'][0] - center[0])
+        sweep = segment.fetch('sweep')
+        turns = [0, Math::PI / 2, Math::PI, 3 * Math::PI / 2].filter_map do |angle|
+          delta = (sweep.positive? ? angle - start : start - angle) % (2 * Math::PI)
+          delta if delta > 1e-8 && delta < sweep.abs - 1e-8
+        end
+        (segment.fetch('segments')..2000).find do |count|
+          turns.all? do |delta|
+            error = delta - (delta * count / sweep.abs).round * sweep.abs / count
+            segment.fetch('radius') * (1 - Math.cos(error)) <= 0.005
+          end
+        end || (raise ArgumentError, 'Cung quá lớn để giữ đúng khung bao với giới hạn số cạnh.')
+      end
+
+      def concentric_thickness(profile)
+        segments = profile && profile['segments']
+        return nil unless segments && segments.length == 4
+        arcs = segments.select { |s| s['type'] == 'arc' }
+        caps = segments.select { |s| s['type'] == 'line' }
+        return nil unless arcs.length == 2 && caps.length == 2
+        a, b = arcs
+        return nil if Math.hypot(a['center'][0] - b['center'][0], a['center'][1] - b['center'][1]) > TOL ||
+                      (a['sweep'].abs - b['sweep'].abs).abs > 0.001
+        thickness = (a['radius'] - b['radius']).abs
+        return nil unless caps.all? { |s| (Math.hypot(s['end'][0] - s['start'][0], s['end'][1] - s['start'][1]) - thickness).abs < 0.1 }
+        thickness
       end
     end
   end

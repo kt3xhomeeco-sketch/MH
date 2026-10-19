@@ -23,11 +23,12 @@ from geometry import Rect, geometry_signature, inside, line_rectangles, overlapp
 from learning import ExperienceLibrary
 from library import VERSION, archive_dependencies, archive_source, atomic_json, dxf_for_revision, library_root
 from views import section_symbol, title_role, split_views, infer_views, recognise_ordered
-from stages import requested_stages, infer_plan_views, recognise_plan, source_placement
+from stages import requested_stages, infer_plan_views, recognise_plan, source_placement, selected_envelope, envelope_preview
 from plan_profiles import expand_plan_outlines
+from plan_evidence import measure_plan
 
 # Invalidate derived geometry without invalidating accepted source measurements.
-RECOGNIZER_VERSION = 8
+RECOGNIZER_VERSION = 11
 
 
 def fold(value):
@@ -267,9 +268,12 @@ def prepare_views(product, views, stages=None):
                             'Mặt đứng có cánh chỉ dùng đối chiếu. Nét đã explode cần đủ cụm hình học để phân loại hình chiếu.']
     if not stages['elevation']:
         product['geometry_pipeline']={'mode':'plan_only','order':['vertical_from_plan'],'default_height_mm':1600}
-        product['outlines']=[p for view in views if view['role']=='plan' for p in view['outlines']]
+        plans=[view for view in views if view['role']=='plan']
+        if plans:product['outlines']=[p for view in plans for p in view['outlines']]
         product['check_outlines']=[]
         product['explanation']=['Giai đoạn Mặt bằng: chiều cao tạm 1600 mm; chưa phân tích mặt đứng.']
+        product['plan_evidence']=measure_plan(product['outlines'])
+        product['material_standards_mm']=list(product['plan_evidence']['standards_mm'])
 
 
 def replay_experience(product, root, memory=None):
@@ -285,16 +289,28 @@ def replay_experience(product, root, memory=None):
     return memory.apply(product)
 
 
+def report_progress(request, root, stage, message):
+    path=request.get('progress_file')
+    if path and Path(path).resolve().is_relative_to((root/'jobs').resolve()):
+        atomic_json(Path(path),dict(stage=stage,message=message))
+
+
 def run(request):
     root = library_root(request.get("library", ""))
+    if request.get('action') == 'ai_status':
+        from local_ai import status, CONFIG
+        return {'local_ai': status(request.get('ai_config') or CONFIG)}
     if request.get("action") == "products":
         return {"products": read_product_list(request["path"])}
     if request.get('action') == 'learn_plan':
         return {'plan_rules': ExperienceLibrary(library_root(request.get('learning_library') or str(root))).refresh_plan_rules()}
     stages=requested_stages(request)
     memory = ExperienceLibrary(root)
+    from local_ai import Assistant
+    assistant = Assistant(request, memory)
     if request.get("action") == "geometry":
         geometry = request["geometry"]
+        report_progress(request,root,'read_edges',f"Đang ghép biên tấm từ {len(geometry['lines'])} cạnh CAD…")
         automatic=request.get('automatic_scan',not bool(request.get('code')))
         code=request.get('code') or f'SCAN-{str(uuid.uuid4()).upper()}'
         rows = [(tuple(row["a"]), tuple(row["b"]), row["handle"], row.get("layer", "")) for row in geometry["lines"]]
@@ -304,18 +320,28 @@ def run(request):
                    "source_path": geometry.get("model_path") or "Nét CAD được chọn trong SketchUp",
                    "outlines": [{"handle": h, "layer": layer, "points": [a,b]} for a,b,h,layer in rows],
                    "rectangles": [r.as_dict() for r in rects], "regions": [union([r.box() for r in rects])] if rects else []}
+        if geometry.get('source_watch'):product['source_watch']=geometry['source_watch']
+        report_progress(request,root,'views','Đang xác định mặt bằng và đo các tấm/cung…')
         views=infer_views(rects,product['outlines'])
         if not stages['elevation'] and not any(v['role']=='plan' for v in views):
-            views=infer_plan_views(rects,product['outlines'])
+            views=infer_plan_views(rects,product['outlines'],allow_unresolved=True)
         prepare_views(product,views,stages)
+        report_progress(request,root,'partition','Đang chia module từ hình học CAD…')
         try:
             product.update((recognise_ordered if stages['elevation'] else recognise_plan)(views,product['geometry_pipeline']))
             product["status"] = "ready"
+            report_progress(request,root,'experience','Đang đối chiếu kinh nghiệm đã xác nhận…')
             replay_experience(product, root, memory)
         except ValueError as error:
             product.update(status="needs_review", error=str(error), modules=[])
+            if not stages['elevation']:
+                product['envelope']=selected_envelope(geometry)
+                product['source_plan_envelope']=list(product['envelope'])
             product["signature"] = geometry_signature(rects, outlines=product['outlines'])
             replay_experience(product, root, memory)
+        assistant.apply(product)
+        report_progress(request,root,'prepare_result','Đã phân tích xong; đang chuyển kết quả về SketchUp để kiểm tra và dựng…')
+        envelope_preview(product,geometry)
         try:
             source_placement(product,geometry)
         except ValueError as error:
@@ -328,6 +354,7 @@ def run(request):
             analysis = analyse_source(source, root, request.get("converter", ""),request.get('targets'),stages)
             for product in analysis["products"]:
                 replay_experience(product, root, memory)
+                assistant.apply(product)
             analyses.append(analysis)
         except Exception as error:
             errors.append({"source": source, "error": str(error)})
