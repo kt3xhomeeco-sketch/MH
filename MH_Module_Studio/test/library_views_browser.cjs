@@ -55,12 +55,13 @@ const root=path.resolve(__dirname,'..');
     await page.screenshot({path:path.join(root,'outputs/library-views-051.png')});
 
     await page.goto(file('hud_settings.html'));await page.setViewportSize({width:370,height:550});
-    const hud={settings:catalog.settings,folders:catalog.folders};
+    const boards=[{id:'one',name:'Tấm',key:'T',slots:Array(8).fill(null)}];
+    const hud={settings:{...catalog.settings,hud_board:'one',hud_boards:boards},boards,editing:true};
     await page.evaluate(state=>window.receiveHUDSettings(state),hud);
     assert.equal(await page.locator('#icons,#icon-page,#icon-prev,#icon-next').count(),0);
     assert(!await page.locator('body').textContent().then(text=>text.includes('Góc ảnh từng icon')));
-    const folder=page.locator('#folders input');await folder.fill('A');await folder.blur();
-    assert.deepEqual((await page.evaluate(()=>sent.at(-1))).settings.folder_keys,{'':'A'});
+    const key=page.locator('.board-key');await key.fill('A');await key.blur();
+    assert.deepEqual((await page.evaluate(()=>sent.at(-1))),{action:'board',operation:'update',board:{id:'one',name:'Tấm',key:'A'}});
     await page.locator('#size').fill('24');assert.equal((await page.evaluate(()=>sent.at(-1))).settings.hud_size,24);
     assert.equal(await page.locator('#image-zoom').inputValue(),'100');
     await page.locator('#image-zoom').fill('50');assert.deepEqual((await page.evaluate(()=>sent.at(-1))).settings,{hud_image_zoom:50});

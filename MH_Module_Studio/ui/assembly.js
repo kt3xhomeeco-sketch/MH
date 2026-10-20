@@ -8,6 +8,7 @@
   window.receiveAssembly=state=>{
     current=state;const r=state.record,repeat=r.mode==='repeat',between=['center','fit'].includes(r.mode),measured=Boolean(r.r1),automatic=repeat&&r.equal;
     $('mode').value=r.mode;
+    document.querySelectorAll('.badge').forEach(node=>node.hidden=r.mode==='contact');
     $('flip').hidden=r.mode!=='contact';
     $('flip').disabled=measured;
     $('contact-mode').classList.toggle('selected',r.mode==='contact');
@@ -15,7 +16,7 @@
     $('angle-mode').classList.toggle('selected',r.mode==='angle'&&r.angle!==90);
     ['a','b','c'].forEach(key=>{const button=$('pick-'+key),ref=r[key];button.classList.toggle('picking',state.picking===key);button.classList.toggle('done',Boolean(ref));$('name-'+key).textContent=ref?.name||'Click để chọn trên model';$('check-'+key).textContent=ref?'✓':'›';});
     ['a','b'].forEach(key=>{const input=$('rename-'+key);input.disabled=!r[key];if(!focusInput('rename-'+key))input.value=r[key]?.module_name||r[key]?.name?.split(' / ')[0]||'';});
-    $('label-a').textContent=repeat?'Biên đầu của khoang':'Mặt A · giữ cố định';$('label-b').textContent=repeat?'Module cần lặp':'Mặt B · điều chỉnh';
+    $('label-a').textContent=repeat?'Biên đầu của khoang':'Mặt tham chiếu';$('label-b').textContent=repeat?'Module cần lặp':'Mặt điều chỉnh';
     $('pick-a').hidden=repeat&&!r.equal;$('pick-c').hidden=!between&&!(repeat&&r.equal);
     $('bound').hidden=r.mode!=='contact';$('fit-row').hidden=!between;$('fit-size').checked=r.mode==='fit';
     $('gap-row').hidden=['center','angle'].includes(r.mode);$('angle-row').hidden=r.mode!=='angle';$('repeat-row').hidden=!repeat;

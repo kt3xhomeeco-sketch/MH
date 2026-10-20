@@ -258,7 +258,7 @@ module MH
         end
       end
 
-      def transact(model, proposed, transparent: false, motion: nil, group_record: nil, updates: [], mutable_anchors: [], envelope_requests: {}, replacement: nil)
+      def transact(model, proposed, transparent: false, motion: nil, group_record: nil, updates: [], mutable_anchors: [], envelope_requests: {}, replacement: nil, redraw: [])
         Runtime.ensure_assembly_context(model)
         @busy = true
         model.start_operation('MH Liên Kết Module', true, false, transparent)
@@ -278,16 +278,17 @@ module MH
         end
         AssemblyExternal.validate!(proposed)
         envelope_targets = {}
-        replaced = replacement && root(model,replacement)
-        scaled = AssemblyContainers.normalize_scales!(model,envelopes:envelope_targets,except:Array(replaced))
-        scaled.delete(replaced) if replaced
+        replaced = replacement ? (replacement.is_a?(Array) ? replacement : [replacement]).map { |anchor| root(model,anchor) } : []
+        scaled = AssemblyContainers.normalize_scales!(model,envelopes:envelope_targets,except:replaced)
+        scaled -= replaced
         scaled_scopes = envelope_targets.keys
         updates.map { |anchor,*_rest| anchor['scope'] }.compact.uniq.each do |scope|
           envelope_targets[scope] ||= AssemblyEnvelope.target(AssemblyContainers.wrapper(model,scope))
         end
         raise Core::Error,'Mục tiêu phủ bì không thuộc cụm đang sửa.' unless (envelope_requests.keys-envelope_targets.keys).empty?
         envelope_requests.each { |scope,box| envelope_targets[scope] = Core.bounds!(Core.copy_data(box)) }
-        ScaleRedraw.apply(model,scaled.map { |entity| ScaleRedraw.prepare(entity) }) unless scaled.empty?
+        rebuild=(scaled+redraw.map { |anchor| root(model,anchor) }).uniq
+        ScaleRedraw.apply(model,rebuild.map { |entity| ScaleRedraw.prepare(entity) }) unless rebuild.empty?
         growth = {}
         updates.each do |anchor,rule,values,source|
           entity = root(model,anchor)
@@ -301,6 +302,8 @@ module MH
         yield proposed if block_given?
         AssemblyParameters.synchronize(model).each { |scope,axes| growth[scope]=Array(growth[scope]) | axes }
         ImportLinks.apply_reservations(model,proposed)
+        repaired=ImportLinks.normalize_front_datums(model,proposed)
+        edited_scopes |= repaired.flat_map { |row| AssemblyContainers.references(row).filter_map { |ref| ref['scope'] } }
         ordered = AssemblyMath.ordered(proposed)
         translate(root(model, motion[0]), motion[1]) if motion
         solve_ordered(model,ordered)
@@ -375,6 +378,24 @@ module MH
         proposed << record
         transact(model, proposed)
         record
+      end
+
+      def redraw(entity)
+        model=entity.model
+        Runtime.ensure_assembly_context(model)
+        if AssemblyContainers.managed?(entity)
+          scope=entity.persistent_id.to_s
+          anchors=AssemblyContainers.members(entity).select { |child| child.get_attribute(Reader::DICT,'trial',false) }.map do |child|
+            {'root'=>child.persistent_id.to_s,'scope'=>scope}
+          end
+        else
+          raise Core::Error,'Chọn module Studio hoặc cụm module để Redraw.' unless entity.get_attribute(Reader::DICT,'trial',false)
+          owner=model.active_path&.first
+          scope=owner.persistent_id.to_s if owner && AssemblyContainers.managed?(owner)
+          anchors=[{'root'=>entity.persistent_id.to_s,'scope'=>scope}.compact]
+        end
+        raise Core::Error,'Cụm chưa có module Studio để Redraw.' if anchors.empty?
+        transact(model,records(model),mutable_anchors:anchors,redraw:anchors)
       end
 
       def group(model, record)

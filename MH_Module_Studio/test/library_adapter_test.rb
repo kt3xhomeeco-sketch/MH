@@ -67,7 +67,7 @@ class ModuleStudioLibraryAdapterTest < Minitest::Test
       $commands = []
       require ARGV.fetch(0)
       studio = MH::ModuleStudio
-      raise 'Shortcut command missing' unless $commands == ['MH Module Studio · Parametric','MH Module Studio · Mở HUD', 'MH Module Studio · Liên kết module HUD']
+      raise 'Shortcut command missing' unless $commands == ['MH Module Studio · Parametric','MH Module Studio · Redraw','MH Module Studio · Mở HUD', 'MH Module Studio · Liên kết module HUD']
       fake_panel=Object.new
       fake_panel.instance_variable_set(:@draft,'preserve formulas')
       fake_panel.define_singleton_method(:show_parametric) { @opened=true }

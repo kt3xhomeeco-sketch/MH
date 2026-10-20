@@ -60,6 +60,7 @@ module MH
           @rows << {'id'=>group_id,'name'=>group['name'] || "#{group['modules'].length} module",'depth'=>depth+1,'kind'=>'folder','children'=>true,'open'=>opened}
           next unless opened
           group['modules'].each_with_index do |member,index|
+            next unless @linked[AssemblyMath.root_identity(member['ref'])]
             @rows << {'id'=>group_id+":module:#{index}",'name'=>member['name'],'depth'=>depth+2,'kind'=>'module','ref'=>member['ref']}
           end
           group['links'].each do |link|
@@ -71,17 +72,24 @@ module MH
       def rebuild
         @rows = []
         records = Assembly.records(@model)
+        @linked = records.each_with_object({}) do |record,result|
+          AssemblyContainers::REFS.each { |key| result[AssemblyMath.root_identity(record[key])] = true if record[key] }
+          record.fetch('copies',[]).each { |pid| result[[record['scope'],pid.to_s]] = true }
+        end
         @model.entities.each do |entity| # rubocop:disable SketchupSuggestions/ModelEntities -- The tree deliberately lists model-level assemblies.
           next unless Assembly.container?(entity)
           if AssemblyContainers.managed?(entity)
             scope = entity.persistent_id.to_s; id = 'scope:'+scope
+            members = AssemblyContainers.members(entity).select { |member| @linked[[scope,member.persistent_id.to_s]] }
+            next if members.empty? && !@linked[[nil,scope]]
             row = {'id'=>id,'name'=>title(entity),'depth'=>0,'kind'=>'assembly','children'=>true,'open'=>expanded?(id,true),'ref'=>{'root'=>scope}}
             @rows << row
             if row['open']
-              AssemblyContainers.members(entity).each { |member| module_row(member,scope,1) }
+              members.each { |member| module_row(member,scope,1) }
               links(records,scope,1)
             end
           else
+            next unless @linked[[nil,entity.persistent_id.to_s]]
             module_row(entity,nil,0)
           end
           break if @rows.length>=600
@@ -161,7 +169,7 @@ module MH
           text = text[0,remaining-1]+'…' if text.length>remaining
           @tool.label(view,x+31,top+3,text,'#344e5c',10)
         end
-        @tool.label(view,rect[0]+9,rect[3]-18,@rows.empty? ? 'Chưa có module' : 'Cuộn để xem · M: Move · S: Scale','#7a929e',9)
+        @tool.label(view,rect[0]+9,rect[3]-18,@rows.empty? ? 'Chưa có module được liên kết' : 'Cuộn để xem · M: Move · S: Scale','#7a929e',9)
       end
 
       def draw_selection(view)

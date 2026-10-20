@@ -134,13 +134,14 @@ module MH
         template=ImportTemplate.validate(data['import_template'] || data.dig('rule','import_template'))
         host=capture(view,x,y,cache);return unless host
         frame=Geom::Transformation.new(host['frame'])
-        scales=[frame.xaxis.length.to_f,frame.yaxis.length.to_f,frame.zaxis.length.to_f]
+        scales=Frames.scale_frame(frame.to_a).values_at(0,5,10)
         source=data['snapshot']['envelope'].map { |point| point.each_with_index.map { |value,axis| value/scales[axis] } }
         inside=template['mode']=='inside' || template['mode']=='auto' && host['cavity']
         return unless !inside || host['cavity']
         mode=inside ? 'inside' : 'outside'
         region=Core.copy_data(inside ? host['cavity'] : host['envelope'])
         faces=host['faces'];reserve=nil
+        faces=faces+ImportTemplate.envelope_faces(host['anchor'],host['envelope']) if inside
         if template['role']=='door' && !inside
           axis,source_side=ImportTemplate.mounting_face(template)
           return unless host['mount']==[axis,1-source_side]
@@ -171,7 +172,8 @@ module MH
         return unless result
         result['template']=template
         result['matches'].each { |match| match['gap']*=scales[match['slot'][0]] }
-        result.merge('mode'=>'template','anchor'=>host['anchor'],'frame'=>host['frame'],'name'=>host['name'],'reserve'=>reserve)
+        depth=Core.dimensions(region)[1]*scales[1]-template['faces'].select { |slot| slot['enabled'] && slot['axis']==1 }.sum { |slot| slot['gap'] }
+        result.merge('mode'=>'template','anchor'=>host['anchor'],'frame'=>host['frame'],'name'=>host['name'],'reserve'=>reserve,'fit_depth_mm'=>depth)
       end
 
       def records(placement,root)
@@ -181,6 +183,8 @@ module MH
           b={'root'=>root.persistent_id.to_s,'path'=>[],'axis'=>axis,'side'=>side,'level'=>'module','name'=>root.name}
           row={'id'=>Core::Ids.uuid,'mode'=>'contact','a'=>a,'b'=>b,'gap'=>match['gap'],
                'import_link'=>{'version'=>1,'slot'=>match['slot'],'kind'=>placement['kind'],'role'=>placement['template']['role']}}
+          row['import_link']['boundary']='envelope' if match['target']['virtual']
+          row['import_link']['front_datum']='host_front' if placement['kind']=='inside' && match['slot']==[1,0]
           row['external']=true if a['scope']
           if placement['template']['role']=='door' && placement['kind']=='outside' && match['mount']
             row['import_link']['door_mount']=true
@@ -202,6 +206,25 @@ module MH
         root
       end
 
+      # Older import records can still point to the back of a brace (including
+      # a tiny dormant DC part). Front clearance now uses the host front datum,
+      # just like a new placement; manual face constraints retain their meaning.
+      def normalize_front_datums(model,records)
+        records.select do |row|
+          next false unless row['mode']=='contact' && row.dig('import_link','kind')=='inside' && row.dig('import_link','slot')==[1,0]
+          next false if row['r1'] || row['r2'] || row.dig('import_link','boundary')=='envelope' || row.dig('import_link','front_datum')=='host_front'
+          old=row.fetch('a')
+          front=old.slice('root','scope').merge('path'=>[],'axis'=>1,'side'=>0,'level'=>'module')
+          prior=Assembly.world_plane(model,old);plane=Assembly.world_plane(model,front)
+          next false unless AssemblyMath.dot(prior['normal'],plane['normal']).abs>0.999999
+          value=Core.number(row.fetch('gap',0))
+          front['name']=Assembly.module_name(model,front)+' / Mặt trước phủ bì'
+          row['a']=front;row['gap']=-value
+          row['import_link']=row['import_link'].merge('boundary'=>'envelope','front_datum'=>'host_front')
+          true
+        end
+      end
+
       def draw(view,placement)
         frame=Geom::Transformation.new(placement['frame'])
         color=Sketchup::Color.new(0,145,150,210)
@@ -213,9 +236,11 @@ module MH
             lift.length=view.pixels_to_model(0.5,world.first)
             world.map { |point| point+lift }
           end
-          view.drawing_color=color;view.draw(GL_TRIANGLES,convert.call(target['triangles']))
+          view.drawing_color=color;view.draw(GL_TRIANGLES,convert.call(target['triangles'])) unless target['virtual']
+          view.line_stipple=target['virtual'] ? '-' : ''
           view.drawing_color='#005c63';view.line_width=1;view.draw(GL_LINE_LOOP,convert.call(target['points']))
         end
+        view.line_stipple=''
       end
 
       def apply_reservations(model,records)

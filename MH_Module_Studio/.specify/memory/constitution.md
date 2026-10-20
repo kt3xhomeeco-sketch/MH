@@ -50,10 +50,36 @@ planes of each selected module (feature060). Internal panel faces remain availab
 for manual linking; changing auto inference must not rewrite manual links.
 Feature 072 adds a separate, explicit import template: match its enabled slots
 against actual host faces, highlight only those host faces, and accept partial
-matches. The host needs no template. Door behavior is saved module metadata,
+matches. Feature 076 permits explicitly selected open sides to reference host envelope
+planes; draw these as virtual boundaries, not filled real faces. Feature 077
+resizes only between two enabled opposing contacts, preserving ATT/T and inset
+door thickness. One contact aligns without resizing; no template/match preserves
+source dimensions. Placement-click Shift fits the detected cavity without links
+(080), retaining raw placement outside a cavity; Ctrl replaces. Drawer rail variants
+retain nominal length while width/height fit. The open
+front datum is the host front envelope, not the back of an upper front brace.
+Matrix scale supplies real-mm offsets. The host needs no template. Door behavior is saved module metadata,
 independent of its filename/folder. Opposed doors reserve physical T plus their
 clearance from an independent host target; inset doors do not reserve depth.
 Explicit grouping makes host thickness symbols authoritative across its members.
+Compatible explicit symbols in a multi-selection share one Module Options input;
+edits are atomic and scoped to instance identity. Direct contact prisms and
+clickable dimensions replace the automatic tree/inspector HUD. Advanced settings
+open on demand; native Move/Scale retain their pointer priority.
+Feature 078 keeps Replace active until cancelled. Choosing a Library sample
+replaces preselected blocks immediately; the batch is one atomic Undo. With no
+preselection, ordinary placement remains available. Definition seeds carry reusable
+rules/values, never root instance IDs; native Replace Component adoption gets an
+independent identity and validates source rules/T against the requested envelope.
+Calculation reuse is bounded and keyed by complete rule/geometry/values; it never
+replaces live geometry capture or result verification.
+
+Feature 081 makes HUD boards explicit named layouts independent of Library
+folders. Sparse slots persist exactly, with no folder auto-fill. Directional
+selection applies only outside Edit; placement modifiers remain unchanged. Feature 082 adds viewport-edge docks and
+explicit per-icon digits, preserving sparse positions and file identity across
+moves/config transfer. Spacing is independent of icon/image size; no numeric
+shortcut is inferred from position.
 
 ### IV. Safe model changes and identity
 Reading must not modify source SKP files or selected source DCs. Trial edits use
@@ -89,4 +115,4 @@ Update these principles when the user changes an agreed requirement; explain
 material tradeoffs in the feature plan. TOOLING.md documents the installed tools
 and commands. This constitution describes requirements, not proof of completion.
 
-**Version**: 1.10.0 | **Ratified**: 2026-10-14 | **Last amended**: 2026-10-18
+**Version**: 1.16.0 | **Ratified**: 2026-10-14 | **Last amended**: 2026-10-21

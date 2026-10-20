@@ -25,6 +25,7 @@
     $('conversion-cancel').disabled=!conversion.running;
     $('conversion-open').disabled=blocked||!conversion.report||!['complete','cancelled','stopped'].includes(conversion.report.status);
     $('library-place').disabled=blocked||!selected;
+    $('library-replace-selection').disabled=blocked||!selected;
     $('library-image-view').disabled=blocked||!selected;$('library-update-image').disabled=blocked||!selected;
     document.querySelectorAll('.library-card').forEach(card=>{card.dataset.hudDraggable=String(Boolean(catalog.hud_editing)&&!blocked);});
     $('library-edit-hud').classList.toggle('active',Boolean(catalog.hud_editing));
@@ -51,6 +52,7 @@
   $('conversion-open').addEventListener('click',()=>command('library_conversion_open'));
   $('library-open-hud').addEventListener('click',()=>command('library_hud'));
   $('library-place').addEventListener('click',()=>command('library_place',{id:selected}));
+  $('library-replace-selection').addEventListener('click',()=>command('library_replace_selection',{id:selected}));
   $('library-edit-hud').addEventListener('click',()=>command('library_hud_edit'));
   $('library-update-image').addEventListener('click',()=>command('library_thumbnail_view',{id:selected,view:$('library-image-view').value}));
   document.addEventListener('keydown',event=>{if(catalog.hud_active&&document.body.classList.contains('library-mode')&&(event.key==='Escape'||event.code==='Space')){event.preventDefault();event.stopPropagation();send('library_hud_exit');}},true);
@@ -115,11 +117,11 @@
     $('library-empty').textContent=!catalog.root?'Chưa có thư viện. Bấm Chọn folder để bắt đầu.':query?'Không tìm thấy module.':'Folder này chưa có SKP. Chọn module đã tạo rồi bấm Lưu module.';
     for(const item of items){const card=node('button',null,'library-card');card.dataset.id=item.id;card.title=item.id;card.setAttribute('role','listitem');
       const picture=node('div',null,'library-image');fillImage(picture,item);const info=node('div',null,'library-card-info');info.append(node('strong',item.name),node('small',item.id));card.append(picture,info);
-      let gesture=null,suppressClick=false;
+      let gesture=null,suppressClick=false,pickToken=null;
       card.draggable=false;
       card.addEventListener('dragstart',event=>event.preventDefault());
-      card.addEventListener('click',event=>{if(suppressClick){suppressClick=false;event.preventDefault();return;}select(item.id);});
-      card.addEventListener('dblclick',()=>{if(!catalog.hud_editing)command('library_place',{id:item.id});});
+      card.addEventListener('click',event=>{if(suppressClick){suppressClick=false;event.preventDefault();return;}if(event.detail>1)return;select(item.id);if(!catalog.hud_editing&&!busy){pickToken=crypto.randomUUID();send('library_pick',{id:item.id,gesture:pickToken});}});
+      card.addEventListener('dblclick',()=>{if(!catalog.hud_editing)command('library_place',{id:item.id,gesture:pickToken});});
       card.addEventListener('pointerdown',event=>{
         if(event.button!==0||!catalog.hud_editing||busy)return;
         gesture={x:event.clientX,y:event.clientY,pointer:event.pointerId,root:catalog.root,token:null};

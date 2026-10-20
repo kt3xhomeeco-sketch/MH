@@ -111,4 +111,25 @@ class ModuleStudioLibraryImportTest < Minitest::Test
       assert_equal 2,calls,'Oversized payloads never start a worker'
     end
   end
+  def test_replace_plan_cache_ignores_only_capture_identity_and_keeps_results_private
+    importer=S::LibraryImport.new;calls=0
+    rule={'rule'=>'one'};snapshot={'id'=>'A','label'=>'A','source'=>{'root_pid'=>'1'},'captured_at'=>'now','parts'=>[{'bounds'=>[[0,0,0],[1,2,3]]}],'dc_graph'=>{'nodes'=>[]}}
+    values={'T1'=>18}
+    S::ScalePlan.stub(:plan,->(*_args) { calls+=1;{'parts'=>[{'bounds'=>[18]}]} }) do
+      first=importer.resize_plan(rule,snapshot,values);first['parts'].clear
+      other=snapshot.merge('id'=>'B','source'=>{'root_pid'=>'2'},'captured_at'=>'later')
+      assert_equal 18,importer.resize_plan(rule,other,values)['parts'].first['bounds'].first
+      assert_equal 1,calls
+      importer.resize_plan(rule,other,{'T1'=>20})
+      importer.resize_plan(rule.merge('rule'=>'two'),other,values)
+      importer.resize_plan(rule,other.merge('dc_graph'=>{'nodes'=>[{'hidden'=>true}]}),values)
+      importer.resize_plan(rule,other.merge('parts'=>[{'bounds'=>[[0,0,0],[2,2,3]]}]),values)
+      assert_equal 5,calls,'Changed T, rules, topology or geometry cannot reuse a plan'
+    end
+    2.times do
+      S::ScalePlan.stub(:plan,->(*_args) { raise S::Core::Error,'Invalid geometry' }) do
+        assert_raises(S::Core::Error) { importer.resize_plan({'bad'=>true},snapshot,values) }
+      end
+    end
+  end
 end

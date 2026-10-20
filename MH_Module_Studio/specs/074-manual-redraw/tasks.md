@@ -1,0 +1,4 @@
+- [x] Shared explicit redraw adapter, options action and shortcut.
+- [x] Compact adjacent button with request acknowledgement and stale guards.
+- [x] Validated-plan metadata reuse with identity/change fallback tests.
+- [x] Browser/native regressions, measured timing, scoped gate, package and reload.

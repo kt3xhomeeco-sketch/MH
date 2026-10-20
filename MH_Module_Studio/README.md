@@ -863,8 +863,9 @@ thường** hoặc **Cánh** bằng thuộc tính, không cần đổi tên file
 **Áp dụng cấu hình**, rồi **Lưu SKP** vào Library.
 
 Khi đặt từ HUD, các mặt phù hợp trên module chủ sáng lên; dòng trạng thái báo
-số mặt bắt được. Một hay hai mặt vẫn được đặt và tạo liên kết; các mặt còn thiếu
-không bị ép liên kết. Chỉ mặt chủ được tô sáng. Ctrl replace và Esc giữ cách dùng
+số mặt bắt được. Mặt trong tấm được ưu tiên; phía mở dùng mặt phủ bì module chủ
+làm mốc nét đứt. Chỉ các mặt đã tick được lưu thành liên kết. Chỉ mặt thật trên
+chủ được tô kín. Ctrl replace và Esc giữ cách dùng
 đã có. Chủ không cần cấu hình riêng. Hiện hỗ trợ các mặt biên phẳng theo trục
 module; công thức ATT hoặc chiều cố định không cho phép fit sẽ báo nguyên nhân.
 
@@ -873,3 +874,133 @@ Nhiều cánh cùng mặt chủ dùng mức chừa lớn nhất một lần. Cá
 mép trong, không trừ chiều sâu khung và không ép mặt sau cánh sát hậu. Sau khi
 bấm **Gộp**, độ dày có cùng ký hiệu theo module chủ; thêm module rồi Gộp tiếp vẫn
 giữ chủ ban đầu. Cụm lưu SKP giữ chủ, tham số và các liên kết này.
+
+## Redraw và cây liên kết (074–075)
+
+**Thông số module → Redraw**, ngay cạnh **Lưu SKP**, tính lại module/cụm đang
+chọn theo công thức đã lưu. Gán phím tại **Preferences → Shortcuts →
+MH Module Studio · Redraw**. Lệnh giữ các liên kết, độ dày và hỗ trợ Undo.
+
+Cây **Cụm / Module** chỉ liệt kê module tham gia liên kết còn tồn tại. Đối tượng
+chưa liên kết vẫn chọn được trực tiếp trong model; chọn chúng rồi bấm
+**Tự tạo liên kết từ vùng chọn** để dò liên kết mới.
+
+Để chuẩn bị một module tự liên kết khi import: chọn module, mở Parametric,
+bấm nút **Liên kết khi import** ở đầu bảng, bật **Tự liên kết khi đặt**, chọn
+mặt / khoảng hở rồi **Lưu SKP** vào folder Library. Mẫu chưa được đặt không
+cần xuất hiện trong cây liên kết của model. Để lưu cả cụm đã liên kết: bấm
+**Gộp** trong Liên kết module, chọn cụm và **Lưu SKP**; file giữ các module
+con cùng liên kết nội bộ của chúng.
+
+
+## Fit và khoảng hở khi import (076)
+
+Trong **Parametric → Liên kết khi import**, bật mặt Trước và nhập **80 mm**;
+nếu cần khoảng nóc, bật mặt Trên và nhập **80 mm**. **Lưu SKP** rồi đặt lại từ
+Library. Fit dùng khoảng giữa hai mặt đối diện sau các khoảng hở, giữ T và chiều khóa ATT;
+không kéo module đầy khoang rồi ghi đè khoảng hở. Cánh lọt vẫn giữ chiều dày cánh.
+
+Khoảng hở được tính bằng mm thực dù chủ đã Scale, xoay hoặc lật. Mặt phía mở
+được lưu dưới dạng **Mốc phủ bì**; nhập số dương trong HUD để lùi vào trong.
+Mặt chưa tick không được thêm thành liên kết. Chỉ bật một mặt trên một trục thì
+giữ kích thước mẫu theo trục đó; bật hai mặt đối diện mới co giãn. Mẫu đặt bằng bản cũ từng
+bỏ qua mặt trước cần được import lại để tạo liên kết mặt trước đó.
+
+## Thao tác đặt và liên kết trực tiếp (077)
+
+Sau khi chọn icon Library, giữ phím **khi click đặt trong model**:
+
+- Click thường: dùng liên kết đã lưu của mẫu. Không có mẫu liên kết hoặc không
+  bắt được mặt phù hợp thì đặt nguyên kích thước.
+- **Shift + Click**: Fit vừa khoang, không tạo liên kết; ngoài khoang giữ kích thước mẫu (cập nhật 080).
+- **Ctrl + Click**: Replace đối tượng tại vị trí click. Ctrl ưu tiên nếu giữ cả hai phím.
+
+Ví dụ chỉ bật Đáy, tắt Trên: module bám đáy và giữ chiều cao. Bật cả Đáy và
+Trên: chiều cao chạy theo khoảng giữa hai mặt, trừ khoảng hở đã nhập.
+
+Quét nhiều module/cụm rồi mở **Thông số module**: các ký hiệu tương thích như
+**T1** được gộp lên đầu; giá trị khác nhau hiện ô trống “Khác nhau”. Sửa một
+lần áp dụng cho tất cả, một Undo khôi phục cả lần sửa. Tham số riêng vẫn ở dưới
+tên module. Ký hiệu tự sinh `att_1`, `att_2` không mặc nhiên coi là biến chung.
+
+Mở **Liên kết module** để tương tác trực tiếp trong model. Tiếp xúc có khoảng
+cách khác 0 hiện khối theo kích thước mặt nhỏ hơn, không gắn nhãn A/B. **Click
+dim** để sửa khoảng cách; **click khối** mở cài đặt chuyên sâu. Tiếp xúc 0 vẫn
+có dim để chọn. Chuột phải có **Tạo liên kết**, **Tự tạo liên kết từ vùng chọn**
+và **Gộp**. Cây và bảng HUD cũ không tự mở. Move/Scale vẫn dùng bình thường;
+quay lại Liên kết module để click dim/khối.
+
+## Replace liên tục và vùng chọn (078)
+
+- Không chọn sẵn khối: chọn mẫu trong Library/HUD, giữ **Ctrl khi click khối**
+  để Replace. Sau lần đầu, tiếp tục click các khối khác bằng cùng mẫu; không
+  cần mở lại HUD hoặc giữ Ctrl. **Esc lần 1** về Library, **Esc lần 2** thoát.
+- Có vùng chọn: click mẫu trong Library/HUD sẽ **Replace ngay các group/component
+  đang chọn**. Không cần Ctrl. Một Undo khôi phục cả lượt; một đối tượng lỗi thì
+  hủy cả lượt. Tab Library cũng có nút **Replace vùng chọn**.
+- Muốn đặt thêm mẫu mới thay vì Replace: bỏ vùng chọn trước khi chọn mẫu. Khi
+  đặt, Shift dùng để Fit vừa khoang mà không tạo liên kết.
+
+Mỗi khối được thay theo kích thước thực của chính nó, dùng quy tắc và T của mẫu
+nguồn; không tự kích hoạt liên kết import khi Replace. Công thức khóa/độ dày vẫn
+được kiểm tra, không bỏ qua điều kiện hình học để ép vừa một kích thước bất khả thi.
+
+**Replace Component của SketchUp**: module được tạo/cập nhật bằng bản mới mang
+theo bộ quy tắc trong definition. App tự nhận lại thông số, tạo nhận dạng riêng và
+Redraw sau lệnh Replace. Mẫu Studio cũ nên Redraw rồi Lưu SKP một lần để cập nhật
+dữ liệu mang theo. File Library có payload module cũng được nhận. Tính năng này
+áp dụng cho module đơn ở cấp model; cụm SKP vẫn dùng quy trình import/Gộp của app.
+
+Liên kết import cũ từng bám vào mặt sau giằng trước có thể hiện 100 mm nhưng đo
+từ phủ bì thành 100,6 mm. Khi sửa khoảng cách hoặc Redraw, app chuyển riêng mốc
+trước cũ đó về mặt trước phủ bì, giữ số đã nhập và các liên kết còn lại. Liên kết
+chọn mặt thủ công không bị đổi mốc. Thao tác sửa hỗ trợ Undo.
+
+
+## Fit tự do và cỡ ngăn kéo (080)
+
+Giữ Shift khi click đặt trong một khoang để Fit vừa khung mà không tạo liên kết.
+Ngoài khoang, mẫu giữ kích thước gốc. Click thường vẫn dùng bộ liên kết của mẫu;
+Ctrl giữ chức năng Replace liên tục.
+
+Các dòng ngăn kéo có file cỡ ray cùng tên dòng, cùng folder sẽ tự chọn cỡ dài nhất
+còn vừa khoang: ray âm chừa 15 mm, ray bi chừa 5 mm (dung sai chọn cỡ 0,5 mm,
+như MH_Superimp). Ví dụ khoang sâu 565 mm chọn ray âm 550 mm. App fit ngang/cao,
+giữ chiều sâu danh nghĩa của ray; đặt tự do căn mặt trước và để phần dư ở sau.
+Không kéo giãn ray 500 thành 565 mm. Khi Replace nhiều khối, mỗi khối tự chọn cỡ
+riêng theo chiều sâu thực. Mẫu đang chọn không bị đổi khi rê qua các khoang.
+
+## Bảng icon HUD tự tạo (081)
+
+Chuột phải trên HUD → **Cài đặt HUD → Edit**. Nhập tên bảng và một phím A–Z,
+bấm **Tạo bảng**. Bảng độc lập với folder Library; các ô ban đầu trống.
+
+- Kéo từ Library vào ô nào thì icon nằm đúng ô đó; ô đang có icon được thay thế.
+- Kéo icon trong HUD để đổi chỗ hai ô. Chuột phải vào icon trong Edit để xóa khỏi ô.
+- **+8** thêm một trang trống. Không tự lấp đầy ô từ folder.
+- Phím đã gán hoặc click giữa/Tab mở danh sách bảng. Folder Library đang xem giữ nguyên.
+- Ngoài Edit, rê chuột theo hướng icon để highlight rồi click, không cần trúng vòng icon.
+  Vùng giữa, nút đóng và chuyển trang vẫn có ưu tiên riêng; hướng trống không chọn gì.
+- Vòng lớn chỉ có viền. Edit vẫn bắt đúng các ô tròn khi kéo thả.
+- Import/Export config giữ tên bảng, phím và từng ô trống. File đổi tên được dò lại;
+  file bị xóa để lại ô trống. Các thứ tự icon đã lưu trước đó được chuyển một lần,
+  không tự tạo bảng từ các folder mới.
+
+
+## Vòng và dải icon ở mép màn hình (082)
+
+Trong **Cài đặt HUD → Edit**, thanh **Khoảng cách tới tâm** đưa tám icon lại gần
+hoặc ra xa tâm; đường kính vòng và cỡ ảnh giữ riêng. Khoảng cách được giới hạn
+để vừa viewport. Icon đang chọn có lớp màu đậm phủ lên ảnh để thấy rõ highlight.
+HUD đã bỏ tiêu đề, dấu X và dòng hướng dẫn bên dưới. Esc/Space và menu chuột phải
+vẫn dùng để thoát/cài đặt; chỉ hiện chuyển trang khi bảng có nhiều trang.
+
+- Trong Edit, **click rồi thả icon** để điền một phím số **0–9**; để trống để bỏ
+  phím. Phím trùng trong cùng bảng được báo và giữ dữ liệu cũ. Không tự gán số
+  theo thứ tự icon; phím đã đặt dùng cả hàng số và numpad.
+- **Giữ kéo icon** để đổi chỗ. Kéo ra các ô ở mép trên/dưới/trái/phải để tạo dải;
+  các ô nhận thả xuất hiện trong Edit. Dải giữ theo mép viewport khi đổi kích thước.
+- Có thể kéo từ Library thẳng vào dải, hoặc kéo qua lại giữa dải và vòng giữa.
+  Ô trống giữ nguyên; kéo nội bộ vào ô đang có icon sẽ đổi chỗ hai icon.
+- Số đã gán đi theo icon khi đổi chỗ, đổi tên file và Import/Export config, dùng
+  được với icon ở dải hoặc trang khác. Các bố cục cũ không bị tự gán thêm số.

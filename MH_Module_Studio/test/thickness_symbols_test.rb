@@ -69,7 +69,7 @@ class ModuleStudioThicknessSymbolsTest < Minitest::Test
     assert_nil common['value']
     assert_equal %w[A B],(common['targets'].map { |target| target['pid'] })
     assert_equal 'common',rows.first['section_id']
-    assert(rows.any? { |row| row['section_id']=='A' && row['targets'].first['variable_id']=='input:giang' })
+    assert(rows.any? { |row| row['section_id']=='common' && row['targets'].map { |ref| ref['variable_id'] }==['input:giang','input:giang'] })
     hidden = Studio::Parametric.variables(rule)
     hidden.find { |row| row['binding']=='dayvan' }['exported'] = false
     modules.last['rule'] = Studio::Parametric.edit_variables(rule,hidden)

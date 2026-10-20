@@ -31,6 +31,17 @@ module MH
         end
       end
 
+      def merge_rows(matching,id,name)
+        values=matching.map { |row| row['value'] };first=values.first
+        mixed=values.any? { |value| value.is_a?(Numeric) && first.is_a?(Numeric) ? (value-first).abs>0.000001 : value!=first }
+        limits=matching.filter_map { |row| row['range'] }
+        range=limits.empty? ? nil : [limits.map(&:first).max,limits.map(&:last).min]
+        matching.first.merge('id'=>id,'name'=>name,'section'=>'Tham số chung','section_id'=>'common',
+          'value'=>mixed ? nil : first,'selection'=>mixed ? nil : matching.first['selection'],'mixed'=>mixed,'range'=>range,
+          'editable'=>matching.all? { |row| row['editable'] } && (!range || range[0]<=range[1]),
+          'targets'=>matching.flat_map { |row| row['targets'] })
+      end
+
       def grouped(modules)
         all = modules.flat_map do |item|
           rows(item['rule'],item['values']).map do |row|
@@ -44,17 +55,19 @@ module MH
           end
         end
         shared = []
-        %w[T1 T2].each do |symbol|
-          matching = all.select { |row| row['thickness_role']==symbol && row['symbol']==symbol }
-          next unless matching.length>1
-          values = matching.map { |row| row['value'] }
-          mixed = values.max-values.min>0.000001
-          limits = matching.filter_map { |row| row['range'] }
-          range = limits.empty? ? nil : [limits.map(&:first).max,limits.map(&:last).min]
-          shared << matching.first.merge('id'=>"common:#{symbol}",'name'=>"Độ dày #{symbol}",'section'=>'Tham số chung','section_id'=>'common',
-            'value'=>mixed ? nil : values.first,'mixed'=>mixed,'range'=>range,
-            'editable'=>matching.all? { |row| row['editable'] } && (!range || range[0]<=range[1]),
-            'targets'=>matching.flat_map { |row| row['targets'] })
+        all.group_by { |row| row['symbol'].to_s.strip.downcase }.each do |symbol,matching|
+          next if symbol.empty? || symbol.match?(/\Aatt_\d+\z/) || matching.map { |row| row['section_id'] }.uniq.length<2
+          shapes=matching.map do |row|
+            [row['category'],row['unit'],Array(row['options']).map { |choice| choice.reject { |key,_value| key=='input_id' } },
+             row['manual_input'] && row['manual_input'].values_at('category','unit')]
+          end
+          next unless shapes.uniq.length==1
+          canonical=%w[t1 t2].include?(symbol) ? symbol.upcase : symbol
+          common=merge_rows(matching,"common:#{canonical}",%w[T1 T2].include?(canonical) ? "Độ dày #{canonical}" : matching.first['name'])
+          if matching.first['manual_input']
+            common['manual_input']=merge_rows(matching.map { |row| row['manual_input'] },"common:#{canonical}:manual",matching.first['manual_input']['name'])
+          end
+          shared << common
           all -= matching
         end
         shared+all

@@ -30,7 +30,7 @@ module MH
       end
 
       def save_settings(changes)
-        proposed = LibraryCatalog.settings(@config.merge(changes.slice('view', 'thumbnail_size', 'hud_size', 'hud_image_zoom', 'hud_position', 'hud_orders', 'folder', 'folder_keys')))
+        proposed = LibraryCatalog.settings(@config.merge(changes.slice('view', 'thumbnail_size', 'hud_size', 'hud_spacing', 'hud_image_zoom', 'hud_position', 'hud_orders', 'folder', 'folder_keys', *HUDBoards::FIELDS)))
         unless @catalog['folders'].empty? || @catalog['folders'].any? { |folder| folder['id'] == proposed['folder'] }
           raise Core::Error, 'Folder đã thay đổi. Làm mới thư viện.'
         end
@@ -244,7 +244,18 @@ module MH
         when 'library_save'
           save_selected
           return publish
-        when 'library_place'
+        when 'library_pick', 'library_place', 'library_replace_selection'
+          gesture=data['gesture']
+          gesture_key=[Sketchup.active_model.object_id,data['id'],gesture] if gesture.is_a?(String) && gesture.length.between?(1,120)
+          return publish if gesture_key && @last_selection_gesture==gesture_key
+          return publish(nil,background:true) if data['action']=='library_pick' && Sketchup.active_model.selection.empty?
+          if data['action']=='library_replace_selection' || !Sketchup.active_model.selection.empty?
+            targets=LibraryPlacement.selected_targets(Sketchup.active_model)
+            own=preview(data.fetch('id'))
+            result=LibraryPlacement.replace_many(self,own,targets)
+            @last_selection_gesture=gesture_key
+            return publish("Đã Replace #{result.length} đối tượng. Undo để khôi phục cả lượt.")
+          end
           open_hud(data.fetch('id'))
           return publish('Click để đặt và thoát HUD. Esc hủy lượt đặt để chọn mẫu khác; Space thoát HUD.')
         when 'library_hud'
@@ -253,6 +264,7 @@ module MH
         when 'library_hud_edit'
           open_hud unless @tool&.active
           @tool.set_editing(true)
+          @tool.show_settings if @config['hud_boards'].empty?
           return publish('Edit HUD: kéo icon trên vòng để đổi chỗ; kéo module từ Library thả vào một ô HUD.')
         when 'library_hud_exit'
           @tool&.finish
@@ -275,12 +287,21 @@ module MH
         publish(error.message, error: true)
       end
 
-      def move_hud_item(id, index, folder: @config['folder'])
+      def move_hud_item(id, index, folder: @config['hud_board'], zone: 'ring')
         entry(id)
-        raise Core::Error, 'Folder HUD đã thay đổi.' unless @catalog['folders'].any? { |row| row['id'] == folder }
-        orders = LibraryCatalog.move_hud_item(@catalog['entries'], @config.merge('folder' => folder), id, index)
-        save_settings('hud_orders' => orders)
-        publish('Đã lưu vị trí icon HUD.')
+        changed=HUDBoards.put(@config,id,index,folder,zone:zone)
+        save_settings(changed.slice(*HUDBoards::FIELDS))
+        publish('Đã lưu đúng ô icon HUD.')
+      end
+
+      def edit_hud_board(action,data)
+        raise Core::Error,'Bật Edit HUD trước.' unless @tool&.editing
+        values=Core.copy_data(data)
+        values['id']=Core::Ids.hex(12) if action=='create'
+        changed=HUDBoards.edit(@config,action,values)
+        save_settings(changed.slice(*HUDBoards::FIELDS))
+        @tool.catalog_changed if %w[create delete update page].include?(action)
+        publish('Đã lưu bảng icon HUD.')
       end
 
       def require_owned(root)
@@ -470,6 +491,9 @@ module MH
           root.transformation = transform
           return root
         end
+          if data['drawer_fit'] && data['import_template']
+            current['rule']=ImportTemplate.edit(current['rule'],data['import_template'])
+          end
         snapshot, bindings, normalization = validate_geometry(root, current,recover:true)
         targets = Parametric.targets(current['rule'])
         if targets.any? { |key,value| normalization['target'][key]!=value }
@@ -485,7 +509,41 @@ module MH
         root
       end
 
+      def resolve_fit(data,placement,within_operation: false)
+        return [data,placement] unless placement && (placement['mode']!='template' || placement['kind']=='inside')
+        scales=Frames.scale_frame(placement['frame'])
+        depth=placement['fit_depth_mm'] || Core.dimensions(placement['bounds'])[1]*scales[5]
+        choice=DrawerVariants.choose(@catalog['entries'],data['entry_id'],depth)
+        return [data,placement] unless choice
+        effective=choice['id']==data['entry_id'] ? Core.copy_data(data) : fit_preview(choice['id'],within_operation:within_operation)
+        effective['import_template']=Core.copy_data(data['import_template']) if data.key?('import_template')
+        effective['drawer_fit']=choice
+        [effective,DrawerVariants.fit_bounds(effective,placement)]
+      end
+
+      def fit_preview(id,within_operation: false)
+        item=entry(id);key=[Sketchup.active_model.object_id,id,item['fingerprint']];@fit_previews||={}
+        stored=@fit_previews.delete(key)
+        if stored
+          @fit_previews[key]=stored;return JSON.parse(stored)
+        end
+        data=if within_operation
+               definition=Sketchup.active_model.definitions.load(item['path'])
+               raw=definition.get_attribute(Reader::DICT,LibraryCatalog::PAYLOAD_KEY)
+               imports.preview(raw).merge('entry_id'=>id,'fingerprint'=>item['fingerprint'])
+             else
+               preview(id)
+             end
+        encoded=JSON.generate(data)
+        if encoded.bytesize<=LibraryImport::MAX_BYTES
+          @fit_previews.shift while @fit_previews.length>=LibraryImport::MAX_ITEMS || @fit_previews.values.sum(&:bytesize)+encoded.bytesize>LibraryImport::MAX_BYTES
+          @fit_previews[key]=encoded
+        end
+        data
+      end
+
       def place(data, point, placement: nil)
+        data,placement=resolve_fit(data,placement) if placement && placement['mode']=='cavity'
         return LibraryPlacement.place(self,data,point,placement) if placement
         model = Sketchup.active_model
         Runtime.ensure_top_level(model)

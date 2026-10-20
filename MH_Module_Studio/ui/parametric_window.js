@@ -27,6 +27,7 @@ function refreshButtons(){
   byId('save-project').disabled=blocked||!state.rule||dirty||Boolean(cellEdit);
   byId('save-skp').disabled=Boolean(state.busy||pending&&pending!=='rename_model')||!available||Boolean(cellEdit);
   byId('capture-sketchup').disabled=blocked||dirty||Boolean(cellEdit);
+  byId('configure-import').disabled=blocked||!available||assembly||Boolean(cellEdit);
   document.querySelectorAll('.cell-editor input').forEach(input=>input.disabled=blocked);
   document.querySelectorAll('#variables-table input,#variables-table select').forEach(field=>field.disabled=blocked||Boolean(cellEdit)||field.dataset.locked==='true');
   document.querySelectorAll('[data-remove-variable]').forEach(button=>{
@@ -161,6 +162,7 @@ for(const [id,callback]of [['save-project',saveProject],['save-skp',saveSkp]]){
   });
   button.addEventListener('click',()=>saveAfterRename(callback));
 }
+byId('configure-import').addEventListener('click',()=>{const section=byId('import-links');section.open=true;section.scrollIntoView({block:'start',behavior:'smooth'});});
 byId('capture-sketchup').addEventListener('click',()=>request('capture_parametric'));
 function renameModel(name,part_key=null){if(cellEdit||pending)return;nameEdit={name,part_key};request('rename_model',{name,part_key,rule_id:ruleId,snapshot_id:snapshotId,revision});}
 function commitName(input){const key=input===byId('module-title')?null:input.dataset.partName;const current=key===null?moduleTitle(state):state.parametric_sheet?.parts.find(part=>part.key===key)?.name;if(input.value.trim()!==String(current).trim())renameModel(input.value,key);}

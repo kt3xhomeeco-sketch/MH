@@ -1,0 +1,6 @@
+- [x] Specify explicit boards, migration, sparse drop and directional selection.
+- [x] Isolate board data in portable HUDBoards and integrate config remapping.
+- [x] Replace folder-driven HUD browsing and create/edit boards in settings.
+- [x] Verify sparse drops, sectors, migration/config and browser settings.
+- [x] Verify native HUD, refresh/reopen, retained placement features and rendering.
+- [x] Complete scoped gate, package verification, live reload and documentation.

@@ -2,13 +2,16 @@
 require 'minitest/autorun'
 require_relative '../library_hud'
 require_relative '../module_options'
+COPY_MODIFIER_MASK=8 unless defined?(COPY_MODIFIER_MASK)
+CONSTRAIN_MODIFIER_MASK=4 unless defined?(CONSTRAIN_MODIFIER_MASK)
 
 class ModuleStudioHUDEditTest < Minitest::Test
   class LibraryStub
     attr_reader :config, :catalog
 
     def initialize
-      @config = { 'folder' => 'target' }
+      @config = MH::ModuleStudio::LibraryCatalog.settings('folder'=>'target','hud_board_version'=>1,'hud_board'=>'board-1',
+        'hud_boards'=>[{'id'=>'board-1','name'=>'Tấm','key'=>'T','slots'=>Array.new(8)}])
       @catalog = { 'root' => 'D:/Library' }
     end
 
@@ -16,7 +19,7 @@ class ModuleStudioHUDEditTest < Minitest::Test
       @config.merge!(values)
     end
 
-    def publish; end
+    def publish(*); end
 
     def entry(id)
       raise MH::ModuleStudio::Core::Error, 'Missing item' unless id == 'source/module.skp'
@@ -30,16 +33,16 @@ class ModuleStudioHUDEditTest < Minitest::Test
     @hud.instance_variable_set(:@library, @library)
   end
 
-  def test_library_browsing_during_edit_does_not_change_destination_folder
+  def test_library_browsing_during_edit_does_not_change_destination_board
     @hud.set_editing(true)
     @library.save_settings('folder' => 'source')
     assert_equal 'source', @library.config['folder']
-    assert_equal 'target', @hud.hud_folder
-    assert_equal 'target', @hud.hud_settings['folder']
+    assert_equal 'board-1', @hud.hud_folder
+    assert_equal 'board-1', @hud.hud_settings['hud_board']
     @hud.set_editing(true)
-    assert_equal 'target', @hud.hud_folder
+    assert_equal 'board-1', @hud.hud_folder
     @hud.set_editing(false)
-    assert_equal 'target', @library.config['folder']
+    assert_equal 'source', @library.config['folder']
     refute @hud.editing
   end
 
@@ -126,17 +129,35 @@ class ModuleStudioHUDEditTest < Minitest::Test
     input=Object.new;input.define_singleton_method(:clear) {}
     @hud.instance_variable_set(:@input,input)
     @hud.define_singleton_method(:refresh) {}
-    @hud.choose('id'=>'cabinet.skp')
+    @hud.instance_variable_set(:@model,Struct.new(:selection).new([]))
+    @hud.choose({'id'=>'cabinet.skp'})
     assert_equal 'cabinet.skp',@hud.pending['entry_id']
     assert_nil @hud.error
   end
 
-  def test_successful_import_and_replacement_exit_without_opening_options
+  def test_choosing_a_sample_replaces_preselection_without_ctrl
+    @library.define_singleton_method(:preview) { |id| {'entry_id'=>id,'name'=>'Cabinet'} }
+    input=Object.new;input.define_singleton_method(:clear) {}
+    @hud.instance_variable_set(:@input,input);@hud.instance_variable_set(:@model,Struct.new(:selection).new([Object.new]))
+    @hud.define_singleton_method(:refresh) {}
+    calls=[];targets=[{'root'=>'1'},{'root'=>'2'}]
+    MH::ModuleStudio::LibraryPlacement.stub(:selected_targets,targets) do
+      MH::ModuleStudio::LibraryPlacement.stub(:replace_many,->(_library,data,refs) { calls << [data['entry_id'],refs];[1,2] }) do
+        @hud.choose({'id'=>'cabinet.skp'})
+      end
+    end
+    assert_nil @hud.error
+    assert_equal [['cabinet.skp',targets]],calls
+    assert @hud.replacement?(0),'Continue replacing with the chosen sample'
+  end
+
+  def test_import_exits_and_replacement_continues_without_opening_options
     point = Object.new
     input = Object.new
     input.define_singleton_method(:pick) { |_view,_x,_y| }
     input.define_singleton_method(:valid?) { true }
     input.define_singleton_method(:position) { point }
+    input.define_singleton_method(:clear) {}
     calls = []
     @library.define_singleton_method(:place) { |data,position,placement:| calls << [data,position,placement] }
     @hud.instance_variable_set(:@input,input)
@@ -145,6 +166,7 @@ class ModuleStudioHUDEditTest < Minitest::Test
     @hud.define_singleton_method(:refresh) { @unexpected_refresh = true }
     @hud.define_singleton_method(:finish) { @finished = true; @active = false; @pending = nil }
     [nil,{'mode'=>'replace'}].each do |placement|
+      @hud.instance_variable_set(:@finished,false);@hud.instance_variable_set(:@unexpected_refresh,false)
       data = {'name'=>'Cabinet'}
       @hud.instance_variable_set(:@active,true)
       @hud.instance_variable_set(:@pending,data)
@@ -154,10 +176,17 @@ class ModuleStudioHUDEditTest < Minitest::Test
       end
       assert_equal [data,point,placement],calls.last
       assert_nil @hud.error
-      assert @hud.instance_variable_get(:@finished)
-      refute @hud.active
-      assert_nil @hud.pending
-      refute @hud.instance_variable_get(:@unexpected_refresh)
+      if placement
+        refute @hud.instance_variable_get(:@finished)
+        assert @hud.active
+        assert_equal data,@hud.pending
+        assert @hud.instance_variable_get(:@unexpected_refresh)
+      else
+        assert @hud.instance_variable_get(:@finished)
+        refute @hud.active
+        assert_nil @hud.pending
+        refute @hud.instance_variable_get(:@unexpected_refresh)
+      end
     end
   end
 end

@@ -78,6 +78,18 @@ class ModuleStudioAssemblyToolTest < Minitest::Test
     assert_includes @tool.error,'Khoảng hở'
   end
 
+  def test_open_boundary_uses_positive_ui_input_for_inward_signed_contacts
+    @tool.load_record('mode'=>'contact','gap'=>-80,'import_link'=>{'boundary'=>'envelope'})
+    @tool.action(:value,['gap',90]);assert_equal(-90,@tool.record['gap'])
+    @tool.action(:step,['gap',1]);assert_equal(-91,@tool.record['gap'])
+    @tool.onUserText('82',nil);assert_equal(-82,@tool.record['gap'])
+    assert_equal 82,MH::ModuleStudio::AssemblyPresentation.gap(@tool.record,@tool.record['gap'])
+    @tool.action(:flip);assert_equal 82,@tool.record['gap']
+    assert_equal(-82,MH::ModuleStudio::AssemblyPresentation.gap(@tool.record,@tool.record['gap']))
+    @tool.action(:flip);@tool.action(:bound)
+    assert_equal 'fit',@tool.record['mode'];assert_equal 82,@tool.record['gap'];refute @tool.record['import_link']
+  end
+
   def test_flip_side_preserves_faces_and_cannot_override_a_measured_gap
     @tool.load_record('mode'=>'contact','gap'=>3,'a'=>{'root'=>'A'},'b'=>{'root'=>'B'})
     @tool.action(:flip)

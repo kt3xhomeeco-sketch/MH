@@ -23,7 +23,8 @@ static BOOL CALLBACK find_main(HWND hwnd, LPARAM arg) {
 }
 
 static int protected_key(WPARAM key) {
-  return (key >= 'A' && key <= 'Z') || (key >= '1' && key <= '8') ||
+  return (key >= 'A' && key <= 'Z') || (key >= '0' && key <= '9') ||
+    (key >= VK_NUMPAD0 && key <= VK_NUMPAD9) ||
     key == VK_ESCAPE || key == VK_SPACE || key == VK_BACK || key == VK_TAB ||
     key == VK_RETURN || key == VK_LEFT || key == VK_RIGHT || key == VK_PRIOR || key == VK_NEXT;
 }

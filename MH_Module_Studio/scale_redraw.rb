@@ -24,7 +24,7 @@ module MH
           entities += AssemblyContainers.containers(model).flat_map { |component| AssemblyContainers.members(component) }
         end
         entities.select do |entity|
-          (entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Group)) && entity.get_attribute(Reader::DICT, 'trial', false)
+          (entity.is_a?(Sketchup::ComponentInstance) || entity.is_a?(Sketchup::Group)) && entity.get_attribute(Reader::DICT, 'trial', false) && !ComponentMetadata.pending?(entity)
         end
       end
 
@@ -48,7 +48,7 @@ module MH
           Runtime.private_tree(root)
           _snapshot, bindings = Reader.live(root, label: 'Tính lại sau Scale', parameter: Runtime.read_parameter(rule, calculation['target']))
           Runtime.apply_plan(bindings, calculation)
-          Runtime.stamp(root, rule, bindings, calculation['target'])
+          Runtime.stamp_redraw(root, rule, bindings, calculation['target'])
           Runtime.verify_result(root, calculation)
           # This instance is already repaired inside its caller's transaction.
           # Acknowledge only this root; unrelated pending Scale edits still run.
@@ -91,6 +91,8 @@ module MH
 
           def reset
             @generation += 1
+            @pending = []
+            @active_path = @model.active_path&.map(&:persistent_id)
             @scales = ScaleRedraw.roots(@model).to_h do |root|
               [root.persistent_id, ScaleRedraw.signature(root)]
             rescue Core::Error
@@ -110,6 +112,7 @@ module MH
               ScaleRedraw.changed?(@scales[root.persistent_id], after)
             end
             return reset if candidates.empty?
+            @pending = candidates
             # Never mutate geometry from a transaction observer callback.
             UI.start_timer(0, false) { redraw(candidates, generation) }
           end
@@ -156,8 +159,31 @@ module MH
             onTransactionCommit(model)
           end
 
-          %i[onTransactionUndo onTransactionAbort onActivePathChanged].each do |event|
-            define_method(event) { |_model| reset unless @applying }
+          def onTransactionAbort(model)
+            # A cancelled temporary operation can follow an already committed
+            # Scale before its timer runs. Only acknowledge restored transforms;
+            # keep the earlier Scale pending against the previous baseline.
+            return if @applying
+            Array(@pending).empty? ? reset : onTransactionCommit(model)
+          end
+
+          def onTransactionUndo(model)
+            return if @applying
+            # abort_operation also reports Undo in SketchUp. Recheck only if a
+            # committed Scale was already waiting; completed Undo keeps its
+            # original geometry and Redo chain untouched.
+            Array(@pending).empty? ? reset : onTransactionCommit(model)
+          end
+
+          def onActivePathChanged(model)
+            return if @applying
+            # SketchUp also emits this while aborting a temporary operation,
+            # even if the edit context did not change at all.
+            if !Array(@pending).empty? && model.active_path&.map(&:persistent_id) == @active_path
+              onTransactionCommit(model)
+            else
+              reset
+            end
           end
         end
 

@@ -1,0 +1,6 @@
+- [x] Replace scheduled implementation with a checked app commit at 05:30; implement now.
+- [x] Specify/Edit spacing, explicit digits, sparse dock schema/migration and identity remapping.
+- [x] Implement layout, exact ring/dock swaps, external drops and native rendering.
+- [x] Add click-release digit assignment, conflict feedback and native 0–9/numpad input helper.
+- [x] Portable and browser tests; native event/render and Windows message checks.
+- [x] Final scoped gate, docs/package verification and live reload preserving real config.

@@ -12,11 +12,13 @@ require_relative 'scale_redraw'
 require_relative 'assembly_tool'
 require_relative 'module_file'
 require_relative 'parametric_model'
+require_relative 'library_adoption'
 
 module MH
   module ModuleStudio
     ScaleRedraw.install
     Assembly.install
+    LibraryAdoption.install
     class Panel
       def initialize
         @snapshots = []
@@ -640,6 +642,14 @@ module MH
       @parametric_command.status_bar_text = 'Gán phím tại Preferences → Shortcuts → MH Module Studio · Parametric'
       UI.menu('Extensions').add_item(@parametric_command)
       @parametric_commands_registered = true
+    end
+
+    if defined?(Sketchup) && Sketchup.respond_to?(:active_model) && !@redraw_command_registered
+      @redraw_command=UI::Command.new('MH Module Studio · Redraw') { redraw_selected }
+      @redraw_command.tooltip='Tính lại module/cụm đang chọn theo quy tắc đã lưu'
+      @redraw_command.status_bar_text='Gán phím tại Preferences → Shortcuts → MH Module Studio · Redraw'
+      UI.menu('Extensions').add_item(@redraw_command)
+      @redraw_command_registered=true
     end
 
     unless file_loaded?(__FILE__)

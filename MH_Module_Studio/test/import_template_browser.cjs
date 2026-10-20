@@ -9,7 +9,10 @@ const fs=require('fs'),path=require('path'),assert=require('assert');
   await page.addInitScript(()=>{window.sent=[];window.sketchup={request:raw=>window.sent.push(JSON.parse(raw))};});
   await page.goto('file:///'+path.join(root,'ui/parametric.html').replaceAll('\\','/'));
   await page.evaluate(s=>window.receive(s),state);
-  await page.locator('#import-links summary').click();await page.locator('#import-five').click();
+  assert(!await page.locator('#import-links').evaluate(node=>node.open));
+  await page.locator('#configure-import').click();
+  assert(await page.locator('#import-links').evaluate(node=>node.open));
+  await page.locator('#import-five').click();
   assert(await page.locator('#import-enabled').isChecked());
   assert.equal(await page.locator('[data-import-slot]:checked').count(),5);
   await page.locator('#import-role').selectOption('door');assert(await page.locator('#import-door-gap').isVisible());
@@ -27,6 +30,9 @@ const fs=require('fs'),path=require('path'),assert=require('assert');
   assert.equal(await page.locator('[data-import-slot]:checked').count(),2);
   await page.locator('#import-apply').click();assert.equal((await page.evaluate(()=>sent.at(-1))).import_template.faces.filter(face=>face.enabled).length,2);
   await page.locator('#import-links').screenshot({path:path.join(folder,'configuration.png')});
+  for(const width of [1200,1000,850]){await page.setViewportSize({width,height:850});assert(await page.locator('header').evaluate(node=>node.scrollWidth<=node.clientWidth+1),`Header overflows at ${width}`);}
+  const assembly=structuredClone(state);assembly.parametric_sheet.assembly=true;
+  await page.evaluate(s=>window.receive(s),assembly);assert(await page.locator('#configure-import').isDisabled());
   assert.deepEqual(errors,[]);fs.writeFileSync(path.join(folder,'browser.json'),JSON.stringify({ok:true,errors}));
   console.log('Parametric: five-face preset, explicit door property, per-face gaps, partial slots and Save SKP configuration round trip passed.');
  }finally{await browser.close();}

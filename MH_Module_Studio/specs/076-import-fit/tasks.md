@@ -1,0 +1,4 @@
+- [x] Portable region-first fit and explicit open-boundary references.
+- [x] Correct matrix scale, signed distances, preview labels and virtual drawing.
+- [x] Regression tests and native file-1 import / host-change / Undo / persistence.
+- [x] Scoped gate, docs, package and VBO reload.

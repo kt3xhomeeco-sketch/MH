@@ -55,6 +55,21 @@ module MH
         nil
       end
 
+      def self.selected_options_roots
+        root=selected_options_root
+        return [root] if root
+        return [] unless defined?(Sketchup) && Sketchup.respond_to?(:active_model)
+        model=Sketchup.active_model
+        return [] unless model && model.selection.length>1
+        model.selection.select do |entity|
+          Assembly.container?(entity) && (entity.get_attribute(Reader::DICT,'trial',false) || AssemblyContainers.managed?(entity))
+        end.sort_by(&:persistent_id)
+      end
+
+      def selection_key(roots)
+        roots.length==1 ? roots.first.persistent_id.to_s : 'selection:'+roots.map(&:persistent_id).sort.join(',')
+      end
+
       def self.sync_visibility(template)
         return unless defined?(Sketchup) && Sketchup.respond_to?(:active_model)
         root = selected_owned_root
@@ -132,7 +147,7 @@ module MH
         end
       ensure
         Sketchup.remove_observer(@app_observer) if @app_observer
-        @model=nil;@root=nil;@members=nil;@display_rows=nil
+        @model=nil;@root=nil;@members=nil;@display_rows=nil;@selection_key=nil
         @selection_observer=nil;@model_observer=nil;@app_observer=nil
       end
 
@@ -163,8 +178,8 @@ module MH
           MH::ModuleStudio.instance_variable_get(:@library)&.tool&.finish
           refresh
         when 'change', 'changes'
-          root = self.class.selected_options_root
-          unless root && root.equal?(@root) && root.model.equal?(@model) && root.persistent_id.to_s == data['root_pid'] && data['token'] == @token
+          roots=self.class.selected_options_roots
+          unless !roots.empty? && roots.all? { |root| root.model.equal?(@model) } && selection_key(roots)==data['root_pid'] && data['root_pid']==(@selection_key || @root&.persistent_id&.to_s) && data['token'] == @token
             raise Core::Error, 'Module đang chọn đã đổi. Nhập lại thông số trên module hiện tại.'
           end
           data['action']=='changes' ? apply_changes(data.fetch('changes')) : apply_change(data)
@@ -173,6 +188,13 @@ module MH
           root = self.class.selected_options_root
           raise Core::Error,'Chọn lại module cần lưu.' unless root && root.equal?(@root) && (!data['root_pid'] || data['root_pid']==root.persistent_id.to_s)
           MH::ModuleStudio.library.save_selected(root)
+          refresh
+        when 'redraw'
+          root=self.class.selected_options_root
+          unless root && root.equal?(@root) && root.model.equal?(@model) && root.persistent_id.to_s==data['root_pid'] && data['token']==@token
+            raise Core::Error,'Module đang chọn đã đổi. Chọn lại module để Redraw.'
+          end
+          Assembly.redraw(root)
           refresh
         else
           raise Core::Error, 'Thao tác không hỗ trợ.'
@@ -212,7 +234,7 @@ module MH
           [Core.copy_data(member['anchor']),edited,Parametric.targets(edited)]
         end
         return if jobs.empty?
-        if jobs.any? { |anchor,_rule,_values| anchor['scope'] } || Assembly.records(@model).any? do |record|
+        if jobs.length>1 || jobs.any? { |anchor,_rule,_values| anchor['scope'] } || Assembly.records(@model).any? do |record|
              AssemblyContainers.references(record).any? { |anchor| jobs.any? { |job| AssemblyContainers.identity(job[0])==AssemblyContainers.identity(anchor) } }
            end
           Assembly.transact(@model,Assembly.records(@model),updates:jobs)
@@ -239,29 +261,43 @@ module MH
         return unless @dialog
         @refresh_scheduled = nil
         attach
-        root = self.class.selected_options_root
+        roots=self.class.selected_options_roots;root=roots.first
         @token = Core::Ids.uuid
         if root
           @root = root
-          grouped = AssemblyContainers.managed?(root)
-          children = grouped ? AssemblyContainers.members(root).select { |item| item.get_attribute(Reader::DICT,'trial',false) } : [root]
-          scope = grouped ? root.persistent_id.to_s : @model.active_path&.first&.get_attribute(Reader::DICT,'assembly_component',false) && @model.active_path.first.persistent_id.to_s
-          @members = children.to_h do |child|
+          grouped = roots.length>1 || AssemblyContainers.managed?(root)
+          context=@model.active_path&.first
+          children=roots.flat_map do |selected|
+            if AssemblyContainers.managed?(selected)
+              AssemblyContainers.members(selected).select { |item| item.get_attribute(Reader::DICT,'trial',false) }.map { |item| [item,selected.persistent_id.to_s] }
+            else
+              [[selected,context && AssemblyContainers.managed?(context) ? context.persistent_id.to_s : nil]]
+            end
+          end.uniq { |child,scope| [scope,child.persistent_id] }
+          previous_members=@members || {}
+          @members = children.to_h do |child,scope|
+            member_id=[scope,child.persistent_id.to_s].compact.join('/')
             raw = child.get_attribute(Reader::DICT,'rule_json')
             raise Core::Error,'Module chưa lưu bộ quy tắc hợp lệ.' unless raw.is_a?(String) && raw.bytesize<=16*1024*1024
-            rule = ThicknessSymbols.normalize(DCCustomAttributes.upgrade(Core.rule!(JSON.parse(raw))))
-            raise Core::Error,'Module cần hệ quy tắc Parametric.' unless rule['kind']==RuleSystem::KIND
             values_raw = child.get_attribute(Reader::DICT,'parameter_values_json')
-            values = values_raw ? JSON.parse(values_raw) : {}
-            # Draft values must reflect this instance, including prior option edits.
-            rule['parameters'].each { |param| param['value'] = values.fetch(param['key'],param['value']) if param['editable'] }
-            rule.fetch('parametric_variables',[]).each { |row| row['value'] = values.fetch(row['binding'],row['value']) if row['binding'] && row['formula'].empty? }
-            [child.persistent_id.to_s,{'pid'=>child.persistent_id.to_s,'name'=>child.name,'rule'=>rule,'values'=>values,
+            cached=previous_members[member_id]
+            if cached && cached['raw']==raw && cached['values_raw']==values_raw
+              rule=cached['rule'];values=cached['values']
+            else
+              rule = ThicknessSymbols.normalize(DCCustomAttributes.upgrade(Core.rule!(JSON.parse(raw))))
+              raise Core::Error,'Module cần hệ quy tắc Parametric.' unless rule['kind']==RuleSystem::KIND
+              values = values_raw ? JSON.parse(values_raw) : {}
+              # Draft values must reflect this instance, including prior option edits.
+              rule['parameters'].each { |param| param['value'] = values.fetch(param['key'],param['value']) if param['editable'] }
+              rule.fetch('parametric_variables',[]).each { |row| row['value'] = values.fetch(row['binding'],row['value']) if row['binding'] && row['formula'].empty? }
+            end
+            [member_id,{'pid'=>member_id,'name'=>child.name,'rule'=>rule,'values'=>values,
               'anchor'=>{'root'=>child.persistent_id.to_s,'scope'=>scope || nil}.compact,'raw'=>raw,'values_raw'=>values_raw}]
           end
           @display_rows = grouped ? OptionsParameters.grouped(@members.values) : OptionsParameters.rows(@members.values.first['rule'],@members.values.first['values'])
-          payload = { 'root_pid' => root.persistent_id.to_s, 'token' => @token, 'name' => root.name.to_s,
-                      'thumbnail' => thumbnail(root), 'error' => error,'rows'=>@display_rows.map { |row| row.reject { |key,_value| key=='targets' } } }
+          @selection_key=selection_key(roots)
+          payload = { 'root_pid' => @selection_key, 'token' => @token, 'name' => roots.length>1 ? "#{roots.length} module đang chọn" : root.name.to_s,
+                      'batch'=>roots.length>1,'thumbnail' => roots.length>1 ? nil : thumbnail(root), 'error' => error,'rows'=>@display_rows.map { |row| row.reject { |key,_value| key=='targets' } } }
         else
           @root = nil
           payload = { 'token' => @token, 'name' => 'Chọn module', 'rows' => [], 'empty' => true,
@@ -288,6 +324,14 @@ module MH
     def self.show_options
       @module_options ||= ModuleOptions.new
       @module_options.show
+    end
+
+    def self.redraw_selected
+      Assembly.redraw(Runtime.selected_root)
+      Sketchup.status_text='MH: Đã Redraw module.'
+      @module_options&.schedule_refresh
+    rescue StandardError=>error
+      UI.messagebox(error.message)
     end
   end
 end

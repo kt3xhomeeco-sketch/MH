@@ -170,7 +170,8 @@ module MH::ModuleStudio
     def hover_partial
       args=aim(@partial,[18,90,250],eye:[250,-600,350])
       result=ImportLinks.detect(@body,*args,cache:{})
-      check(result && result['kind']=='inside' && result['matches'].length==2,'Open host with only side and bottom produces two contacts, not five virtual box faces')
+      check(result && result['kind']=='inside' && result['matches'].length==5,'Open host accepts configured real and envelope references')
+      check(result['matches'].count { |match| !match['target']['virtual'] }==2,'Partial host has two filled real faces and three distinct envelope boundaries')
     end
     def hover_and_place_door
       args=aim(@host,[300,0,9])
@@ -322,7 +323,7 @@ module MH::ModuleStudio
         Assembly.projection(@nested_child,normal).then { |low,high| high-low }
       end
       check((size[0]-(@nested_size[0]-2*value-4)).abs<0.02 && (size[2]-(@nested_size[2]-2*value-4)).abs<0.02,"Inset child fits changed inner width/height at host T=#{value}: #{size.map { |n| n.round(3) }}")
-      check((size[1]-100).abs<0.02,'Unbound child depth stays 100 mm')
+      check((size[1]-100).abs<0.02,'Unbound child depth retains its source size of 100 mm')
       expected=@nested_group ? value : 18
       check((thickness(@nested_child)-expected).abs<0.001,'Child physical T stays exact while its free dimensions resize')
       rows=Assembly.records(@model).select { |row| row.dig('b','root')==@nested_child.persistent_id.to_s }

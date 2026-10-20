@@ -8,7 +8,7 @@ module MH
       extend self
       FORMAT='mh_module_hud_config'.freeze
       MAX_BYTES=4*1024*1024
-      KEYS=%w[folder view thumbnail_size hud_size hud_image_zoom hud_position hud_orders folder_keys].freeze
+      KEYS=%w[folder view thumbnail_size hud_size hud_spacing hud_image_zoom hud_position hud_orders folder_keys hud_board_version hud_boards hud_board].freeze
 
       def capture(catalog)
         {'root_identity'=>catalog['folders'].find { |row| row['id']=='' }&.fetch('identity',nil),
@@ -110,6 +110,17 @@ module MH
             found ? orders[mapped] << found : missing << id
           end
           orders[mapped].uniq!
+        end
+        result['hud_boards'].each do |board|
+          resolve=->(id) do
+            next unless id
+            found=file_map[id] || (by_id.key?(id) ? id : nil)
+            missing << id unless found
+            found
+          end
+          board['slots'].map! { |id| resolve.call(id) }
+          board['docks'].each_value { |ids| ids.map! { |id| resolve.call(id) } }
+          board['shortcuts']=board['shortcuts'].filter_map { |id,key| found=resolve.call(id);[found,key] if found }.to_h
         end
         result['hud_orders']=orders
         [LibraryCatalog.settings(result),missing.uniq]

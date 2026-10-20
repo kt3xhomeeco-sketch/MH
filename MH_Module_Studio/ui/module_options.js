@@ -1,12 +1,12 @@
 'use strict';
-let state={rows:[]},pending=null,queue=new Map(),drafts=new Map(),timer=null,rendering=false,structure=null,nodes=new Map();
+let state={rows:[]},pending=null,redrawing=false,queue=new Map(),drafts=new Map(),timer=null,rendering=false,structure=null,nodes=new Map();
 const byId=id=>document.getElementById(id),textTypes=['material','information','behavior','text'];
 function send(action,extra={}){if(window.sketchup?.request)window.sketchup.request(JSON.stringify({action,...extra}));}
 const editableRows=rows=>rows.flatMap(row=>row.manual_input?[row,row.manual_input]:[row]);
-function progress(){byId('updating').hidden=!(pending||queue.size);byId('save-skp').disabled=Boolean(pending||queue.size);}
+function progress(){const busy=Boolean(pending||queue.size||redrawing);byId('updating').hidden=!busy;byId('save-skp').disabled=busy;byId('redraw').disabled=busy;}
 function flush(){
   clearTimeout(timer);timer=null;
-  if(pending||!state.root_pid||!queue.size)return;
+  if(pending||redrawing||!state.root_pid||!queue.size)return;
   pending=[...queue].map(([id,value])=>({id,value,text:drafts.get(id)}));queue.clear();progress();
   const base={root_pid:state.root_pid,token:state.token};
   if(pending.length===1)send('change',{...base,variable_id:pending[0].id,value:pending[0].value});
@@ -52,7 +52,7 @@ window.receive=next=>{
   const switched=state.root_pid!==next.root_pid||state.session!==next.session,previous=state,active=document.activeElement,focusId=active?.dataset.variableId,start=active?.selectionStart,end=active?.selectionEnd;
   if(switched){queue.clear();drafts.clear();clearTimeout(timer);timer=null;pending=null;structure=null;}
   else if(pending){for(const ack of pending)if(!next.error&&!queue.has(ack.id)&&drafts.get(ack.id)===ack.text)drafts.delete(ack.id);pending=null;}
-  state=next;byId('module-name').textContent=next.name||'Chọn module';
+  redrawing=false;state=next;byId('module-name').textContent=next.name||'Chọn module';
   const signature=JSON.stringify(next.rows.map(row=>[row.id,row.section_id,row.section,Boolean(row.options?.length),row.options,row.manual_input?.id]));
   const rebuilt=signature!==structure;
   if(rebuilt){build(next.rows);structure=signature;}
@@ -69,7 +69,7 @@ window.receive=next=>{
     input.placeholder=row.mixed?'Khác nhau':'';input.dataset.rootPid=next.root_pid;input.setAttribute('aria-label',row.name);input.title=row.formula||row.reason||row.symbol||'';
   }
   const thumbnail=byId('thumbnail');thumbnail.hidden=!next.thumbnail;byId('thumbnail-placeholder').hidden=Boolean(next.thumbnail);if(next.thumbnail&&thumbnail.getAttribute('src')!==next.thumbnail)thumbnail.src=next.thumbnail;
-  byId('selection-label').hidden=Boolean(next.empty);byId('save-skp').hidden=Boolean(next.empty||!next.root_pid);
+  byId('selection-label').hidden=Boolean(next.empty);byId('save-skp').hidden=byId('redraw').hidden=Boolean(next.empty||next.batch||!next.root_pid);
   byId('message').textContent=next.message||(!next.rows.length&&!next.error&&!next.empty?'Không có tham số được hiển thị.':'');byId('message').hidden=!byId('message').textContent;
   byId('error').textContent=next.error||'';byId('error').hidden=!next.error;
   if(rebuilt&&!switched&&focusId){const field=nodes.get(focusId)?.input;field?.focus();if(field?.tagName==='INPUT'&&start!=null)field.setSelectionRange(start,end);}
@@ -77,5 +77,6 @@ window.receive=next=>{
   if(!next.error&&queue.size&&!switched)flush();
 };
 byId('save-skp').addEventListener('click',()=>send('save_skp',{root_pid:state.root_pid}));
+byId('redraw').addEventListener('click',()=>{if(pending||queue.size||redrawing||!state.root_pid)return;redrawing=true;progress();send('redraw',{root_pid:state.root_pid,token:state.token});});
 document.addEventListener('keydown',event=>{if(state.hud_active&&(event.key==='Escape'||event.code==='Space')){event.preventDefault();event.stopPropagation();send('close_hud');}},true);
 send('ready');

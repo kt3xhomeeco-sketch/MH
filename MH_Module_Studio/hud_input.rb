@@ -11,7 +11,7 @@ module MH
       def load_api
         return if @api
         raise Core::Error, 'Chặn phím HUD cần SketchUp Windows 64-bit.' unless Sketchup.platform == :platform_win && Fiddle::SIZEOF_VOIDP == 8
-        @dll = Fiddle.dlopen(File.join(__dir__.dup.force_encoding(Encoding::UTF_8), 'native', 'hud_input_v2.dll'))
+        @dll = Fiddle.dlopen(File.join(__dir__.dup.force_encoding(Encoding::UTF_8), 'native', 'hud_input_v3.dll'))
         int = Fiddle::TYPE_INT
         pointer = Fiddle::TYPE_VOIDP
         signatures = { 'MHInstall' => [[], int], 'MHRemove' => [[], Fiddle::TYPE_VOID],

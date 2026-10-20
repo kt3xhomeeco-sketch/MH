@@ -66,8 +66,9 @@ class ModuleStudioListManualInputTest < Minitest::Test
     assert_equal '=hsxpei34m2',compact.first['selection']
     assert_equal 473.25,compact.first['manual_input']['value']
     grouped=S::OptionsParameters.grouped(%w[A B].map { |pid| {'pid'=>pid,'name'=>pid,'rule'=>bundle,'values'=>S::Parametric.targets(bundle)} })
-    assert_equal ['A:input:'+INPUT,'B:input:'+INPUT],(grouped.map { |row| row['manual_input']['id'] })
-    assert_equal [{'pid'=>'A','variable_id'=>'input:'+INPUT}],grouped.first['manual_input']['targets']
+    assert_equal 1,grouped.length
+    assert_match(/common:.*:manual/,grouped.first['manual_input']['id'])
+    assert_equal [{'pid'=>'A','variable_id'=>'input:'+INPUT},{'pid'=>'B','variable_id'=>'input:'+INPUT}],grouped.first['manual_input']['targets']
     rows=S::Parametric.variables(bundle)
     rows.find { |row| row['binding']==INPUT }['exported']=true
     bundle=S::Parametric.edit_variables(bundle,rows)

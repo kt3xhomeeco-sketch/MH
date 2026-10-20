@@ -383,3 +383,133 @@ For geometry-only rules, a thickness axis may be an envelope output only when
 every visible part spans that axis and all explicit thickness constraints predict
 the same planes with their saved anchors. This lets a standalone panel follow T;
 it neither relaxes cabinet envelopes nor overrides ATT or explicit fixed faces.
+
+Feature 073 keeps committed Scale candidates pending until native repair has
+completed. SketchUp abort_operation also reports Undo and unchanged edit-path
+notifications. Those notifications re-evaluate an already pending Scale against
+its last acknowledged transform instead of consuming it as a new baseline.
+Restored/cancelled transforms clear the queue; completed Undo and real edit-path
+changes retain their previous reset behavior. Generation checks still discard
+obsolete timers, and parameter geometry evaluation remains unchanged.
+
+Feature 074 adds an explicit Assembly.redraw adapter shared by the compact Options
+button and the assignable command. Requested anchors participate in ordinary
+instance independence/remapping and join normalized Scale members in one unique
+rebuild set. The existing native transaction retains formula/T/contact verification,
+assembly solving, Undo and failure rollback. Runtime.stamp_redraw reuses metadata
+only for an already validated plan with matching root/part identity, rule, values
+and display names; all other calls retain full Runtime.stamp validation. Options
+reuses parsed member metadata only while serialized rule/values match in its
+current model/window; names, anchors and request tokens are refreshed.
+
+Feature 075 limits AssemblyTree to participants in live links, keyed by scope and
+root PID, including repeated instances and a linked containing wrapper. Only
+participating members appear within a wrapper; unrelated groups stay available
+for viewport picking and selection-based inference. This read-only filter does
+not rewrite saved records. The Parametric header opens the existing import-template
+section directly; the existing save payload persists that template to module SKP.
+
+
+Feature 076 makes ImportTemplate.match derive inside-placement bounds from the
+cavity interval after enabled offsets; inset doors exclude their thickness axis.
+ImportLinks appends explicit host-envelope candidates only for inside placements,
+with actual inner planes preferred at every boundary. Envelope candidates persist
+as ordinary module anchors and inward negative signed contact distances. They are
+outlined, never presented as filled real faces. Disabled slots create no records.
+The existing contact solver maintains enabled relations after placement; Fit does
+not invent persistent constraints on the remaining free dimensions.
+
+ImportLinks and the preview dimension label extract positive axis scales from
+Frames.scale_frame(matrix), since SketchUp transformation axis accessors normalize
+away Scale. LibraryPlacement verifies the resulting bounds and refuses ATT/T
+mismatches. AssemblyPresentation.gap converts the envelope normal sign at the HUD,
+Measurements and input boundaries; solver records keep their signed coordinates.
+No extra fit engine or changes to internal ATT evaluation are introduced.
+
+Feature 077 supersedes 076's whole-cavity initial Fit: ImportTemplate resizes an
+axis only with two enabled opposing slots. A single slot aligns without changing
+that size; disabled slots stay unbound. The inside front uses the host front datum
+even when a brace trims the detected cavity. LibraryHUD recomputes placement from
+click-time flags: Ctrl replaces, Shift fits without links (080), otherwise saved contacts apply.
+No template or no match also inserts raw at the source dimensions.
+
+OptionsParameters merges compatible explicit symbols for a multi-selection;
+ModuleOptions retains scope/root identities, including children of copied shared
+definitions, and uses one Assembly transaction for batch edits and rollback.
+
+ContactDisplay owns portable smaller-face prism geometry and hit priority.
+ContactView owns native drawing, click dimensions and on-demand settings, reusing
+Assembly edits. AssemblyHUD retains only its overlay/timer by default; its legacy
+tree and global mouse hook remain suspended. The active AssemblyTool handles
+contact clicks; native Move/Scale own their input while that tool is inactive.
+
+Feature 078 keeps the LibraryHUD sample active after Replace. Its next click
+replaces again; Esc returns to browsing. Library and HUD sample selection replace
+an existing object selection immediately. UI gestures prevent a double-click
+from performing the same batch twice. LibraryPlacement owns batch preflight and
+atomic replacement, using Assembly for linked targets and a local operation for
+detached targets. Replacement transfers a fully verified fresh definition and
+its metadata/child identities to the surviving parent, then updates only its PID.
+
+LibraryImport caches portable ScalePlan results by rule, actual snapshot and
+values, excluding only capture ID/label/source/time. The existing bounded JSON
+cache holds no live entities. Every target still captures and verifies geometry.
+ComponentMetadata carries rule/value seeds on definitions without root identity.
+Runtime updates that seed when stamping or verifying its own results.
+LibraryAdoption independently watches external component creation/definition
+changes, schedules adoption after transactions, makes a private tree and applies
+the existing absolute ScalePlan. Transparent successful adoption joins native
+Replace Undo. ScaleRedraw excludes pending adoption so old instance metadata
+cannot redraw a newly assigned definition using the old module's rules.
+Legacy identity probes cache only rule IDs and never evaluate complete ATT
+programs during the cheap root scan. Native adoption currently targets individual
+owned modules, not assembly-library payloads or unsupported nested edit contexts.
+
+Feature 079 repairs the persisted pre-077 front-datum choice. Before contact
+solving, ImportLinks normalizes only legacy annotated inside-import front slots
+to the host front envelope and converts their signed gap, retaining the displayed
+clearance. Changes persist through the existing Assembly transaction/Undo.
+New imports carry an explicit front-datum policy marker, so a verified real front
+face remains a real reference. Manual contacts, outside slots, other directions
+and measurement-bound records are not migrated. No tolerance/offset fudge is used.
+
+Feature 080 shares ImportLinks' actual cavity capture with Shift placement;
+LibraryPlacement fits an independent instance without saving contacts. Normal
+placement still resizes only between opposing selected contacts. DrawerVariants
+owns the portable same-folder/filename-family standard rail chooser, preserving
+slide kind, tier count and other name qualifiers. Concealed slides reserve 15 mm,
+ball slides 5 mm; the longest available fitting sibling is chosen. Drawer frames
+and fronts do not participate. Unlinked drawers fit width/height but keep nominal
+rail depth, front aligned. Preview and actual click re-evaluate from the stable
+selected seed; each batch replacement independently resolves its own depth.
+Library owns bounded JSON preview reuse and SKP reads. Replacement loads a variant
+inside the caller's transaction, never nesting preview start/abort operations.
+The selected sample's import intent transfers to the chosen variant; fixed depth
+and requested contacts remain subject to the existing ATT/T/result verification.
+
+
+Feature 081 moves HUD layout ownership to portable HUDBoards: explicit named
+boards, unique A–Z keys, stable IDs, sparse eight-slot pages and angular sectors.
+Library folder filtering remains independent. Old explicitly stored hud_orders
+migrate once; no catalog discovery creates boards or populates slots. External
+drops replace the exact slot; internal moves swap slots. HUDConfig retains holes
+while remapping file identity/relative path/hash and exporting/importing boards.
+Library enforces Edit-only board mutations, and LibraryHUD retains native input,
+placement and Replace ownership. Directional sectors apply only outside Edit,
+after center/close/page and exact icon targets; blank sectors never choose items.
+The outer ring has no polygon fill. HtmlDialog owns board forms, validation feedback
+and navigation; native geometry is unchanged by layout/config operations.
+
+
+Feature 082 migrates HUDBoards to version 2: four sparse dock arrays plus explicit
+per-entry digit mappings, with no implicit numeric migration. HUDLayout owns
+portable edge wrapping, corner separation, hit targets and ring/dock exclusion.
+LibraryCatalog's spacing scalar is independent of size and part of HUDConfig;
+file remapping preserves dock holes and mapped digit identity. Internal moves
+swap across zones, external drops replace their exact zone/index. LibraryHUD
+separates click-release assignment from thresholded drag and loads dock textures
+alongside ring textures. Selected images receive a translucent tint above their
+texture. HUD title/close/guidance disappear; modal/tooltip/settings feedback stays.
+The process-local Windows message helper v3 captures 0–9 and numpad; it retains
+view-thread filtering and releases the hook on exit. Developer C source/build
+remain outside RBZ; the explicit manifest ships only the built v3 DLL.

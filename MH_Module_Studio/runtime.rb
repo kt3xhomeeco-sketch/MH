@@ -1,6 +1,7 @@
 # encoding: UTF-8
 require_relative 'reader'
 require_relative 'copy_runtime'
+require_relative 'component_metadata'
 
 module MH
   module ModuleStudio
@@ -243,6 +244,27 @@ module MH
           binding[:entity].set_attribute(Reader::DICT, 'part_key', key)
           binding[:entity].set_attribute(Reader::DICT, 'instance_id', instance_id)
         end
+        ComponentMetadata.store(root)
+      end
+
+      # ScaleRedraw.prepare has validated this rule and plan. Geometry-only
+      # redraw can keep identical metadata; copied instances and changed input
+      # or part identities must still pass the ordinary full stamp path.
+      def stamp_redraw(root, rule, bindings, target)
+        id = root.get_attribute(Reader::DICT,'instance_id').to_s
+        unchanged = !id.empty? && root.get_attribute(Reader::DICT,'trial',false) &&
+          root.get_attribute(Reader::DICT,'root_pid').to_s == root.persistent_id.to_s &&
+          root.get_attribute(Reader::DICT,'rule_id') == rule['id'] &&
+          root.get_attribute(Reader::DICT,'rule_json') == JSON.generate(rule) &&
+          target.is_a?(Hash) && root.get_attribute(Reader::DICT,'parameter_values_json') == JSON.generate(target) &&
+          root.get_attribute(Reader::DICT,'exposed_parameters_json').is_a?(String) &&
+          (!rule['module_name'] || root.name == rule['module_name']) && bindings.all? do |key,binding|
+            entity = binding[:entity]
+            entity.get_attribute(Reader::DICT,'part_key') == key && entity.get_attribute(Reader::DICT,'instance_id') == id &&
+              (!rule.dig('part_names',key) || entity.name == rule['part_names'][key])
+          end
+        stamp(root,rule,bindings,target) unless unchanged
+        ComponentMetadata.store(root) if unchanged
       end
 
       def verify_result(root, plan)
@@ -266,6 +288,7 @@ module MH
           end
         end
         store_formula_envelope(root,plan['formula_envelope']) if plan['formula_envelope']
+        ComponentMetadata.store(root)
       end
 
       def store_formula_envelope(root,bounds)

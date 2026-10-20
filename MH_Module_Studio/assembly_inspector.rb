@@ -3,11 +3,15 @@ module MH
   module ModuleStudio
     # Compact native utility window. Picking and face/body drags remain in SketchUp.
     class AssemblyInspector
-      def initialize(tool, hud = nil)
-        @tool = tool; @hud = hud
+      def initialize(tool, hud = nil,close_session:true)
+        @tool = tool; @hud = hud;@close_session=close_session
       end
 
       def show
+        if @dialog && @dialog.visible?
+          @dialog.bring_to_front
+          return publish
+        end
         @closing = false
         @dialog = UI::HtmlDialog.new(dialog_title:'Liên kết module',preferences_key:'MH_Module_Studio_Assembly_HUD_v1',
           width:286,height:490,min_width:270,min_height:350,resizable:true,style:UI::HtmlDialog::STYLE_UTILITY)
@@ -17,7 +21,7 @@ module MH
           UI.stop_timer(@timer) if @timer
           @timer = nil
           @dialog = nil
-          @hud ? @hud.close : Sketchup.active_model.select_tool(nil) if !@closing
+          @hud ? @hud.close : Sketchup.active_model.select_tool(nil) if !@closing && @close_session
         end
         @dialog.show
         @timer = UI.start_timer(0.2,true) { publish } unless @hud
@@ -28,7 +32,9 @@ module MH
           begin
             raise Core::Error,'Yêu cầu quá lớn.' if raw.to_s.bytesize > 16384
             packet = JSON.parse(raw.to_s)
-            if packet['action']=='ready'
+            if packet['action']=='close' && !@close_session
+              close
+            elsif packet['action']=='ready'
               next close if @closing
               @last_state = nil
               publish
@@ -83,7 +89,7 @@ module MH
           nil
         end
         display = Assembly.display_record(model,record)
-        state = { 'record'=>display,'picking'=>@tool.instance_variable_get(:@picking),'gap'=>distance,'tool_active'=>@tool.active,
+        state = { 'record'=>display,'picking'=>@tool.instance_variable_get(:@picking),'gap'=>AssemblyPresentation.gap(record,distance),'tool_active'=>@tool.active,
                   'complete'=>@tool.complete?,'error'=>error || @tool.error || Assembly.last_error,'notice'=>@tool.notice,
                   'link_groups'=>Assembly.presentation_groups(model),
                   'links'=>Assembly.records(model).map { |row| Assembly.display_record(model,row).slice('id','mode','relation','scope','a','b','c','gap','count','angle') } }

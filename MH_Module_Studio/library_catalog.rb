@@ -10,18 +10,18 @@ module MH
     module LibraryCatalog
       extend self
       DEFAULTS = { 'root' => '', 'folder' => '', 'view' => 'grid', 'thumbnail_size' => 150,
-                   'hud_size' => 86, 'hud_image_zoom' => 100, 'hud_position' => 'center', 'hud_orders' => {}, 'folder_keys' => {} }.freeze
+                   'hud_size' => 86, 'hud_spacing' => 100, 'hud_image_zoom' => 100, 'hud_position' => 'center', 'hud_orders' => {}, 'folder_keys' => {} }.freeze
       PAYLOAD_KEY = 'library_payload_json'.freeze
       MAX_BYTES = 16 * 1024 * 1024
 
       def settings(raw)
         raw = {} unless raw.is_a?(Hash)
-        result = DEFAULTS.merge(raw.slice(*DEFAULTS.keys))
+        result = DEFAULTS.merge(raw.slice(*DEFAULTS.keys, *HUDBoards::FIELDS))
         result['root'] = result['root'].to_s
         result['folder'] = result['folder'].to_s
         result['view'] = %w[grid list].include?(result['view']) ? result['view'] : 'grid'
         result['hud_position'] = %w[cursor center].include?(result['hud_position']) ? result['hud_position'] : 'center'
-        { 'thumbnail_size' => [80, 260], 'hud_size' => [24, 140], 'hud_image_zoom' => [25, 300] }.each do |key, limits|
+        { 'thumbnail_size' => [80, 260], 'hud_size' => [24, 140], 'hud_image_zoom' => [25, 300], 'hud_spacing' => [80, 200] }.each do |key, limits|
           value = Float(result[key], exception: false)
           result[key] = value && value.finite? ? [[value.round, limits[0]].max, limits[1]].min : DEFAULTS[key]
         end
@@ -39,7 +39,7 @@ module MH
           next unless folder.is_a?(String) && folder.length <= 2000 && ids.is_a?(Array)
           [folder, ids.first(5000).select { |id| id.is_a?(String) && id.length.between?(1, 2000) }.uniq]
         end.to_h : {}
-        result
+        HUDBoards.normalize(result)
       end
 
       def inside?(root, path)
@@ -142,10 +142,10 @@ module MH
       end
 
       # Eight circles remain separated even at the largest size; shrink to fit a small viewport.
-      def layout(width, height, size, center: nil)
+      def layout(width, height, size, center: nil, spacing: 100)
         size = [size.to_f, (width - 32) / 4.8, (height - 135) / 4.8].min
         size = [size, 24].max
-        radius = size * 1.65
+        radius = [size * 1.65 * spacing / 100.0, [width,height].min/2.0-size/2.0-16].min
         extent = radius + size * 0.5
         cx, cy = center || [width * 0.5, height * 0.5]
         cx = [[cx, extent + 16].max, width - extent - 16].min

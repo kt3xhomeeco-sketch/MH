@@ -34,7 +34,7 @@ module MH
         unless @hud
           selected = @model.selection.to_a.first
           saved = Assembly.records(@model).find { |row| selected && (row.dig('b', 'root') == selected.persistent_id.to_s || row['scope']==selected.persistent_id.to_s) }
-          load_record(saved) if saved
+          saved ? load_record(saved) : @picking=nil
           @hud = AssemblyHUD.new(self)
           @hud.show
         end
@@ -94,8 +94,8 @@ module MH
 
       def refresh
         Sketchup.vcb_label = { 'gap' => 'Khoảng cách', 'angle' => 'Góc', 'count' => 'Số lượng tổng' }.fetch(@field, '')
-        Sketchup.vcb_value = @record[@field].to_s
-        Sketchup.status_text = @picking ? "Chọn #{@picking.upcase} · Click: mặt tấm · Shift+Click: phủ bì module · Ctrl+Click: phủ bì cụm · Esc hủy chọn" : 'Click: mặt tấm · Shift+Click: module · Ctrl+Click: cụm · Giữ mặt B để đổi khoảng cách · Space thoát'
+        Sketchup.vcb_value = (@field=='gap' ? AssemblyPresentation.gap(@record,@record[@field]) : @record[@field]).to_s
+        Sketchup.status_text = @picking ? "Chọn #{@picking.upcase} · Click: mặt tấm · Shift+Click: phủ bì module · Ctrl+Click: phủ bì cụm · Esc hủy chọn" : 'Click dim: sửa khoảng cách · Click khối: cài đặt · Chuột phải: tạo liên kết · M/S: Move/Scale'
         @model.active_view.invalidate
         @hud&.publish
       end
@@ -156,6 +156,7 @@ module MH
         value = @field == 'gap' && !numeric ? Sketchup.parse_length(text) : numeric
         raise Core::Error, 'Nhập một giá trị số hợp lệ.' unless value
         @record[@field] = @field == 'gap' && !numeric ? value.to_f * 25.4 : value.to_f
+        @record[@field]=AssemblyPresentation.gap(@record,@record[@field]) if @field=='gap'
         validate_input
         changed
         refresh
@@ -193,20 +194,22 @@ module MH
           field, number = value
           editable_field!(field)
           raise Core::Error,'Ô giá trị không hợp lệ.' unless %w[gap count angle].include?(field)
-          @record[field] = Core.number(number)
+          @record[field] = field=='gap' ? AssemblyPresentation.gap(@record,Core.number(number)) : Core.number(number)
           validate_input
           changed
         when :bound
+          clear_import_boundary
           @record['mode'] = 'fit'
           @picking = 'c'
         when :fit_size
+          clear_import_boundary
           @record['mode'] = value ? 'fit' : 'center'
           @picking = required.find { |key| !@record[key] }
           changed
         when :step
           field, delta = value
           editable_field!(field)
-          @record[field] += delta
+          @record[field] += field=='gap' ? AssemblyPresentation.gap(@record,delta) : delta
           validate_input
           changed
         when :direction
@@ -255,11 +258,20 @@ module MH
         refresh
       end
 
+      def clear_import_boundary
+        return unless @record.dig('import_link','boundary')=='envelope'
+        @record['gap']=AssemblyPresentation.gap(@record,@record['gap'])
+        @record.delete('import_link')
+      end
+
       def picker
         @picker ||= AssemblyFacePicker.new(@model)
       end
 
       def hover(flags,x,y,view)
+        if @hud && !@picking && (contact=@hud.contacts.hit(x,y))
+          @hover=nil;view.tooltip=contact[0]=='dimension' ? 'Click dim để sửa khoảng cách' : 'Click khối để mở cài đặt liên kết';view.invalidate;return
+        end
         @pointer = [x,y,flags]
         @hover = picker.hit(flags,x,y,view, accept: @picking ? method(:pick_allowed?) : nil)
         view.invalidate
@@ -269,6 +281,7 @@ module MH
       end
 
       def onLButtonDown(flags, x, y, view)
+        return if @hud && !@picking && @hud.contacts.click(x,y)
         hit = picker.hit(flags,x,y,view, accept: @picking ? method(:pick_allowed?) : nil)
         raise Core::Error, 'Chọn mặt tấm, hoặc giữ Shift/Ctrl để bắt mặt phủ bì.' unless hit
         surface = hit['anchor']
@@ -414,7 +427,10 @@ module MH
       end
 
       def getMenu(menu, *_coordinates)
-        menu.add_item('Liên kết mới') { action(:new) }
+        menu.add_item('Liên kết mới') { action(:new);@hud&.open_settings }
+        menu.add_item('Cài đặt liên kết') { @hud&.open_settings }
+        menu.add_item('Tự tạo liên kết từ vùng chọn') { action(:auto_links,20) }
+        menu.add_item('Gộp các module đã liên kết') { action(:group) } if @record['id']
         MODES.each { |mode, title| menu.add_item(title) { action(:mode, mode) } }
         menu.add_separator
         menu.add_item('Xóa liên kết · Giữ các module') { action(:remove) } if @record['id']
@@ -461,7 +477,8 @@ module MH
       end
 
       def draw_geometry(view)
-        %w[a b c r1 r2].each do |key|
+        keys=@record['mode']=='contact' && @record['id'] ? [] : %w[a b c r1 r2]
+        keys.each do |key|
           next unless @record[key]
           face = Assembly.world_plane(@model,@record[key])
           lift = view.camera.direction.reverse
@@ -473,7 +490,7 @@ module MH
           view.line_width = 1
           view.draw(GL_LINE_LOOP,points)
           screen = view.screen_coords(Geom::Point3d.new(face['point'].map { |value| value/25.4 }))
-          label(view,screen.x,screen.y,key.upcase,key=='b' ? '#a46516' : '#007f84',13)
+          label(view,screen.x,screen.y,key.upcase,key=='b' ? '#a46516' : '#007f84',13) unless @record['mode']=='contact'
         end
         return unless @drag && @drag['moved']
         anchor = @drag['anchor']
@@ -495,7 +512,7 @@ module MH
           end
         end
         screen = view.screen_coords(points.last)
-        value = @drag['kind']=='gap' ? @record['gap'] : Math.sqrt(AssemblyMath.dot(@drag['delta'],@drag['delta']))
+        value = @drag['kind']=='gap' ? AssemblyPresentation.gap(@record,@record['gap']) : Math.sqrt(AssemblyMath.dot(@drag['delta'],@drag['delta']))
         label(view,screen.x+8,screen.y-20,"#{value.round(2)} mm",'#007f84',12)
       end
 

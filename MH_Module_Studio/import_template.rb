@@ -54,8 +54,22 @@ module MH
         row ? Core.number(values.fetch(row['binding'],row['value'])) : Core.dimensions(bounds)[mounting_face(validate(rule['import_template']))[0]]
       end
 
-      # region is the empty compartment or host outer box. A candidate exists
-      # only for an actual captured boundary face, never an invented open side.
+      def envelope_faces(anchor,bounds)
+        3.times.flat_map do |axis|
+          others=[0,1,2]-[axis]
+          2.times.map do |side|
+            points=[[0,0],[1,0],[1,1],[0,1]].map do |a,b|
+              point=bounds[side].dup;point[others[0]]=bounds[a][others[0]];point[others[1]]=bounds[b][others[1]];point
+            end
+            box=Core.copy_data(bounds);box.each { |point| point[axis]=bounds[side][axis] }
+            {'axis'=>axis,'side'=>side,'coordinate'=>bounds[side][axis],'bounds'=>box,'points'=>points,'virtual'=>true,
+             'anchor'=>anchor.merge('path'=>[],'axis'=>axis,'side'=>side,'level'=>'module')}
+          end
+        end
+      end
+
+      # Cavity fit and selected offsets share one interval. Only explicitly
+      # enabled slots become saved contacts; open sides may reference an envelope.
       def match(template,source,region,candidates,mode:,mount:nil,origin:nil,scales:[1,1,1])
         template=validate(template)
         return unless template['enabled']
@@ -71,18 +85,23 @@ module MH
           is_mount=mode=='outside' && mount && axis==mount[0] && side==1-mount[1]
           next if mode=='outside' && mount && axis==mount[0] && !is_mount
           boundary=region[is_mount ? mount[1] : side][axis]
+          front=mode=='inside' && axis==1 && side==0 ? candidates.find { |face| face['virtual'] && face['axis']==1 && face['side']==0 } : nil
+          boundary=front['coordinate'] if front
           wanted_normal=mode=='inside' || is_mount ? 1-side : side
           options=candidates.select do |face|
-            face['axis']==axis && face['side']==wanted_normal && (face['coordinate']-boundary).abs<0.02 &&
+            facing=face['virtual'] ? mode=='inside' && face['side']==side : face['side']==wanted_normal
+            face['axis']==axis && facing && (face['coordinate']-boundary).abs<0.02 &&
               ([0,1,2]-[axis]).all? { |other| [face['bounds'][1][other],region[1][other]].min-[face['bounds'][0][other],region[0][other]].max>0.001 }
           end
           next if options.empty?
+          real=options.reject { |face| face['virtual'] };options=real unless real.empty?
           target=options.max_by do |face|
             ([0,1,2]-[axis]).map { |other| Core.dimensions(face['bounds'])[other] }.reduce(:*)
           end
           gap=(slot['gap']+(is_mount && template['role']=='door' ? template['door_gap'] : 0.0))/scales[axis]
           coordinate=boundary+(is_mount ? (mount[1].zero? ? -gap : gap) : (side.zero? ? gap : -gap))
-          {'slot'=>[axis,side],'target'=>target,'coordinate'=>coordinate,'gap'=>mode=='inside' || is_mount ? gap : -gap,'mount'=>!!is_mount}
+          signed=target['virtual'] ? -gap : mode=='inside' || is_mount ? gap : -gap
+          {'slot'=>[axis,side],'target'=>target,'coordinate'=>coordinate,'gap'=>signed,'mount'=>!!is_mount}
         end
         return if matches.empty?
         3.times do |axis|

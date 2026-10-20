@@ -50,41 +50,37 @@ module MH
         result
       end
 
-      def detect(view, x, y, replace: false)
+      def detect(view, x, y, replace: false, cache: nil)
+        unless replace
+          host=ImportLinks.capture(view,x,y,cache)
+          return unless host && host['cavity']
+          return {'mode'=>'cavity','anchor'=>host['anchor'],'bounds'=>host['cavity'],'frame'=>host['frame'],'name'=>host['name']}
+        end
         model = view.model
         picked = pick(view,x,y,replace:replace)
         return unless picked
-        anchor,face,face_frame = picked
+        anchor = picked.first
         root = Assembly.root(model,anchor)
         frame = Assembly.world_transform(model,anchor)
         Frames.scale_frame(frame.to_a)
         envelope = [root.definition.bounds.min.to_a,root.definition.bounds.max.to_a].map { |point| point.map { |v| v*25.4 } }
-        if replace
-          return {'mode'=>'replace','anchor'=>anchor,'bounds'=>envelope,'frame'=>frame.to_a,'name'=>root.name}
-        end
-        return unless face
-        vertices = face.vertices.map { |vertex| vertex.position.transform(face_frame) }
-        normal = vertices.drop(1).each_cons(2).map { |a,b| (a-vertices.first).cross(b-vertices.first) }.find { |vector| vector.length>1.0e-9 }
-        return unless normal
-        normal.normalize!
-        hit = Geom.intersect_line_plane(view.pickray(x,y),[vertices.first,normal])
-        return unless hit
-        normal.reverse! if normal.dot(view.camera.eye-hit)<0
-        seed = hit+normal.tap { |vector| vector.length=2.0/25.4 }
-        point = seed.transform(frame.inverse).to_a.map { |v| v*25.4 }
-        cavity = PlacementMath.cavity(envelope,boxes(root),point)
-        cavity && {'mode'=>'cavity','anchor'=>anchor,'bounds'=>cavity,'frame'=>frame.to_a,'name'=>root.name}
+        {'mode'=>'replace','anchor'=>anchor,'bounds'=>envelope,'frame'=>frame.to_a,'name'=>root.name}
       end
 
       def transform(data, placement)
         Geom::Transformation.new(placement['frame'])*Geom::Transformation.new(PlacementMath.fit(data['snapshot']['envelope'],placement['bounds']))
       end
 
-      def resize(root, placement)
+      def resize(root, placement, imports: nil)
         # Reconstruction can change the definition's local minimum. Re-align it
         # after redraw, including rotated, mirrored and nonzero-origin sources.
         if AssemblyContainers.managed?(root)
           AssemblyExternal.resize_assembly(root)
+        elsif imports
+          rule=Core.rule!(JSON.parse(root.get_attribute(Reader::DICT,'rule_json')))
+          saved=JSON.parse(root.get_attribute(Reader::DICT,'parameter_values_json','{}'))
+          current,=Reader.live(root,label:'Replace',parameter:Runtime.read_parameter(rule,saved))
+          ScaleRedraw.apply(root.model,[[root,rule,imports.resize_plan(rule,current,saved)]])
         else
           ScaleRedraw.apply(root.model,[ScaleRedraw.prepare(root)])
         end
@@ -96,7 +92,23 @@ module MH
         root.transform!(Geom::Transformation.translation(target-actual))
         inverse = Geom::Transformation.new(placement['frame']).inverse
         measured = Frames.box(Frames.corners(current).map { |p| Geom::Point3d.new(p.map { |v| v/25.4 }).transform(inverse*root.transformation).to_a.map { |v| v*25.4 } })
-        raise Core::Error,'Module mới chưa khớp kích thước vùng đặt.' unless Core.bounds_close?(measured,placement['bounds'],0.02)
+        unless Core.bounds_close?(measured,placement['bounds'],0.02)
+          if placement['mode']=='template'
+            scales=Frames.scale_frame(placement['frame']).values_at(0,5,10)
+            wanted=Core.dimensions(placement['bounds']);actual=Core.dimensions(measured)
+            differences=3.times.filter_map do |axis|
+              next if (wanted[axis]-actual[axis]).abs*scales[axis]<=0.02
+              "#{%w[X Y Z][axis]} cần #{(wanted[axis]*scales[axis]).round(3)} mm, công thức cho #{(actual[axis]*scales[axis]).round(3)} mm"
+            end
+            raise Core::Error,'Không thể Fit và giữ quy tắc T / ATT: '+differences.join('; ') unless differences.empty?
+          end
+          raise Core::Error,'Module mới chưa khớp kích thước vùng đặt.'
+        end
+      rescue Core::Error=>error
+        raise unless placement['mode']=='template'
+        scales=Frames.scale_frame(placement['frame']).values_at(0,5,10)
+        size=Core.dimensions(placement['bounds']).each_with_index.map { |value,axis| (value*scales[axis]).round(3) }
+        raise Core::Error,"Không thể Fit #{root.name} vào #{size.join(' × ')} mm và giữ T / ATT: #{error.message}"
       end
 
       def place(library, data, point, placement)
@@ -144,6 +156,43 @@ module MH
         true
       end
 
+      def selected_targets(model)
+        Runtime.ensure_top_level(model)
+        roots=model.selection.to_a
+        raise Core::Error,'Chọn các group/component cần Replace trước.' if roots.empty? || roots.length>Core::MAX_PARTS
+        unless roots.all? { |root| Assembly.container?(root) && root.valid? && !root.locked? }
+          raise Core::Error,'Vùng chọn chỉ được gồm group/component không bị khóa.'
+        end
+        roots.map { |root| {'root'=>root.persistent_id.to_s} }
+      end
+
+      def replace_many(library,data,targets)
+        model=Sketchup.active_model;Runtime.ensure_top_level(model)
+        targets=Core.copy_data(targets)
+        raise Core::Error,'Danh sách Replace không hợp lệ.' unless targets.is_a?(Array) && targets.length.between?(1,Core::MAX_PARTS) && targets.uniq.length==targets.length
+        targets.each { |anchor| raise Core::Error,'Đối tượng cần Replace đang bị khóa.' if Assembly.root(model,anchor).locked? }
+        result=[]
+        if targets.all? { |target| detached_target?(model,target) }
+          isolated=true;previous_busy=Assembly.instance_variable_get(:@busy);Assembly.instance_variable_set(:@busy,true)
+          model.start_operation('MH Replace Vùng Chọn',true);operation=true
+          targets.each { |target| result << replace!(library,data,target,[]) }
+          model.selection.clear;model.selection.add(result)
+          model.commit_operation;operation=false
+        else
+          Assembly.transact(model,Assembly.records(model),mutable_anchors:targets,replacement:targets) do |records|
+            targets.each { |target| result << replace!(library,data,target,records) }
+            model.selection.clear;model.selection.add(result)
+          end
+        end
+        result
+      ensure
+        model.abort_operation if operation
+        Assembly.instance_variable_set(:@busy,previous_busy) if isolated
+        if model
+          Assembly.watch(model).reset;ScaleRedraw.watch(model).reset
+        end
+      end
+
       def replace_detached(library,data,target)
         model=Sketchup.active_model
         previous_busy=Assembly.instance_variable_get(:@busy)
@@ -173,6 +222,7 @@ module MH
       end
 
       def remap(model, target, references)
+        return if references.empty?
         candidates = []
         visit = lambda do |parent,path|
           parent.definition.entities.each do |child|
@@ -210,6 +260,7 @@ module MH
         raise Core::Error,'Đặt cụm thành đối tượng riêng; chọn module đơn để thay thế module con.' if data['format']==AssemblyFile::FORMAT
         model = Sketchup.active_model
         old = Assembly.root(model,target)
+        raise Core::Error,'Đối tượng cần Replace đang bị khóa.' if old.locked?
         if AssemblyContainers.managed?(old)
           scope=old.persistent_id.to_s
           outside=records.reject { |row| row['scope']==scope }
@@ -223,10 +274,11 @@ module MH
         refs = references(model,target,records)
         frame = old.transformation
         bounds = [old.definition.bounds.min.to_a,old.definition.bounds.max.to_a].map { |point| point.map { |v| v*25.4 } }
-        placement = {'bounds'=>bounds,'frame'=>frame.to_a}
+        placement = {'mode'=>'replace','bounds'=>bounds,'frame'=>frame.to_a}
+        data,placement=library.resolve_fit(data,placement,within_operation:true)
         parent = old.parent==model ? model.active_entities : old.parent.entities
         fresh = library.build_instance(data,transform(data,placement),entities:parent)
-        resize(fresh,placement)
+        resize(fresh,placement,imports:library.imports)
         old_pid = old.persistent_id.to_s
         keep = old.get_attribute(Reader::DICT,AssemblyContainers::MEMBER)
         if old.is_a?(Sketchup::Group)
@@ -244,10 +296,10 @@ module MH
         old.delete_attribute(Reader::DICT)
         fresh.attribute_dictionary(Reader::DICT).each_pair { |key,value| old.set_attribute(Reader::DICT,key,value) }
         old.set_attribute(Reader::DICT,AssemblyContainers::MEMBER,keep) if keep
-        rule = Core.rule!(JSON.parse(fresh.get_attribute(Reader::DICT,'rule_json')))
-        values = JSON.parse(fresh.get_attribute(Reader::DICT,'parameter_values_json'))
-        _snapshot,bindings = Reader.live(old,label:old.name,parameter:Runtime.read_parameter(rule,values))
-        Runtime.stamp(old,rule,bindings,values)
+        # Definition, transform and all owned metadata already came from the
+        # fully validated fresh instance. Its unique identity also belongs to
+        # these exact children; only the surviving parent PID changes.
+        old.set_attribute(Reader::DICT,'root_pid',old.persistent_id.to_s)
         fresh.erase!
         remap(model,target,refs)
         old

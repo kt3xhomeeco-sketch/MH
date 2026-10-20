@@ -42,6 +42,11 @@ class ModuleStudioAssemblyPresentationTest < Minitest::Test
     assert_empty S::AssemblyPresentation.groups([],scope:'assembly',members:members)
   end
 
+  def test_virtual_boundary_reports_the_positive_clearance_separately
+    row=link('front',anchor('host'),anchor('child'),gap:-80,import_link:{'boundary'=>'envelope'})
+    assert_equal 'Mốc phủ bì · 80 mm',S::AssemblyPresentation.label(row)
+  end
+
   def test_identity_does_not_merge_distinct_same_named_modules_or_copied_assemblies
     a=anchor('A');b=anchor('B');c=anchor('C')
     groups=S::AssemblyPresentation.groups([link('ab',a,b),link('bc',b,c)])

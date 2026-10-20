@@ -1,0 +1,38 @@
+const {chromium}=require(process.env.MH_PLAYWRIGHT||'playwright');
+const path=require('path'),fs=require('fs'),assert=require('assert');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.MH_BROWSER||undefined});
+ try{
+  const page=await browser.newPage({viewport:{width:370,height:660}}),errors=[];
+  page.on('pageerror',e=>errors.push(e.message));
+  await page.addInitScript(()=>{window.sent=[];window.sketchup={hud_request:raw=>sent.push(JSON.parse(raw))};});
+  await page.goto('file:///'+path.resolve(__dirname,'../ui/hud_settings.html').replaceAll('\\','/'));
+  const state={settings:{hud_size:86,hud_image_zoom:100,hud_position:'center',hud_boards:[],hud_board:''},boards:[],editing:false};
+  await page.evaluate(s=>receiveHUDSettings(s),state);
+  assert(await page.locator('#board-create').isHidden());assert(await page.locator('#spacing').isDisabled());
+  await page.locator('#edit').click();assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'edit',enabled:true});
+  state.editing=true;await page.evaluate(s=>receiveHUDSettings(s),state);
+  await page.locator('#spacing').fill('150');assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'settings',settings:{hud_spacing:150}});
+  assert.equal(await page.locator('#spacing-value').textContent(),'150%');
+  await page.locator('#board-name').fill('Tấm');await page.keyboard.press('Space');await page.keyboard.type('dung');
+  assert.equal(await page.locator('#board-name').inputValue(),'Tấm dung');
+  assert(!await page.evaluate(()=>sent.some(s=>s.action==='exit')),'Space in a board name must not exit HUD');
+  await page.locator('#board-key').fill('D');await page.locator('#board-create button').click();
+  assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'board',operation:'create',board:{name:'Tấm dung',key:'D'}});
+  const slots=Array(8).fill(null);slots[5]='Panels/Stand.skp';state.boards=[{id:'one',name:'Tấm đứng',key:'D',slots}];state.settings.hud_boards=state.boards;state.settings.hud_board='one';
+  await page.evaluate(s=>receiveHUDSettings(s),state);
+  await page.locator('.board-select').click();assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'select_board',id:'one'});
+  await page.locator('.board-key').fill('T');await page.locator('.board-key').blur();
+  assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'board',operation:'update',board:{id:'one',name:'Tấm đứng',key:'T'}});
+  await page.evaluate(s=>receiveHUDSettings({...s,error:'Tên, ID hoặc phím tắt của bảng HUD bị trùng.'}),state);
+  assert((await page.locator('#status').textContent()).includes('bị trùng'));
+  await page.locator('[title="Thêm trang 8 ô"]').click();assert.equal((await page.evaluate(()=>sent.at(-1))).operation,'page');
+  await page.screenshot({path:path.resolve(__dirname,'../outputs/hud-boards-081.png')});
+  await page.locator('[title="Xóa bảng icon"]').click();assert.equal((await page.evaluate(()=>sent.at(-1))).operation,'delete');
+  await page.evaluate(s=>receiveHUDSettings({...s,editing:false}),state);
+  assert(await page.locator('.board-key').isDisabled());assert(await page.locator('#board-create').isHidden());
+  assert(await page.evaluate(()=>document.body.scrollWidth<=innerWidth+1&&document.body.scrollHeight<=innerHeight+1));
+  await page.locator('#close').focus();await page.keyboard.press('Space');assert.equal((await page.evaluate(()=>sent.at(-1))).action,'exit');
+  assert.deepEqual(errors,[]);console.log('HUD boards: Edit-only controls, create/name/key, spaces, select, update/error, page, delete, layout and Space exit passed.');
+ }finally{await browser.close();}
+})().catch(e=>{console.error(e);process.exit(1);});

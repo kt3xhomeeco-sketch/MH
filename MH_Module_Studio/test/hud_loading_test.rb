@@ -57,6 +57,8 @@ class ModuleStudioHUDLoadingTest < Minitest::Test
         thumb.define_singleton_method(:cache_path) { |key| File.join(folder,key+'.png') }
         source=File.join(folder,'raw.png');File.write(source,'100,100')
         library=Object.new
+        library.define_singleton_method(:config) { {'hud_boards'=>[]} }
+        library.define_singleton_method(:catalog) { {'entries'=>[]} }
         library.define_singleton_method(:thumbnail_key) { |item| item['key'] }
         library.define_singleton_method(:thumbnail) { |_item| source }
         library.define_singleton_method(:preview_thumbnail) { |_item| source }

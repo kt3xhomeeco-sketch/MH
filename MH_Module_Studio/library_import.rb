@@ -36,6 +36,18 @@ module MH
         end
       end
 
+      # Only portable calculation data is reused. Every replacement still reads
+      # its actual geometry and verifies the applied result with fresh bindings.
+      def resize_plan(rule,current,saved)
+        stable=current.reject { |key,_value| %w[id label source captured_at].include?(key) }
+        key='resize:'+Digest::SHA256.hexdigest(JSON.generate([rule,stable,saved]))
+        stored=cached(key)
+        return JSON.parse(stored) if stored
+        result=ScalePlan.plan(rule,current,saved)
+        remember(key,JSON.generate(result))
+        result
+      end
+
       # Only portable JSON/rule calculations run here. Never pass native objects
       # or call SketchUp/UI from this worker; actual geometry is checked on click.
       def prefetch(raw)

@@ -2,6 +2,7 @@
 require_relative 'assembly_inspector'
 require_relative 'assembly_hud_input'
 require_relative 'assembly_tree'
+require_relative 'contact_view'
 
 module MH
   module ModuleStudio
@@ -17,30 +18,28 @@ module MH
         end
 
         def getExtents
-          @hud.tool.getExtents
+          @hud.contacts.extents
         end
       end
     end
 
     # Session persists when SketchUp replaces the picking Tool with Move/Scale.
     class AssemblyHUD
-      attr_reader :tool, :tree, :inspector
+      attr_reader :tool, :tree, :inspector, :contacts
 
       def initialize(tool)
         @tool = tool; @model = Sketchup.active_model
         @tree = AssemblyTree.new(@model,tool)
-        @inspector = AssemblyInspector.new(tool,self)
+        @inspector = AssemblyInspector.new(tool,self,close_session:false)
+        @contacts=ContactView.new(@model,tool)
       end
 
       def show
         return if @started
         @started = true; @closed = false
-        @tree.rebuild
         @overlay = AssemblyOverlay.new(self)
         @model.overlays.add(@overlay)
         @overlay.enabled = true
-        AssemblyHUDInput.start(@model.active_view)
-        @inspector.show
         @timer = UI.start_timer(0.15,true) { tick }
         tick
       rescue StandardError
@@ -56,6 +55,11 @@ module MH
         @inspector.publish(error)
       end
 
+      def open_settings
+        @inspector.show
+        publish
+      end
+
       def activate_tool
         Runtime.ensure_top_level(@model)
         @model.select_tool(@tool) unless @tool.active
@@ -64,17 +68,6 @@ module MH
       def tick
         return close unless Sketchup.active_model.equal?(@model)
         view = @model.active_view
-        AssemblyHUDInput.region(visible? && @overlay.enabled? ? @tree.layout(view)['rect'] : [0,0,0,0])
-        32.times do
-          event = AssemblyHUDInput.poll
-          break unless event
-          next unless visible?
-          kind,x,y = event
-          kind==1 ? @tree.click(x,y,view) : @tree.scroll(kind==2 ? -1 : 1)
-          view.invalidate
-          break if @closed
-        end
-        return if @closed
         if @tool.record['id'] && !@tool.instance_variable_get(:@drag) && !@tool.instance_variable_get(:@picking)
           saved = Assembly.records(@model).find { |row| row['id']==@tool.record['id'] }
           if saved
@@ -84,13 +77,11 @@ module MH
             @tool.instance_variable_set(:@picking,nil) unless @tool.active
           end
         end
-        @tree.rebuild
-        state = JSON.generate([@tree.rows,@tool.record,@tool.active,@model.selection.map(&:persistent_id)])
+        state = JSON.generate([ImportLinks.revision(@model),@tool.record,@tool.active,@model.selection.map(&:persistent_id)])
         if state!=@state
           @state = state
           view.invalidate
         end
-        @inspector.position(AssemblyHUDInput.viewport) if visible?
         publish
       rescue StandardError => detail
         publish(detail.message)
@@ -98,8 +89,7 @@ module MH
 
       def draw(view)
         return unless visible?
-        @tree.draw(view)
-        @tree.draw_selection(view)
+        @contacts.draw(view)
         @tool.draw_geometry(view) unless @tool.active
       rescue StandardError => detail
         @draw_error = detail.message
