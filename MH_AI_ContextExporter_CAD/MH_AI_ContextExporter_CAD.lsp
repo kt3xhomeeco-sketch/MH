@@ -132,9 +132,21 @@
   (list data truncated)
 )
 
-(defun mhctx:variant-list (value / unwrapped)
-  (setq unwrapped (if (vlax-variant-p value) (vlax-variant-value value) value))
-  (if (vlax-safearray-p unwrapped) (vlax-safearray->list unwrapped) unwrapped)
+(defun mhctx:variant-list (value / unwrapped converted)
+  (setq unwrapped value)
+  (if (= (type value) 'VARIANT)
+    (setq unwrapped (vl-catch-all-apply 'vlax-variant-value (list value)))
+  )
+  (if (vl-catch-all-error-p unwrapped)
+    nil
+    (if (= (type unwrapped) 'SAFEARRAY)
+      (progn
+        (setq converted (vl-catch-all-apply 'vlax-safearray->list (list unwrapped)))
+        (if (vl-catch-all-error-p converted) nil converted)
+      )
+      unwrapped
+    )
+  )
 )
 
 (defun mhctx:bbox-json (ename / object low high result lo hi)
@@ -147,7 +159,10 @@
     "null"
     (progn
       (setq lo (mhctx:variant-list low) hi (mhctx:variant-list high))
-      (strcat "{\"min_wcs\":" (mhctx:point-json lo) ",\"max_wcs\":" (mhctx:point-json hi) "}")
+      (if (and (listp lo) (>= (length lo) 2) (listp hi) (>= (length hi) 2))
+        (strcat "{\"min_wcs\":" (mhctx:point-json lo) ",\"max_wcs\":" (mhctx:point-json hi) "}")
+        "null"
+      )
     )
   )
 )
@@ -205,7 +220,7 @@
   (write-line text stream)
 )
 
-(defun c:MHCTX (/ project-name repository-url commit-sha first-corner second-corner selection inspection-request expected actual file-path folder base md-path json-stream md-stream index ename data typ handle result)
+(defun c:MHCTX (/ project-name repository-url commit-sha first-corner second-corner selection inspection-request expected actual selection-json-text file-path folder base md-path json-stream md-stream index ename data typ handle result)
   (setq project-name "MH CAD Plugins")
   (setq repository-url "https://github.com/kt3xhomeeco-sketch/MH")
   (setq commit-sha "")
@@ -219,6 +234,7 @@
     ((> (sslength selection) *mhctx-max-entities*) (princ "\nMore than 200 entities found. Narrow the area and try again."))
     (T
       (setq inspection-request (getstring T "\nMo ta khu vuc hoac dieu can AI kiem tra (co the bo trong): "))
+      (setq selection-json-text (mhctx:selection-json selection))
       (setq folder (getenv "USERPROFILE"))
       (if (not folder) (setq folder (getvar "DWGPREFIX")))
       (vl-mkdir (strcat folder "\\Documents\\MH_AI_Context"))
@@ -260,7 +276,7 @@
               (mhctx:write-line json-stream (strcat "  \"selection_count\":" (itoa (sslength selection)) ","))
               (mhctx:write-line json-stream "  \"data_notes\":[\"DXF group-code coordinates retain each entity's native DXF coordinate convention; bounding boxes are WCS.\",\"Text strings and block attributes are included where present. Block definition contents and external xref contents are not expanded.\",\"COM bounding boxes are included when supported by the host. Every entity crossing the specified rectangle is included.\"],")
               (mhctx:write-line json-stream (strcat "  \"limits\":{\"max_entities\":" (itoa *mhctx-max-entities*) ",\"dxf_values_per_entity\":" (itoa *mhctx-max-pairs-per-entity*) "},"))
-              (mhctx:write-line json-stream (strcat "  \"selection\":[" (mhctx:selection-json selection) "]"))
+              (mhctx:write-line json-stream (strcat "  \"selection\":[" selection-json-text "]"))
               (mhctx:write-line json-stream "}")
               (close json-stream)
               (mhctx:write-line md-stream "# CAD error context")
