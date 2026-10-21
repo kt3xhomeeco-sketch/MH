@@ -33,7 +33,7 @@ module MH
         return
       end
 
-      prompts = ['Mô tả lỗi/yêu cầu (nêu plugin nếu biết; mong muốn, thực tế, DWG/DXF nếu cần)']
+      prompts = ['Mô tả lỗi hoặc yêu cầu cần phân tích']
       defaults = ['']
       answers = UI.inputbox(prompts, defaults, 'MH · Ngữ cảnh lỗi')
       return unless answers
@@ -196,9 +196,6 @@ module MH
         '',
         '## Reported issue',
         "- Error / request: #{markdown_value(problem['reported_error'])}",
-        "- Expected: #{markdown_value(problem['expected'])}",
-        "- Actual: #{markdown_value(problem['actual'])}",
-        "- Related DWG/DXF: #{markdown_value(problem['related_dwg_dxf'])}",
         '',
         '## Selected entities',
         *payload.fetch('selection').each_with_index.map do |entity, index|
