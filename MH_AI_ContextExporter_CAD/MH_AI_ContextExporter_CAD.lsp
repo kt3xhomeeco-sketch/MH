@@ -218,12 +218,12 @@
     ((not selection) (princ "\nNo entities found in that area; no report created."))
     ((> (sslength selection) *mhctx-max-entities*) (princ "\nMore than 200 entities found. Narrow the area and try again."))
     (T
-      (setq inspection-request (getstring T "\nMô tả khu vực hoặc điều cần AI kiểm tra (có thể bỏ trống): "))
+      (setq inspection-request (getstring T "\nMo ta khu vuc hoac dieu can AI kiem tra (co the bo trong): "))
       (setq folder (getenv "USERPROFILE"))
       (if (not folder) (setq folder (getvar "DWGPREFIX")))
       (vl-mkdir (strcat folder "\\Documents\\MH_AI_Context"))
       (setq file-path
-        (getfiled "Lưu gói ngữ cảnh lỗi (JSON)"
+        (getfiled "Luu goi ngu canh loi (JSON)"
           (strcat folder "\\Documents\\MH_AI_Context\\cad_context.json") "json" 1)
       )
       (if (not file-path)
