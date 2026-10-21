@@ -1,0 +1,42 @@
+inherit_from: ../.rubocop.yml
+
+AllCops:
+  Include:
+    - '**/*.rb'
+    - '../MH_DWG.rb'
+
+# SketchUp identifies the installed extension by this existing loader filename.
+Naming/FileName:
+  Exclude: ['../MH_DWG.rb']
+
+# SketchUp invokes these names; changing them would disconnect the callbacks.
+Naming/MethodName:
+  AllowedPatterns:
+    - '\Aon(?:ActiveToolChanged|MouseMove|LButtonDown|KeyDown|Cancel)\z'
+    - '\AgetExtents\z'
+Naming/MethodParameterName:
+  AllowedNames: [x, y, z, id]
+
+# These commands return success as part of the SketchUp/Windows adapter API.
+Naming/PredicateMethod:
+  AllowedMethods: [invalidate_bounds, transform_entities, add_observer, remove_observer, refresh_placement_preview]
+
+# Test scenarios deliberately include many assertions and API marker classes.
+# Production retains all of the inherited complexity limits.
+Metrics/AbcSize:
+  Exclude: ['tests/**/*.rb']
+Metrics/MethodLength:
+  CountAsOne: [array, hash, heredoc]
+  Exclude: ['tests/**/*.rb']
+Metrics/ClassLength:
+  Exclude: ['tests/**/*.rb']
+Metrics/CyclomaticComplexity:
+  Exclude: ['tests/**/*.rb']
+Metrics/PerceivedComplexity:
+  Exclude: ['tests/**/*.rb']
+Style/Documentation:
+  Exclude: ['tests/**/*.rb']
+Style/OneClassPerFile:
+  Exclude: ['tests/**/*.rb']
+Lint/EmptyClass:
+  Exclude: ['tests/**/*.rb']

@@ -1,0 +1,150 @@
+{
+  "id": "25bf4600-a200-48d4-8595-878453c709fe",
+  "label": "Phu kien/Tay nam dai#18.skp",
+  "parameter": 0.0,
+  "source": {
+    "kind": "selection",
+    "root_pid": "841351"
+  },
+  "parts": [
+    {
+      "key": "root:mesh",
+      "name": "Tay nam dai",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          19.99999999997235,
+          4.900567934625381e-14,
+          127.99999999997088
+        ]
+      ],
+      "thickness_axis": null,
+      "box_verified": false,
+      "face_count": 3,
+      "edge_count": 10,
+      "visible": true,
+      "dc_attributes": {
+      },
+      "affine_verified": true,
+      "linear_mesh_verified": true
+    }
+  ],
+  "envelope": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      19.99999999997235,
+      4.900567934625381e-14,
+      127.99999999997088
+    ]
+  ],
+  "dc_inputs": {
+    "_formatversion": 1.0,
+    "_has_movetool_behaviors": 0.0,
+    "_hasbehaviors": 1.0,
+    "_iscollapsed": "false",
+    "_lastmodified": "2025-10-11 10:35",
+    "_lengthunits": "INCHES",
+    "_lenx_error": "<span class=subformula-success>0.787</span>",
+    "_lenx_formula": "MH_scale",
+    "_lenx_label": "LenX",
+    "_leny_label": "LenY",
+    "_lenz_error": "<span class=subformula-success>5.039</span>",
+    "_lenz_formula": "MH_scale1",
+    "_lenz_label": "LenZ",
+    "_mh_scale1_formulaunits": "STRING",
+    "_mh_scale1_label": "MH_scale1",
+    "_mh_scale_formulaunits": "STRING",
+    "_mh_scale_label": "MH_scale",
+    "_name": "Tay nam dai",
+    "lenx": 0.787,
+    "leny": 1.9293574545769216e-15,
+    "lenz": 5.039,
+    "mh_scale": "0.787",
+    "mh_scale1": "5.039"
+  },
+  "captured_at": "2026-10-17T16:39:38Z",
+  "parameter_source": {
+    "kind": "no_board_thickness"
+  },
+  "dc_graph": {
+    "nodes": [
+      {
+        "id": "root:mesh",
+        "parent_id": "",
+        "path": [
+          "root:mesh"
+        ],
+        "name": "Tay nam dai",
+        "attributes": {
+          "_lengthunits": "MILLIMETERS",
+          "_lenx_formula": "parent!LenX",
+          "_leny_formula": "parent!LenY",
+          "_lenz_formula": "parent!LenZ"
+        },
+        "virtual_root_mesh": true,
+        "transform": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            0.7874015748020611,
+            1.9293574545769216e-15,
+            5.039370078739012
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "part_key": "root:mesh"
+      }
+    ],
+    "root_frame": [
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  "module_name": "Tay nam dai",
+  "visibility_version": 1,
+  "formula_frame_version": 2
+}

@@ -1,0 +1,3890 @@
+{
+  "rule": {
+    "format": "mh_module_studio",
+    "version": 1,
+    "kind": "module_rule_system",
+    "id": "14338176-2d56-4ab8-b73b-3880e71db037",
+    "parts": [
+      {
+        "key": "part:0001",
+        "name": "Cánh Trái",
+        "bounds": [
+          [
+            1.5,
+            -17.6,
+            0.9999999999999999
+          ],
+          [
+            298.49999999999994,
+            -2.8199664825478975e-15,
+            298.9999999999999
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 1.0,
+          "_hasbehaviors": 1.0,
+          "_iscollapsed": "false",
+          "_lastmodified": "2025-12-12 13:09",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>29.699999999999996</span>",
+          "_lenx_formula": "parent!s1CRong",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+          "_leny_formula": "parent!a0Van",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>29.799999999999997</span>",
+          "_lenz_formula": "parent!s2CCao",
+          "_lenz_label": "LenZ",
+          "_name": "CanhTrai",
+          "_rotz_error": "<span class=subformula-success>0.0</span>",
+          "_rotz_formula": "parent!MoCanh",
+          "_rotz_label": "RotZ",
+          "_x_error": "<span class=subformula-success>0.15000000000000002</span>",
+          "_x_formula": "parent!e1CachTrai",
+          "_x_label": "X",
+          "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+          "_y_formula": "-CanhMoTrai!a0Van",
+          "_y_label": "Y",
+          "_z_error": "<span class=subformula-success>0.1</span>",
+          "_z_formula": "parent!e4CachDuoi",
+          "_z_label": "Z",
+          "lenx": 11.69291338582677,
+          "leny": 0.6929133858267718,
+          "lenz": 11.732283464566928,
+          "rotz": 0.0,
+          "x": 0.05905511811023623,
+          "y": -0.6929133858267718,
+          "z": 0.03937007874015748
+        },
+        "base_bounds": [
+          [
+            1.5,
+            -17.6,
+            0.9999999999999999
+          ],
+          [
+            298.49999999999994,
+            -2.8199664825478975e-15,
+            298.9999999999999
+          ]
+        ],
+        "driver": false
+      },
+      {
+        "key": "part:0002",
+        "name": "Viền",
+        "bounds": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": false,
+        "face_count": 0,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 1.0,
+          "_hasbehaviors": 1.0,
+          "_iscollapsed": "false",
+          "_lastmodified": "2025-12-12 13:09",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>29.999999999999996</span>",
+          "_lenx_formula": "parent!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+          "_leny_formula": "parent!a0Van",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>30.0</span>",
+          "_lenz_formula": "parent!LenZ",
+          "_lenz_label": "LenZ",
+          "_name": "Vien",
+          "_x_label": "X",
+          "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+          "_y_formula": "-CanhMoTrai!a0Van",
+          "_y_label": "Y",
+          "_z_label": "Z",
+          "lenx": 11.811023622047243,
+          "leny": 0.6929133858267718,
+          "lenz": 11.811023622047244,
+          "x": "0",
+          "y": -0.6929133858267718,
+          "z": 0.0
+        },
+        "base_bounds": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "driver": false
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        -17.6,
+        0.0
+      ],
+      [
+        299.99999999999994,
+        -2.8199664825478975e-15,
+        300.0
+      ]
+    ],
+    "parameters": [
+      {
+        "key": "a0van",
+        "label": "Độ Dày Ván",
+        "value": 17.6,
+        "unit": "mm",
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.2,
+          100.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      },
+      {
+        "key": "e1cachtrai",
+        "label": "Cách Tráiㅤ◄",
+        "value": 0.0,
+        "unit": "mm",
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      },
+      {
+        "key": "e2cachphai",
+        "label": "Cách Phảiㅤ►",
+        "value": 0.0,
+        "unit": "mm",
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      },
+      {
+        "key": "e3cachtren",
+        "label": "Cách Trênㅤ▲",
+        "value": 0.0,
+        "unit": "mm",
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      },
+      {
+        "key": "e4cachduoi",
+        "label": "Cách Dướiㅤ▼",
+        "value": 1.0,
+        "unit": "mm",
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      }
+    ],
+    "constraints": [
+      {
+        "id": "08b1e388-b14d-4b70-bb69-467a90cd5d13",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · rotz",
+        "formula": "parent!MoCanh",
+        "translated": true
+      },
+      {
+        "id": "8ad06ad8-c527-4ba6-99ab-0119ed6df1b7",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · x",
+        "formula": "parent!e1CachTrai",
+        "translated": true
+      },
+      {
+        "id": "200da60f-51b8-410d-979f-27f1d9a5dc2b",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · y",
+        "formula": "-CanhMoTrai!a0Van",
+        "translated": true
+      },
+      {
+        "id": "919f30f4-fa90-451a-b737-372e9add5c23",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · z",
+        "formula": "parent!e4CachDuoi",
+        "translated": true
+      },
+      {
+        "id": "907339e8-f847-4ed8-b3fc-587a09934850",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · lenx",
+        "formula": "parent!s1CRong",
+        "translated": true
+      },
+      {
+        "id": "893e81cb-ddf9-42ff-b051-f3a15e752334",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": " · s1crong",
+        "formula": "LenX-e1CachTrai-e2CachPhai",
+        "translated": true
+      },
+      {
+        "id": "341a984c-c6bd-49a7-9d77-3c281e3954f0",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · leny",
+        "formula": "parent!a0Van",
+        "translated": true
+      },
+      {
+        "id": "99f418de-7f80-420d-9dec-82e9559355d8",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "cánh trái · lenz",
+        "formula": "parent!s2CCao",
+        "translated": true
+      },
+      {
+        "id": "9cb6b085-a149-4f3b-af52-1c402f49f212",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": " · s2ccao",
+        "formula": "LenZ-e3CachTren-e4CachDuoi",
+        "translated": true
+      },
+      {
+        "id": "c64663be-7762-492c-9965-6f3c177916e4",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "viền · y",
+        "formula": "-CanhMoTrai!a0Van",
+        "translated": true
+      },
+      {
+        "id": "1aa334cf-3f1e-425b-829d-c2ff7670adf3",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "viền · lenx",
+        "formula": "parent!LenX",
+        "translated": true
+      },
+      {
+        "id": "b2546aa4-a9e2-4d53-8d46-b04fb18f830d",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "viền · leny",
+        "formula": "parent!a0Van",
+        "translated": true
+      },
+      {
+        "id": "6b46832c-908d-45c7-8a26-ab156c51dbf2",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "viền · lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      },
+      {
+        "id": "position:part:0001:distance:0:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 0,
+          "side": 0
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "e1cachtrai": 1.0
+          }
+        },
+        "label": "Mặt trái → Mép trái",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          1,
+          4,
+          5,
+          8,
+          10
+        ]
+      },
+      {
+        "id": "position:part:0001:distance:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "e2cachphai": 1.0
+          }
+        },
+        "label": "Mặt phải → Mép phải",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          1,
+          4,
+          5,
+          8,
+          10
+        ]
+      },
+      {
+        "id": "position:part:0001:dimension:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0001",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenx": 1.0,
+            "e2cachphai": -1.0,
+            "e1cachtrai": -1.0
+          }
+        },
+        "label": "Rộng",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          1,
+          4,
+          5,
+          8
+        ]
+      },
+      {
+        "id": "position:part:0001:distance:1:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 0
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt trước → Mép trước",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          2,
+          5,
+          6,
+          8,
+          9,
+          11
+        ]
+      },
+      {
+        "id": "position:part:0001:distance:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt sau → Mép sau",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          2,
+          5,
+          6,
+          8,
+          9,
+          11
+        ]
+      },
+      {
+        "id": "position:part:0001:dimension:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "a0van": 1.0
+          }
+        },
+        "label": "Sâu",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          2,
+          5,
+          6,
+          8
+        ]
+      },
+      {
+        "id": "position:part:0001:distance:2:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 2,
+          "side": 0
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "e4cachduoi": 1.0
+          }
+        },
+        "label": "Mặt dưới → Mép dưới",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5,
+          7,
+          8,
+          12
+        ]
+      },
+      {
+        "id": "position:part:0001:distance:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "e3cachtren": 1.0
+          }
+        },
+        "label": "Mặt trên → Mép trên",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5,
+          7,
+          8,
+          12
+        ]
+      },
+      {
+        "id": "position:part:0001:dimension:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0001",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0001",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenz": 1.0,
+            "e3cachtren": -1.0,
+            "e4cachduoi": -1.0
+          }
+        },
+        "label": "Cao",
+        "part_name": "Cánh Trái",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5,
+          7,
+          8
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:0:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 0
+        },
+        "other": {
+          "part": "@module",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt trái → Mép trái",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          10
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "@module",
+          "axis": 0,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt phải → Mép phải",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          10
+        ]
+      },
+      {
+        "id": "position:part:0002:dimension:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenx": 1.0
+          }
+        },
+        "label": "Rộng",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          10
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:1:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 0
+        },
+        "other": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt trước → Mép trước",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          2,
+          5,
+          6,
+          8,
+          9,
+          11
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0001",
+          "axis": 1,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt sau → Mép sau",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          2,
+          5,
+          6,
+          8,
+          9,
+          11
+        ]
+      },
+      {
+        "id": "position:part:0002:dimension:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "a0van": 1.0
+          }
+        },
+        "label": "Sâu",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          9,
+          11
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:2:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 0
+        },
+        "other": {
+          "part": "@module",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt dưới → Mép dưới",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          12
+        ]
+      },
+      {
+        "id": "position:part:0002:distance:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "@module",
+          "axis": 2,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+          }
+        },
+        "label": "Mặt trên → Mép trên",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          12
+        ]
+      },
+      {
+        "id": "position:part:0002:dimension:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "part:0002",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenz": 1.0
+          }
+        },
+        "label": "Cao",
+        "part_name": "Viền",
+        "translated": true,
+        "formula_indices": [
+          5,
+          8,
+          12
+        ]
+      }
+    ],
+    "formula_engine": {
+      "format": "mh_module_studio",
+      "version": 1,
+      "kind": "module_parameter_set",
+      "id": "14338176-2d56-4ab8-b73b-3880e71db037",
+      "parameter_label": "CanhMoTrai",
+      "parameters": [
+        {
+          "key": "a0van",
+          "label": "Độ Dày Ván",
+          "value": 17.6,
+          "unit": "mm",
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.2,
+            100.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        },
+        {
+          "key": "e1cachtrai",
+          "label": "Cách Tráiㅤ◄",
+          "value": 1.5,
+          "unit": "mm",
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        },
+        {
+          "key": "e2cachphai",
+          "label": "Cách Phảiㅤ►",
+          "value": 1.5,
+          "unit": "mm",
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        },
+        {
+          "key": "e3cachtren",
+          "label": "Cách Trênㅤ▲",
+          "value": 1.0,
+          "unit": "mm",
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        },
+        {
+          "key": "e4cachduoi",
+          "label": "Cách Dướiㅤ▼",
+          "value": 1.0,
+          "unit": "mm",
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        }
+      ],
+      "rules": {
+        "a0van": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "2c9ae22a-3ab4-4bb6-bfdc-82ec1ed32d4d",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Độ Dày Ván",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.2,
+            100.0
+          ],
+          "input_range": [
+            0.2,
+            100.0
+          ],
+          "base_parameter": 17.6,
+          "envelope": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "part:0001",
+              "name": "Cánh Trái",
+              "thickness_axis": 1,
+              "driver": true,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 1.5,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": -1.0000000000000142,
+                    "intercept": 2.4868995751603507e-13,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.9999999999999999,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.49999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.9999999999999,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  1.5,
+                  -17.6,
+                  0.9999999999999999
+                ],
+                [
+                  298.49999999999994,
+                  -2.8199664825478975e-15,
+                  298.9999999999999
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "part:0002",
+              "name": "Viền",
+              "thickness_axis": 1,
+              "driver": true,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": -1.0000000000000142,
+                    "intercept": 2.4868995751603507e-13,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 299.99999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 300.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  -17.6,
+                  0.0
+                ],
+                [
+                  299.99999999999994,
+                  -2.8199664825478975e-15,
+                  300.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "relations": [
+
+          ],
+          "status": "dc_attributes",
+          "warnings": [
+
+          ],
+          "dc_parameter": {
+            "dc_key": "a0van",
+            "factor": 25.4
+          },
+          "control_context": {
+            "e1cachtrai": {
+              "label": "Cách Tráiㅤ◄",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e2cachphai": {
+              "label": "Cách Phảiㅤ►",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e3cachtren": {
+              "label": "Cách Trênㅤ▲",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            },
+            "e4cachduoi": {
+              "label": "Cách Dướiㅤ▼",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            }
+          }
+        },
+        "e1cachtrai": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "580c77ac-e73f-4362-a665-1d56fea95a3c",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Cách Tráiㅤ◄",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.0,
+            10000.0
+          ],
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "base_parameter": 1.5,
+          "envelope": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "part:0001",
+              "name": "Cánh Trái",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 1.0000000000000009,
+                    "intercept": -1.3322676295501878e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.9999999999999999,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.49999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.9999999999999,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  1.5,
+                  -17.6,
+                  0.9999999999999999
+                ],
+                [
+                  298.49999999999994,
+                  -2.8199664825478975e-15,
+                  298.9999999999999
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "part:0002",
+              "name": "Viền",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 299.99999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 300.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  -17.6,
+                  0.0
+                ],
+                [
+                  299.99999999999994,
+                  -2.8199664825478975e-15,
+                  300.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "relations": [
+
+          ],
+          "status": "dc_attributes",
+          "warnings": [
+
+          ],
+          "dc_parameter": {
+            "dc_key": "e1cachtrai",
+            "factor": 25.4
+          },
+          "control_context": {
+            "a0van": {
+              "label": "Độ Dày Ván",
+              "value": 0.6929133858267718,
+              "display_value": 17.6,
+              "unit": "mm"
+            },
+            "e2cachphai": {
+              "label": "Cách Phảiㅤ►",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e3cachtren": {
+              "label": "Cách Trênㅤ▲",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            },
+            "e4cachduoi": {
+              "label": "Cách Dướiㅤ▼",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            }
+          }
+        },
+        "e2cachphai": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "e86769e2-fdce-42c1-9d2d-4da18b1b023c",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Cách Phảiㅤ►",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.0,
+            10000.0
+          ],
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "base_parameter": 1.5,
+          "envelope": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "part:0001",
+              "name": "Cánh Trái",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 1.5,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.9999999999999999,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": -1.0000000000002274,
+                    "intercept": 300.0000000000003,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.9999999999999,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  1.5,
+                  -17.6,
+                  0.9999999999999999
+                ],
+                [
+                  298.49999999999994,
+                  -2.8199664825478975e-15,
+                  298.9999999999999
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "part:0002",
+              "name": "Viền",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 299.99999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 300.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  -17.6,
+                  0.0
+                ],
+                [
+                  299.99999999999994,
+                  -2.8199664825478975e-15,
+                  300.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "relations": [
+
+          ],
+          "status": "dc_attributes",
+          "warnings": [
+
+          ],
+          "dc_parameter": {
+            "dc_key": "e2cachphai",
+            "factor": 25.4
+          },
+          "control_context": {
+            "a0van": {
+              "label": "Độ Dày Ván",
+              "value": 0.6929133858267718,
+              "display_value": 17.6,
+              "unit": "mm"
+            },
+            "e1cachtrai": {
+              "label": "Cách Tráiㅤ◄",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e3cachtren": {
+              "label": "Cách Trênㅤ▲",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            },
+            "e4cachduoi": {
+              "label": "Cách Dướiㅤ▼",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            }
+          }
+        },
+        "e3cachtren": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "2942d9d5-92da-42ac-ac26-51cc2c7607dc",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Cách Trênㅤ▲",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.0,
+            10000.0
+          ],
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "base_parameter": 1.0,
+          "envelope": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "part:0001",
+              "name": "Cánh Trái",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 1.5,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.9999999999999999,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.49999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": -1.0000000000002274,
+                    "intercept": 300.0000000000001,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  1.5,
+                  -17.6,
+                  0.9999999999999999
+                ],
+                [
+                  298.49999999999994,
+                  -2.8199664825478975e-15,
+                  298.9999999999999
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "part:0002",
+              "name": "Viền",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 299.99999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 300.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  -17.6,
+                  0.0
+                ],
+                [
+                  299.99999999999994,
+                  -2.8199664825478975e-15,
+                  300.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "relations": [
+
+          ],
+          "status": "dc_attributes",
+          "warnings": [
+
+          ],
+          "dc_parameter": {
+            "dc_key": "e3cachtren",
+            "factor": 25.4
+          },
+          "control_context": {
+            "a0van": {
+              "label": "Độ Dày Ván",
+              "value": 0.6929133858267718,
+              "display_value": 17.6,
+              "unit": "mm"
+            },
+            "e1cachtrai": {
+              "label": "Cách Tráiㅤ◄",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e2cachphai": {
+              "label": "Cách Phảiㅤ►",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e4cachduoi": {
+              "label": "Cách Dướiㅤ▼",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            }
+          }
+        },
+        "e4cachduoi": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "a7289cda-9740-4ab3-9584-555a94bf5bf6",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Cách Dướiㅤ▼",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.0,
+            10000.0
+          ],
+          "input_range": [
+            0.0,
+            10000.0
+          ],
+          "base_parameter": 1.0,
+          "envelope": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "part:0001",
+              "name": "Cánh Trái",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 1.5,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 1.0000000000000009,
+                    "intercept": -9.992007221626409e-16,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.49999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 298.9999999999999,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  1.5,
+                  -17.6,
+                  0.9999999999999999
+                ],
+                [
+                  298.49999999999994,
+                  -2.8199664825478975e-15,
+                  298.9999999999999
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "part:0002",
+              "name": "Viền",
+              "thickness_axis": 1,
+              "driver": false,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -17.6,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 299.99999999999994,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": -2.8199664825478975e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 300.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  -17.6,
+                  0.0
+                ],
+                [
+                  299.99999999999994,
+                  -2.8199664825478975e-15,
+                  300.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "relations": [
+
+          ],
+          "status": "dc_attributes",
+          "warnings": [
+
+          ],
+          "dc_parameter": {
+            "dc_key": "e4cachduoi",
+            "factor": 25.4
+          },
+          "control_context": {
+            "a0van": {
+              "label": "Độ Dày Ván",
+              "value": 0.6929133858267718,
+              "display_value": 17.6,
+              "unit": "mm"
+            },
+            "e1cachtrai": {
+              "label": "Cách Tráiㅤ◄",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e2cachphai": {
+              "label": "Cách Phảiㅤ►",
+              "value": 0.05905511811023623,
+              "display_value": 1.5,
+              "unit": "mm"
+            },
+            "e3cachtren": {
+              "label": "Cách Trênㅤ▲",
+              "value": 0.03937007874015748,
+              "display_value": 1.0,
+              "unit": "mm"
+            }
+          }
+        }
+      },
+      "control_context": {
+      },
+      "parts": [
+        {
+          "key": "part:0001",
+          "name": "Cánh Trái",
+          "thickness_axis": 1,
+          "driver": true,
+          "coefficients": [
+            [
+              {
+                "slope": 0.0,
+                "intercept": 1.5,
+                "error": 0.0
+              },
+              {
+                "slope": -1.0000000000000142,
+                "intercept": 2.4868995751603507e-13,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 0.9999999999999999,
+                "error": 0.0
+              }
+            ],
+            [
+              {
+                "slope": 0.0,
+                "intercept": 298.49999999999994,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": -2.8199664825478975e-15,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 298.9999999999999,
+                "error": 0.0
+              }
+            ]
+          ],
+          "base_bounds": [
+            [
+              1.5,
+              -17.6,
+              0.9999999999999999
+            ],
+            [
+              298.49999999999994,
+              -2.8199664825478975e-15,
+              298.9999999999999
+            ]
+          ],
+          "max_error": 0.0,
+          "parameter_key": "a0van"
+        },
+        {
+          "key": "part:0002",
+          "name": "Viền",
+          "thickness_axis": 1,
+          "driver": true,
+          "coefficients": [
+            [
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              },
+              {
+                "slope": -1.0000000000000142,
+                "intercept": 2.4868995751603507e-13,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              }
+            ],
+            [
+              {
+                "slope": 0.0,
+                "intercept": 299.99999999999994,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": -2.8199664825478975e-15,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 300.0,
+                "error": 0.0
+              }
+            ]
+          ],
+          "base_bounds": [
+            [
+              0.0,
+              -17.6,
+              0.0
+            ],
+            [
+              299.99999999999994,
+              -2.8199664825478975e-15,
+              300.0
+            ]
+          ],
+          "max_error": 0.0,
+          "parameter_key": "a0van"
+        }
+      ],
+      "relations": [
+
+      ],
+      "sample_count": 1,
+      "envelope": [
+        [
+          0.0,
+          -17.6,
+          0.0
+        ],
+        [
+          299.99999999999994,
+          -2.8199664825478975e-15,
+          300.0
+        ]
+      ],
+      "warnings": [
+        "Ưu tiên công thức ATT. Chỉ dùng so sánh mẫu khi ATT thiếu hoặc chưa dịch được.",
+        "Công thức ATT được tính lại cho giá trị mới; chỉ tác động hình học sau khi kiểm tra phủ bì và giao tấm."
+      ],
+      "attribute_program": {
+        "id": "8fecb6fc-015c-463e-ba08-998ed47cf9ac",
+        "label": "1.CA Canh trai",
+        "parameter": 17.6,
+        "source": {
+          "kind": "selection",
+          "root_pid": "461027"
+        },
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "thickness_axis": 1,
+            "box_verified": true,
+            "face_count": 6,
+            "edge_count": 12,
+            "visible": true,
+            "dc_attributes": {
+              "_formatversion": 1.0,
+              "_has_movetool_behaviors": 1.0,
+              "_hasbehaviors": 1.0,
+              "_iscollapsed": "false",
+              "_lastmodified": "2025-12-12 13:09",
+              "_lengthunits": "CENTIMETERS",
+              "_lenx_error": "<span class=subformula-success>29.699999999999996</span>",
+              "_lenx_formula": "parent!s1CRong",
+              "_lenx_label": "LenX",
+              "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+              "_leny_formula": "parent!a0Van",
+              "_leny_label": "LenY",
+              "_lenz_error": "<span class=subformula-success>29.799999999999997</span>",
+              "_lenz_formula": "parent!s2CCao",
+              "_lenz_label": "LenZ",
+              "_name": "CanhTrai",
+              "_rotz_error": "<span class=subformula-success>0.0</span>",
+              "_rotz_formula": "parent!MoCanh",
+              "_rotz_label": "RotZ",
+              "_x_error": "<span class=subformula-success>0.15000000000000002</span>",
+              "_x_formula": "parent!e1CachTrai",
+              "_x_label": "X",
+              "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+              "_y_formula": "-CanhMoTrai!a0Van",
+              "_y_label": "Y",
+              "_z_error": "<span class=subformula-success>0.1</span>",
+              "_z_formula": "parent!e4CachDuoi",
+              "_z_label": "Z",
+              "lenx": 11.69291338582677,
+              "leny": 0.6929133858267718,
+              "lenz": 11.732283464566928,
+              "rotz": 0.0,
+              "x": 0.05905511811023623,
+              "y": -0.6929133858267718,
+              "z": 0.03937007874015748
+            }
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "thickness_axis": 1,
+            "box_verified": false,
+            "face_count": 0,
+            "edge_count": 12,
+            "visible": true,
+            "dc_attributes": {
+              "_formatversion": 1.0,
+              "_has_movetool_behaviors": 1.0,
+              "_hasbehaviors": 1.0,
+              "_iscollapsed": "false",
+              "_lastmodified": "2025-12-12 13:09",
+              "_lengthunits": "CENTIMETERS",
+              "_lenx_error": "<span class=subformula-success>29.999999999999996</span>",
+              "_lenx_formula": "parent!LenX",
+              "_lenx_label": "LenX",
+              "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+              "_leny_formula": "parent!a0Van",
+              "_leny_label": "LenY",
+              "_lenz_error": "<span class=subformula-success>30.0</span>",
+              "_lenz_formula": "parent!LenZ",
+              "_lenz_label": "LenZ",
+              "_name": "Vien",
+              "_x_label": "X",
+              "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+              "_y_formula": "-CanhMoTrai!a0Van",
+              "_y_label": "Y",
+              "_z_label": "Z",
+              "lenx": 11.811023622047243,
+              "leny": 0.6929133858267718,
+              "lenz": 11.811023622047244,
+              "x": "0",
+              "y": -0.6929133858267718,
+              "z": 0.0
+            }
+          }
+        ],
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "dc_inputs": {
+          "_a0van_access": "TEXTBOX",
+          "_a0van_formlabel": "<b>Độ Dày Ván",
+          "_a0van_formulaunits": "CENTIMETERS",
+          "_a0van_label": "a0Van",
+          "_a0van_options": "&",
+          "_a0van_units": "MILLIMETERS",
+          "_description_label": "Description",
+          "_dialogheight_label": "DialogHeight",
+          "_dialogwidth_label": "DialogWidth",
+          "_e1cachtrai_access": "TEXTBOX",
+          "_e1cachtrai_formlabel": "Cách Tráiㅤ◄",
+          "_e1cachtrai_formulaunits": "CENTIMETERS",
+          "_e1cachtrai_label": "e1CachTrai",
+          "_e1cachtrai_options": "&",
+          "_e1cachtrai_units": "MILLIMETERS",
+          "_e2cachphai_access": "TEXTBOX",
+          "_e2cachphai_formlabel": "Cách Phảiㅤ►",
+          "_e2cachphai_formulaunits": "CENTIMETERS",
+          "_e2cachphai_label": "e2CachPhai",
+          "_e2cachphai_options": "&",
+          "_e2cachphai_units": "MILLIMETERS",
+          "_e3cachtren_access": "TEXTBOX",
+          "_e3cachtren_formlabel": "Cách Trênㅤ▲",
+          "_e3cachtren_formulaunits": "CENTIMETERS",
+          "_e3cachtren_label": "e3CachTren",
+          "_e3cachtren_options": "&",
+          "_e3cachtren_units": "MILLIMETERS",
+          "_e4cachduoi_access": "TEXTBOX",
+          "_e4cachduoi_formlabel": "Cách Dướiㅤ▼",
+          "_e4cachduoi_formulaunits": "CENTIMETERS",
+          "_e4cachduoi_label": "e4CachDuoi",
+          "_e4cachduoi_options": "&",
+          "_e4cachduoi_units": "MILLIMETERS",
+          "_e_access": "VIEW",
+          "_e_formlabel": " ",
+          "_e_formulaunits": "STRING",
+          "_e_label": "e",
+          "_e_options": "&",
+          "_e_units": "STRING",
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_lastmodified": "2025-12-18 10:46",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_access": "NONE",
+          "_lenx_formulaunits": "CENTIMETERS",
+          "_lenx_label": "LenX",
+          "_lenx_nominal": 11.811023622047243,
+          "_lenx_options": "&",
+          "_lenx_units": "MILLIMETERS",
+          "_leny_access": "NONE",
+          "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+          "_leny_formula": "a0Van",
+          "_leny_formulaunits": "CENTIMETERS",
+          "_leny_label": "LenY",
+          "_leny_nominal": 0.05905511811023623,
+          "_leny_options": "&",
+          "_leny_units": "MILLIMETERS",
+          "_lenz_access": "NONE",
+          "_lenz_formulaunits": "CENTIMETERS",
+          "_lenz_label": "LenZ",
+          "_lenz_nominal": 11.811023622047244,
+          "_lenz_options": "&",
+          "_lenz_units": "MILLIMETERS",
+          "_mocanh_access": "NONE",
+          "_mocanh_formula": null,
+          "_mocanh_formulaunits": "FLOAT",
+          "_mocanh_label": "MoCanh",
+          "_mocanh_options": "&",
+          "_mocanh_units": "STRING",
+          "_name": "CanhMoTrai",
+          "_name_label": "Name",
+          "_onclick_formlabel": "Click để mở cánh",
+          "_onclick_label": "onClick",
+          "_onclick_state1": 1,
+          "_onclick_units": "STRING",
+          "_s1crong_access": "VIEW",
+          "_s1crong_error": "<span class=subformula-success>29.999999999999996</span>+-1*<span class=subformula-success>0.15000000000000002</span>+-1*<span class=subformula-success>0.15000000000000002</span>",
+          "_s1crong_formlabel": "<u><b><i>Cánh Rộng",
+          "_s1crong_formula": "LenX-e1CachTrai-e2CachPhai",
+          "_s1crong_formulaunits": "CENTIMETERS",
+          "_s1crong_label": "s1CRong",
+          "_s1crong_options": "&",
+          "_s1crong_units": "MILLIMETERS",
+          "_s2ccao_access": "VIEW",
+          "_s2ccao_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>0.1</span>+-1*<span class=subformula-success>0.1</span>",
+          "_s2ccao_formlabel": "<u><b><i>Cánh Cao",
+          "_s2ccao_formula": "LenZ-e3CachTren-e4CachDuoi",
+          "_s2ccao_formulaunits": "CENTIMETERS",
+          "_s2ccao_label": "s2CCao",
+          "_s2ccao_options": "&",
+          "_s2ccao_units": "MILLIMETERS",
+          "_s_access": "VIEW",
+          "_s_formlabel": " ",
+          "_s_formulaunits": "STRING",
+          "_s_label": "s",
+          "_s_units": "STRING",
+          "_scaletool_formlabel": "ScaleTool",
+          "_scaletool_label": "ScaleTool",
+          "_scaletool_units": "STRING",
+          "a0van": "0.6929133858267717",
+          "description": "<font color=\"Blue\"><b><i>Giang Phạm</b></i></font> - <font color=\"SlateGray\"><b><i>Hỗ Trợ Kỹ Thuật</b></i></font>",
+          "dialogheight": "530",
+          "dialogwidth": "300",
+          "e": "----- Các Khoảng Cách -----",
+          "e1cachtrai": "0.05905511811023623",
+          "e2cachphai": "0.05905511811023623",
+          "e3cachtren": "0.03937007874015748",
+          "e4cachduoi": "0.03937007874015748",
+          "lenx": "11.811023622047243",
+          "leny": 0.6929133858267718,
+          "lenz": "35.43307086615823",
+          "mocanh": 0.0,
+          "name": "<font color=\"RoyalBlue\">Cánh Trái",
+          "onclick": "ANIMATE(\"MoCanh\",-90,0)",
+          "s": "----- Kích Thước Cánh -----",
+          "s1crong": 11.69291338582677,
+          "s2ccao": 11.732283464566928,
+          "scaletool": "122"
+        },
+        "captured_at": "2026-10-15T06:41:12Z",
+        "parameter_source": {
+          "kind": "dc_parameter_set",
+          "dc_keys": [
+            "a0van"
+          ]
+        },
+        "dc_graph": {
+          "nodes": [
+            {
+              "id": "0",
+              "parent_id": "",
+              "path": [
+                "cánh trái"
+              ],
+              "name": "Cánh Trái",
+              "attributes": {
+                "_formatversion": 1.0,
+                "_has_movetool_behaviors": 1.0,
+                "_hasbehaviors": 1.0,
+                "_iscollapsed": "false",
+                "_lastmodified": "2025-12-12 13:09",
+                "_lengthunits": "CENTIMETERS",
+                "_lenx_error": "<span class=subformula-success>29.699999999999996</span>",
+                "_lenx_formula": "parent!s1CRong",
+                "_lenx_label": "LenX",
+                "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+                "_leny_formula": "parent!a0Van",
+                "_leny_label": "LenY",
+                "_lenz_error": "<span class=subformula-success>29.799999999999997</span>",
+                "_lenz_formula": "parent!s2CCao",
+                "_lenz_label": "LenZ",
+                "_name": "CanhTrai",
+                "_rotz_error": "<span class=subformula-success>0.0</span>",
+                "_rotz_formula": "parent!MoCanh",
+                "_rotz_label": "RotZ",
+                "_x_error": "<span class=subformula-success>0.15000000000000002</span>",
+                "_x_formula": "parent!e1CachTrai",
+                "_x_label": "X",
+                "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+                "_y_formula": "-CanhMoTrai!a0Van",
+                "_y_label": "Y",
+                "_z_error": "<span class=subformula-success>0.1</span>",
+                "_z_formula": "parent!e4CachDuoi",
+                "_z_label": "Z",
+                "lenx": 11.69291338582677,
+                "leny": 0.6929133858267718,
+                "lenz": 11.732283464566928,
+                "rotz": 0.0,
+                "x": 0.05905511811023623,
+                "y": -0.6929133858267718,
+                "z": 0.03937007874015748
+              },
+              "transform": [
+                0.9899999999999998,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0057142857142862,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.5959999999999998,
+                0.0,
+                0.05905511811023623,
+                -0.6929133858267718,
+                0.03937007874015748,
+                1.0
+              ],
+              "local_bounds": [
+                [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  11.811023622047244,
+                  0.6889763779527556,
+                  19.68503937007874
+                ]
+              ],
+              "part_key": "part:0001"
+            },
+            {
+              "id": "1",
+              "parent_id": "",
+              "path": [
+                "viền"
+              ],
+              "name": "Viền",
+              "attributes": {
+                "_formatversion": 1.0,
+                "_has_movetool_behaviors": 1.0,
+                "_hasbehaviors": 1.0,
+                "_iscollapsed": "false",
+                "_lastmodified": "2025-12-12 13:09",
+                "_lengthunits": "CENTIMETERS",
+                "_lenx_error": "<span class=subformula-success>29.999999999999996</span>",
+                "_lenx_formula": "parent!LenX",
+                "_lenx_label": "LenX",
+                "_leny_error": "<span class=subformula-success>1.7600000000000002</span>",
+                "_leny_formula": "parent!a0Van",
+                "_leny_label": "LenY",
+                "_lenz_error": "<span class=subformula-success>30.0</span>",
+                "_lenz_formula": "parent!LenZ",
+                "_lenz_label": "LenZ",
+                "_name": "Vien",
+                "_x_label": "X",
+                "_y_error": "0+-1*<span class=subformula-success>1.7600000000000002</span>",
+                "_y_formula": "-CanhMoTrai!a0Van",
+                "_y_label": "Y",
+                "_z_label": "Z",
+                "lenx": 11.811023622047243,
+                "leny": 0.6929133858267718,
+                "lenz": 11.811023622047244,
+                "x": "0",
+                "y": -0.6929133858267718,
+                "z": 0.0
+              },
+              "transform": [
+                0.9999999999999999,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0057142857142876,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.5999999999999999,
+                0.0,
+                0.0,
+                -0.6929133858267718,
+                0.0,
+                1.0
+              ],
+              "local_bounds": [
+                [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  11.811023622047244,
+                  0.6889763779527547,
+                  19.685039370078744
+                ]
+              ],
+              "part_key": "part:0002"
+            }
+          ],
+          "root_frame": [
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        }
+      },
+      "attribute_formulas": [
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "rotz",
+          "formula": "parent!MoCanh",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "x",
+          "formula": "parent!e1CachTrai",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "y",
+          "formula": "-CanhMoTrai!a0Van",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "z",
+          "formula": "parent!e4CachDuoi",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "lenx",
+          "formula": "parent!s1CRong",
+          "translated": true
+        },
+        {
+          "path": "",
+          "node_id": "",
+          "attribute": "s1crong",
+          "formula": "LenX-e1CachTrai-e2CachPhai",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "leny",
+          "formula": "parent!a0Van",
+          "translated": true
+        },
+        {
+          "path": "cánh trái",
+          "node_id": "0",
+          "attribute": "lenz",
+          "formula": "parent!s2CCao",
+          "translated": true
+        },
+        {
+          "path": "",
+          "node_id": "",
+          "attribute": "s2ccao",
+          "formula": "LenZ-e3CachTren-e4CachDuoi",
+          "translated": true
+        },
+        {
+          "path": "viền",
+          "node_id": "1",
+          "attribute": "y",
+          "formula": "-CanhMoTrai!a0Van",
+          "translated": true
+        },
+        {
+          "path": "viền",
+          "node_id": "1",
+          "attribute": "lenx",
+          "formula": "parent!LenX",
+          "translated": true
+        },
+        {
+          "path": "viền",
+          "node_id": "1",
+          "attribute": "leny",
+          "formula": "parent!a0Van",
+          "translated": true
+        },
+        {
+          "path": "viền",
+          "node_id": "1",
+          "attribute": "lenz",
+          "formula": "parent!LenZ",
+          "translated": true
+        }
+      ],
+      "attribute_formula_count": 14,
+      "attribute_unsupported_functions": [
+
+      ],
+      "attribute_diagnostic": null,
+      "observed_parameter_values": [
+        {
+          "a0van": 17.6,
+          "e1cachtrai": 1.5,
+          "e2cachphai": 1.5,
+          "e3cachtren": 0.9999999999999999,
+          "e4cachduoi": 0.9999999999999999
+        }
+      ],
+      "training_sample_ids": [
+        "8fecb6fc-015c-463e-ba08-998ed47cf9ac"
+      ],
+      "exposed_parameter_keys": [
+        "a0van",
+        "e1cachtrai",
+        "e2cachphai",
+        "e3cachtren",
+        "e4cachduoi"
+      ]
+    },
+    "exposed_parameter_keys": [
+      "a0van",
+      "e1cachtrai",
+      "e2cachphai",
+      "e3cachtren",
+      "e4cachduoi"
+    ],
+    "warnings": [
+      "Ưu tiên công thức ATT. Chỉ dùng so sánh mẫu khi ATT thiếu hoặc chưa dịch được.",
+      "Công thức ATT được tính lại cho giá trị mới; chỉ tác động hình học sau khi kiểm tra phủ bì và giao tấm."
+    ],
+    "rules": {
+      "a0van": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "2c9ae22a-3ab4-4bb6-bfdc-82ec1ed32d4d",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Độ Dày Ván",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.2,
+          100.0
+        ],
+        "input_range": [
+          0.2,
+          100.0
+        ],
+        "base_parameter": 17.6,
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "thickness_axis": 1,
+            "driver": true,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 1.5,
+                  "error": 0.0
+                },
+                {
+                  "slope": -1.0000000000000142,
+                  "intercept": 2.4868995751603507e-13,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.9999999999999999,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 298.49999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 298.9999999999999,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "thickness_axis": 1,
+            "driver": true,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": -1.0000000000000142,
+                  "intercept": 2.4868995751603507e-13,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 299.99999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 300.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "relations": [
+
+        ],
+        "status": "dc_attributes",
+        "warnings": [
+
+        ],
+        "dc_parameter": {
+          "dc_key": "a0van",
+          "factor": 25.4
+        },
+        "control_context": {
+          "e1cachtrai": {
+            "label": "Cách Tráiㅤ◄",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e2cachphai": {
+            "label": "Cách Phảiㅤ►",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e3cachtren": {
+            "label": "Cách Trênㅤ▲",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          },
+          "e4cachduoi": {
+            "label": "Cách Dướiㅤ▼",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          }
+        }
+      },
+      "e1cachtrai": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "580c77ac-e73f-4362-a665-1d56fea95a3c",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Cách Tráiㅤ◄",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.0,
+          10000.0
+        ],
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "base_parameter": 1.5,
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 1.0000000000000009,
+                  "intercept": -1.3322676295501878e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.9999999999999999,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 298.49999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 298.9999999999999,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 299.99999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 300.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "relations": [
+
+        ],
+        "status": "dc_attributes",
+        "warnings": [
+
+        ],
+        "dc_parameter": {
+          "dc_key": "e1cachtrai",
+          "factor": 25.4
+        },
+        "control_context": {
+          "a0van": {
+            "label": "Độ Dày Ván",
+            "value": 0.6929133858267718,
+            "display_value": 17.6,
+            "unit": "mm"
+          },
+          "e2cachphai": {
+            "label": "Cách Phảiㅤ►",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e3cachtren": {
+            "label": "Cách Trênㅤ▲",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          },
+          "e4cachduoi": {
+            "label": "Cách Dướiㅤ▼",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          }
+        }
+      },
+      "e2cachphai": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "e86769e2-fdce-42c1-9d2d-4da18b1b023c",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Cách Phảiㅤ►",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.0,
+          10000.0
+        ],
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "base_parameter": 1.5,
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 1.5,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.9999999999999999,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": -1.0000000000002274,
+                  "intercept": 300.0000000000003,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 298.9999999999999,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 299.99999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 300.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "relations": [
+
+        ],
+        "status": "dc_attributes",
+        "warnings": [
+
+        ],
+        "dc_parameter": {
+          "dc_key": "e2cachphai",
+          "factor": 25.4
+        },
+        "control_context": {
+          "a0van": {
+            "label": "Độ Dày Ván",
+            "value": 0.6929133858267718,
+            "display_value": 17.6,
+            "unit": "mm"
+          },
+          "e1cachtrai": {
+            "label": "Cách Tráiㅤ◄",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e3cachtren": {
+            "label": "Cách Trênㅤ▲",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          },
+          "e4cachduoi": {
+            "label": "Cách Dướiㅤ▼",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          }
+        }
+      },
+      "e3cachtren": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "2942d9d5-92da-42ac-ac26-51cc2c7607dc",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Cách Trênㅤ▲",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.0,
+          10000.0
+        ],
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "base_parameter": 1.0,
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 1.5,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.9999999999999999,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 298.49999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": -1.0000000000002274,
+                  "intercept": 300.0000000000001,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 299.99999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 300.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "relations": [
+
+        ],
+        "status": "dc_attributes",
+        "warnings": [
+
+        ],
+        "dc_parameter": {
+          "dc_key": "e3cachtren",
+          "factor": 25.4
+        },
+        "control_context": {
+          "a0van": {
+            "label": "Độ Dày Ván",
+            "value": 0.6929133858267718,
+            "display_value": 17.6,
+            "unit": "mm"
+          },
+          "e1cachtrai": {
+            "label": "Cách Tráiㅤ◄",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e2cachphai": {
+            "label": "Cách Phảiㅤ►",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e4cachduoi": {
+            "label": "Cách Dướiㅤ▼",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          }
+        }
+      },
+      "e4cachduoi": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "a7289cda-9740-4ab3-9584-555a94bf5bf6",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Cách Dướiㅤ▼",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.0,
+          10000.0
+        ],
+        "input_range": [
+          0.0,
+          10000.0
+        ],
+        "base_parameter": 1.0,
+        "envelope": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            299.99999999999994,
+            -2.8199664825478975e-15,
+            300.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "part:0001",
+            "name": "Cánh Trái",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 1.5,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 1.0000000000000009,
+                  "intercept": -9.992007221626409e-16,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 298.49999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 298.9999999999999,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                1.5,
+                -17.6,
+                0.9999999999999999
+              ],
+              [
+                298.49999999999994,
+                -2.8199664825478975e-15,
+                298.9999999999999
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "part:0002",
+            "name": "Viền",
+            "thickness_axis": 1,
+            "driver": false,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -17.6,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 299.99999999999994,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": -2.8199664825478975e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 300.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                -17.6,
+                0.0
+              ],
+              [
+                299.99999999999994,
+                -2.8199664825478975e-15,
+                300.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "relations": [
+
+        ],
+        "status": "dc_attributes",
+        "warnings": [
+
+        ],
+        "dc_parameter": {
+          "dc_key": "e4cachduoi",
+          "factor": 25.4
+        },
+        "control_context": {
+          "a0van": {
+            "label": "Độ Dày Ván",
+            "value": 0.6929133858267718,
+            "display_value": 17.6,
+            "unit": "mm"
+          },
+          "e1cachtrai": {
+            "label": "Cách Tráiㅤ◄",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e2cachphai": {
+            "label": "Cách Phảiㅤ►",
+            "value": 0.05905511811023623,
+            "display_value": 1.5,
+            "unit": "mm"
+          },
+          "e3cachtren": {
+            "label": "Cách Trênㅤ▲",
+            "value": 0.03937007874015748,
+            "display_value": 1.0,
+            "unit": "mm"
+          }
+        }
+      }
+    },
+    "relations": [
+
+    ],
+    "attribute_formulas": [
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "rotz",
+        "formula": "parent!MoCanh",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "x",
+        "formula": "parent!e1CachTrai",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "y",
+        "formula": "-CanhMoTrai!a0Van",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "z",
+        "formula": "parent!e4CachDuoi",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "lenx",
+        "formula": "parent!s1CRong",
+        "translated": true
+      },
+      {
+        "path": "",
+        "node_id": "",
+        "attribute": "s1crong",
+        "formula": "LenX-e1CachTrai-e2CachPhai",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "leny",
+        "formula": "parent!a0Van",
+        "translated": true
+      },
+      {
+        "path": "cánh trái",
+        "node_id": "0",
+        "attribute": "lenz",
+        "formula": "parent!s2CCao",
+        "translated": true
+      },
+      {
+        "path": "",
+        "node_id": "",
+        "attribute": "s2ccao",
+        "formula": "LenZ-e3CachTren-e4CachDuoi",
+        "translated": true
+      },
+      {
+        "path": "viền",
+        "node_id": "1",
+        "attribute": "y",
+        "formula": "-CanhMoTrai!a0Van",
+        "translated": true
+      },
+      {
+        "path": "viền",
+        "node_id": "1",
+        "attribute": "lenx",
+        "formula": "parent!LenX",
+        "translated": true
+      },
+      {
+        "path": "viền",
+        "node_id": "1",
+        "attribute": "leny",
+        "formula": "parent!a0Van",
+        "translated": true
+      },
+      {
+        "path": "viền",
+        "node_id": "1",
+        "attribute": "lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      }
+    ],
+    "control_context": {
+    },
+    "position_rules_version": 2,
+    "parameter_binding_aliases": {
+    },
+    "parametric_variables": [
+      {
+        "id": "input:a0van",
+        "binding": "a0van",
+        "name": "Độ Dày Ván",
+        "symbol": "T1",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 17.6,
+        "formula": "",
+        "exported": true
+      },
+      {
+        "id": "input:e1cachtrai",
+        "binding": "e1cachtrai",
+        "name": "Cách Tráiㅤ◄",
+        "symbol": "e1cachtrai",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 0.0,
+        "formula": "",
+        "exported": true
+      },
+      {
+        "id": "input:e2cachphai",
+        "binding": "e2cachphai",
+        "name": "Cách Phảiㅤ►",
+        "symbol": "e2cachphai",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 0.0,
+        "formula": "",
+        "exported": true
+      },
+      {
+        "id": "input:e3cachtren",
+        "binding": "e3cachtren",
+        "name": "Cách Trênㅤ▲",
+        "symbol": "e3cachtren",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 0.0,
+        "formula": "",
+        "exported": true
+      },
+      {
+        "id": "input:e4cachduoi",
+        "binding": "e4cachduoi",
+        "name": "Cách Dướiㅤ▼",
+        "symbol": "e4cachduoi",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 0.0,
+        "formula": "",
+        "exported": true
+      }
+    ],
+    "thickness_symbols_version": 2,
+    "thickness_symbol_roles": {
+      "input:a0van": "T1"
+    }
+  },
+  "values": {
+    "a0van": 17.6,
+    "e1cachtrai": 0.0,
+    "e2cachphai": 0.0,
+    "e3cachtren": 0.0,
+    "e4cachduoi": 0.0
+  },
+  "snapshot": {
+    "id": "2f639adc-01e7-4c4c-914d-959ee759b10a",
+    "label": "1.CA Canh trai",
+    "parameter": 17.6,
+    "source": {
+      "kind": "selection",
+      "root_pid": "450538"
+    },
+    "parts": [
+      {
+        "key": "part:0001",
+        "name": "Cánh Trái",
+        "bounds": [
+          [
+            0.0,
+            -17.6,
+            2.114974861910923e-15
+          ],
+          [
+            948.6346476939182,
+            -2.8199664825478975e-15,
+            1408.035852550532
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+        },
+        "affine_verified": true
+      },
+      {
+        "key": "part:0002",
+        "name": "Viền",
+        "bounds": [
+          [
+            0.0,
+            -17.6,
+            0.0
+          ],
+          [
+            948.6346476939185,
+            -2.8199664825478975e-15,
+            1408.035852550531
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": false,
+        "face_count": 0,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+        },
+        "affine_verified": false
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        -17.6,
+        0.0
+      ],
+      [
+        948.6346476939185,
+        -2.8199664825478975e-15,
+        1408.035852550532
+      ]
+    ],
+    "dc_inputs": {
+    },
+    "captured_at": "2026-10-16T07:01:38Z",
+    "dc_graph": {
+      "nodes": [
+        {
+          "id": "0",
+          "parent_id": "",
+          "path": [
+            "cánh trái"
+          ],
+          "name": "Cánh Trái",
+          "attributes": {
+          },
+          "transform": [
+            0.9899999999999998,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0057142857142862,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.5959999999999998,
+            0.0,
+            0.05905511811023623,
+            -0.6929133858267718,
+            0.03937007874015748,
+            1.0
+          ],
+          "local_bounds": [
+            [
+              -0.05965163445478408,
+              0.0,
+              -0.06605717909422396
+            ],
+            [
+              11.870675256502025,
+              0.6889763779527556,
+              19.751096549172985
+            ]
+          ],
+          "hidden": false,
+          "tag_visible": true,
+          "visibility_flattened": false,
+          "part_key": "part:0001"
+        },
+        {
+          "id": "1",
+          "parent_id": "",
+          "path": [
+            "viền"
+          ],
+          "name": "Viền",
+          "attributes": {
+          },
+          "transform": [
+            0.9999999999999999,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0057142857142876,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            0.5999999999999999,
+            0.0,
+            0.0,
+            -0.6929133858267718,
+            0.0,
+            1.0
+          ],
+          "local_bounds": [
+            [
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              11.811023622047244,
+              0.6889763779527547,
+              19.685039370078744
+            ]
+          ],
+          "hidden": false,
+          "tag_visible": true,
+          "visibility_flattened": false,
+          "part_key": "part:0002"
+        }
+      ],
+      "root_frame": [
+        3.1621154923130623,
+        0,
+        0,
+        0,
+        0,
+        1.0,
+        0,
+        0,
+        0,
+        0,
+        4.693452841835104,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "visibility_version": 1,
+    "formula_frame_version": 2,
+    "parameter_values": {
+      "a0van": 17.6,
+      "e1cachtrai": 0.0,
+      "e2cachphai": 0.0,
+      "e3cachtren": 0.0,
+      "e4cachduoi": 0.0
+    }
+  }
+}

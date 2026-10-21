@@ -1,0 +1,5 @@
+- [x] Regression: committed Scale survives unrelated abort before timer.
+- [x] Abort handler retains acknowledged baseline and existing Undo behavior.
+- [x] Native repeated Scale/abort/Undo/Redo/copy independence checks on file 1.
+- [x] Repair selected instance at its current envelope and reload.
+- [x] Scoped RuboCop/test gate and runtime package.

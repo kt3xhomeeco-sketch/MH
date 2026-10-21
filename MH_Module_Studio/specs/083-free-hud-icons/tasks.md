@@ -1,0 +1,6 @@
+- [x] Specify free positioning, axis guides, persistence and legacy migration.
+- [x] Implement portable schema/layout/moves/remapping and native drag/draw/pick.
+- [x] Verify native events/rendering/config round-trip with isolated preferences.
+- [x] Remove Module Options updating text while retaining queue/errors.
+- [x] Browser regressions for settings, options and redraw.
+- [x] Final scoped gate, live reload and validation record (active placement left intact).

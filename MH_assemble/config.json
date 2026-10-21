@@ -1,0 +1,117 @@
+{
+  "profiles": {
+    "full": {
+      "label": "Full",
+      "hide": [
+
+      ]
+    },
+    "no_door": {
+      "label": "Không cánh",
+      "hide": [
+        "Cánh Trái",
+        "Cánh Phải",
+        "Mặt NK",
+        "Pano Cánh",
+        "Viền Cánh",
+        "Cánh1"
+      ]
+    }
+  },
+  "title_block": {
+    "project": "[TÊN CÔNG TRÌNH]",
+    "product": "[TÊN SẢN PHẨM]"
+  },
+  "hide_always": [
+    "ABF_label"
+  ],
+  "product_names": {
+  },
+  "render_w": 1333,
+  "mini_w": 800,
+  "mini_alpha": 10,
+  "no_number": [
+    "_ABF_minifixPlasticBase40",
+    "Viền Cánh"
+  ],
+  "hide_common": [
+    "Đánh Dấu Ray Trái",
+    "Đánh Dấu Ray Phải",
+    "__ABF_Nesting"
+  ],
+  "hidden_tags": [
+    "ABF_Label",
+    "ABF-D5",
+    "ABF-D5-Z0",
+    "ABF-D15",
+    "ABF-D35-12MM",
+    "ABF_CenterLine1_depth_4.5_17.6",
+    "ABF_CenterLine1_depth_4.5_18.6",
+    "ABF_CenterLine1_depth_4.5_19.6",
+    "ABF_CenterLine2_depth_9.3_17.6",
+    "ABF_CenterLine2_depth_9.3_18.6",
+    "ABF_CenterLine2_depth_9.3_19.6",
+    "ABF_sideDrillDepth",
+    "ABF-DSIDE-8"
+  ],
+  "lead_pct": 100,
+  "line_pct": 100,
+  "main_back_edges": false,
+  "draw_ratio": 12,
+  "draw_ratios": [
+    2,
+    3,
+    4,
+    5,
+    7,
+    8,
+    9,
+    10,
+    12,
+    15,
+    20,
+    25
+  ],
+  "sub_modules": [
+    {
+      "key": "Hộc -",
+      "label": "Ngăn kéo",
+      "enabled": true
+    }
+  ],
+  "no_door_scope": {
+    "product": [
+      "Cánh Trái",
+      "Cánh Phải",
+      "Pano Cánh",
+      "Viền Cánh",
+      "Cánh",
+      "Mặt NK"
+    ],
+    "module": [
+      "Cánh Trái",
+      "Cánh Phải",
+      "Mặt NK",
+      "Pano Cánh",
+      "Viền Cánh",
+      "Cánh1"
+    ]
+  },
+  "camera_iso": {
+    "x": 0.27,
+    "y": -1.16,
+    "z": 0.35
+  },
+  "camera_overrides": {
+    "SP50.03|full": {
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0.0
+    },
+    "SP50.03|no_door": {
+      "x": 1.0,
+      "y": 0.0,
+      "z": 0.0
+    }
+  }
+}

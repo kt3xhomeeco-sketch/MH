@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Cài Đặt Đục Khung</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/vue.min.js"></script>
+    <script src="js/setting.js"></script>
+</head>
+<body>
+
+<div id="app" class="container">
+    <div class="col2">
+        <div class="switch-stacked">
+            <div class="switch"><span>Dùng tiết diện</span><input type="checkbox" v-model="settings.su_dung_tiet_dien" @change="saveSetting('su_dung_tiet_dien')" id="su_dung_tiet_dien"><label class="switch-label" for="su_dung_tiet_dien"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.su_dung_tiet_dien }"><span>Instance</span><div class="text-input-group"><input type="text" v-model="settings.instance_tiet_dien" @input="saveSetting('instance_tiet_dien')" :disabled="!settings.su_dung_tiet_dien" placeholder="Nhập tên..."></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.su_dung_tiet_dien }"><span>Tag</span><div class="text-input-group"><input type="text" v-model="settings.layer_tiet_dien" @input="saveSetting('layer_tiet_dien')" :disabled="!settings.su_dung_tiet_dien" placeholder="Nhập tên..."></div></div>
+        </div>
+        <small class="switch-stacked-hint">Tạo tiết diện thay cho đục lỗ trực tiếp trên tấm.</small>
+
+        <div class="switch-stacked">
+            <div class="switch"><span>Dày tối thiểu</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('van_day_toi_thieu')" :disabled="settings.van_day_toi_thieu <= 0">-</button><input type="number" min="0" step="0.1" v-model.number="settings.van_day_toi_thieu" @change="saveSetting('van_day_toi_thieu')" @blur="validateNumber('van_day_toi_thieu')"><button class="spinner-btn" @click="incrementValue('van_day_toi_thieu')">+</button></div></div>
+            <div class="switch"><span>Rộng tối thiểu</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('chieu_rong_toi_thieu')" :disabled="settings.chieu_rong_toi_thieu <= 0">-</button><input type="number" min="0" step="0.1" v-model.number="settings.chieu_rong_toi_thieu" @change="saveSetting('chieu_rong_toi_thieu')" @blur="validateNumber('chieu_rong_toi_thieu')"><button class="spinner-btn" @click="incrementValue('chieu_rong_toi_thieu')">+</button></div></div>
+        </div>
+        <small class="switch-stacked-hint">Điều kiện tối thiểu để áp dụng đục khung cho tấm.</small>
+
+        <div class="switch-stacked">
+            <div class="switch"><span>Chiều rộng khung</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('chieu_rong_khung')">-</button><input type="number" min="0.1" step="0.1" v-model.number="settings.chieu_rong_khung" @change="saveSetting('chieu_rong_khung')" @blur="validateNumber('chieu_rong_khung')"><button class="spinner-btn" @click="incrementValue('chieu_rong_khung')">+</button></div></div>
+        </div>
+        <small class="switch-stacked-hint">Khoảng offset từ biên tấm đến lỗ khung.</small>
+
+        <div class="switch-stacked">
+            <div class="switch"><span>Bo góc trong</span><input type="checkbox" v-model="settings.bo_goc_trong" @change="saveSetting('bo_goc_trong')" id="bo_goc_trong"><label class="switch-label" for="bo_goc_trong"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !(settings.bo_goc_trong && (settings.tao_hem_kinh || settings.mo_phong_kinh)) }"><span>Bo góc kính</span><input type="checkbox" v-model="settings.bo_goc_kinh" @change="saveSetting('bo_goc_kinh')" id="bo_goc_kinh" :disabled="!(settings.bo_goc_trong && (settings.tao_hem_kinh || settings.mo_phong_kinh))"><label class="switch-label" for="bo_goc_kinh"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.bo_goc_trong }"><span>Kiểu bo góc</span><div class="select-group"><select v-model="settings.kieu_bo_goc" @change="saveSetting('kieu_bo_goc')" :disabled="!settings.bo_goc_trong"><option value="cung_loi">Cung lồi</option><option value="cung_lom">Cung lõm</option><option value="vat_cheo">Vát chéo</option></select></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.bo_goc_trong }"><span>Bán kính bo góc</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('ban_kinh_bo_goc')" :disabled="!settings.bo_goc_trong">-</button><input type="number" min="0" step="0.1" v-model.number="settings.ban_kinh_bo_goc" @change="saveSetting('ban_kinh_bo_goc')" @blur="validateNumber('ban_kinh_bo_goc')" :disabled="!settings.bo_goc_trong"><button class="spinner-btn" @click="incrementValue('ban_kinh_bo_goc')" :disabled="!settings.bo_goc_trong">+</button></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.bo_goc_trong }"><span>Độ mịn cung</span><div class="number-input-group"><button class="spinner-btn" @click="decrementInt('cap_do_min')" :disabled="!settings.bo_goc_trong || settings.cap_do_min <= 1">-</button><input type="number" min="1" max="10" step="1" v-model.number="settings.cap_do_min" @change="saveSetting('cap_do_min')" @blur="validateInt('cap_do_min', 1, 10)" :disabled="!settings.bo_goc_trong"><button class="spinner-btn" @click="incrementInt('cap_do_min', 10)" :disabled="!settings.bo_goc_trong || settings.cap_do_min >= 10">+</button></div></div>
+        </div>
+        <small class="switch-stacked-hint">Tuỳ chỉnh bo góc cho lỗ khung, hèm và kính.</small>
+
+        <div class="switch-stacked">
+            <div class="switch"><span>Tạo hèm kính</span><input type="checkbox" v-model="settings.tao_hem_kinh" @change="saveSetting('tao_hem_kinh')" id="tao_hem_kinh"><label class="switch-label" for="tao_hem_kinh"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.tao_hem_kinh }"><span>Khử dao hèm</span><input type="checkbox" v-model="settings.khu_dao_hem" @change="saveSetting('khu_dao_hem')" id="khu_dao_hem" :disabled="!settings.tao_hem_kinh"><label class="switch-label" for="khu_dao_hem"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !(settings.tao_hem_kinh && settings.khu_dao_hem) }"><span>Chặn dán cạnh góc</span><input type="checkbox" v-model="settings.chan_dan_canh_goc_khu" @change="saveSetting('chan_dan_canh_goc_khu')" id="chan_dan_canh_goc_khu" :disabled="!(settings.tao_hem_kinh && settings.khu_dao_hem)"><label class="switch-label" for="chan_dan_canh_goc_khu"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.tao_hem_kinh }"><span>Chiều rộng hèm</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('chieu_rong_hem_kinh')" :disabled="!settings.tao_hem_kinh">-</button><input type="number" min="0" step="0.1" v-model.number="settings.chieu_rong_hem_kinh" @change="saveSetting('chieu_rong_hem_kinh')" @blur="validateNumber('chieu_rong_hem_kinh')" :disabled="!settings.tao_hem_kinh"><button class="spinner-btn" @click="incrementValue('chieu_rong_hem_kinh')" :disabled="!settings.tao_hem_kinh">+</button></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.tao_hem_kinh }"><span>Instance</span><div class="text-input-group"><input type="text" v-model="settings.instance_hem_kinh" @input="saveSetting('instance_hem_kinh')" :disabled="!settings.tao_hem_kinh" placeholder="Nhập tên..."></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.tao_hem_kinh }"><span>Tag</span><div class="text-input-group"><input type="text" v-model="settings.layer_hem_kinh" @input="saveSetting('layer_hem_kinh')" :disabled="!settings.tao_hem_kinh" placeholder="Nhập tên..."></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.tao_hem_kinh }"><span>Màu sắc</span><div class="color-input-group"><input type="color" v-model="mau_sac_hem_kinh_hex" @input="saveColor('mau_sac_hem_kinh')" :disabled="!settings.tao_hem_kinh"></div></div>
+        </div>
+        <small class="switch-stacked-hint">Tạo hèm kính ở phía trong lỗ khung.</small>
+
+        <div class="switch-stacked">
+            <div class="switch"><span>Mô phỏng kính</span><input type="checkbox" v-model="settings.mo_phong_kinh" @change="saveSetting('mo_phong_kinh')" id="mo_phong_kinh"><label class="switch-label" for="mo_phong_kinh"></label></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.mo_phong_kinh }"><span>Độ dày kính</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('do_day_kinh')" :disabled="!settings.mo_phong_kinh || settings.do_day_kinh <= 0">-</button><input type="number" min="0" step="0.1" v-model.number="settings.do_day_kinh" @change="saveSetting('do_day_kinh')" @blur="validateNumber('do_day_kinh')" :disabled="!settings.mo_phong_kinh"><button class="spinner-btn" @click="incrementValue('do_day_kinh')" :disabled="!settings.mo_phong_kinh">+</button></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.mo_phong_kinh }"><span>Offset kính</span><div class="number-input-group"><button class="spinner-btn" @click="decrementValue('offset_kinh')" :disabled="!settings.mo_phong_kinh">-</button><input type="number" step="0.1" v-model.number="settings.offset_kinh" @change="saveSetting('offset_kinh')" @blur="validateNumber('offset_kinh')" :disabled="!settings.mo_phong_kinh"><button class="spinner-btn" @click="incrementValue('offset_kinh')" :disabled="!settings.mo_phong_kinh">+</button></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.mo_phong_kinh }"><span>Instance</span><div class="text-input-group"><input type="text" v-model="settings.instance_kinh" @input="saveSetting('instance_kinh')" :disabled="!settings.mo_phong_kinh" placeholder="Nhập tên..."></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.mo_phong_kinh }"><span>Tag</span><div class="text-input-group"><input type="text" v-model="settings.layer_kinh" @input="saveSetting('layer_kinh')" :disabled="!settings.mo_phong_kinh" placeholder="Nhập tên..."></div></div>
+            <div class="switch" :class="{ collapsed: hideUnavailable && !settings.mo_phong_kinh }"><span>Màu sắc</span><div class="color-input-group"><input type="color" v-model="mau_sac_kinh_hex" @input="saveColor('mau_sac_kinh')" :disabled="!settings.mo_phong_kinh"></div></div>
+        </div>
+        <small class="switch-stacked-hint">Tạo kính mô phỏng phía trong khung.</small>
+    </div>
+
+    <div id="preset-panel"></div>
+</div>
+
+<script>
+    Vue.config.productionTip = false;
+    Vue.config.devtools = false;
+    document.body.spellcheck = false;
+
+    new Vue({
+        el: '#app',
+        mixins: [SettingsMixin('duc_khung')],
+        data: {
+            settings: {
+                su_dung_tiet_dien: false,
+                instance_tiet_dien: 'ABF_DK',
+                layer_tiet_dien: 'ABF_DK',
+                van_day_toi_thieu: 15.0,
+                chieu_rong_toi_thieu: 0.0,
+                chieu_rong_khung: 80.0,
+                bo_goc_trong: false,
+                bo_goc_kinh: true,
+                kieu_bo_goc: 'cung_loi',
+                ban_kinh_bo_goc: 100.0,
+                cap_do_min: 7,
+                tao_hem_kinh: true,
+                khu_dao_hem: false,
+                chan_dan_canh_goc_khu: false,
+                chieu_rong_hem_kinh: 10.0,
+                instance_hem_kinh: 'ABF_HK',
+                layer_hem_kinh: 'ABF_HK',
+                mau_sac_hem_kinh: [210, 117, 159],
+                mo_phong_kinh: true,
+                do_day_kinh: 3.0,
+                offset_kinh: -3.0,
+                instance_kinh: 'ABF_GL',
+                layer_kinh: 'ABF_GL',
+                mau_sac_kinh: [60, 175, 214]
+            }
+        },
+        computed: {
+            mau_sac_hem_kinh_hex: colorComputed('mau_sac_hem_kinh'),
+            mau_sac_kinh_hex: colorComputed('mau_sac_kinh')
+        },
+        methods: {}
+    });
+</script>
+
+</body>
+</html>

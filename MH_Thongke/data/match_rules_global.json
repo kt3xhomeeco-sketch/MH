@@ -1,0 +1,2387 @@
+{
+  "general_rules": {
+    "ignore_keywords": [
+      "theo mẫu"
+    ],
+    "keep_numbers_patterns": [
+      "ray bi",
+      "ray âm"
+    ],
+    "synonym_pairs": [
+      [
+        "doang cua",
+        "gioang cua"
+      ]
+    ],
+    "equivalent_pairs": [
+      [
+        "banh xe cao",
+        "banh xe"
+      ]
+    ]
+  },
+  "specific_rules": {
+  },
+  "mini_accept_rules": {
+    "SP35|PK|ray am giam chan hafele hafele 350mm|ray am giam chan hafele hafele 350mm|hafele": {
+      "action": "update",
+      "time": 1779431609,
+      "product_code": "SP35",
+      "kind": "PK",
+      "model_name": "ray âm giảm chấn hafele HAFELE 350mm",
+      "target_name": "ray âm giảm chấn hafele HAFELE 350mm",
+      "spec": "HAFELE"
+    },
+    "SP34.9|PK||cam bien cham|": {
+      "action": "manual_add",
+      "time": 1779437022,
+      "product_code": "SP34.9",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "CẢM BIẾN CHẠM",
+      "spec": ""
+    },
+    "SP05|PK||phu kien hafele|hafele": {
+      "action": "add",
+      "time": 1778894182
+    },
+    "SP05|PK||ray am giam chan mo toan phan hafele|hafele": {
+      "action": "add",
+      "time": 1778894182
+    },
+    "SP05|PK|phao chi 3x40||": {
+      "action": "accept",
+      "time": 1778894182
+    },
+    "SP05|VL||PLY.AC|thung + canh tu son": {
+      "action": "accept",
+      "time": 1778894182
+    },
+    "SP05|VL||PLY.AC|mat sau hau son den bong 2k": {
+      "action": "accept",
+      "time": 1778894182
+    },
+    "SP05|VL|MDFCA.PANEL||": {
+      "action": "accept",
+      "time": 1778894182
+    },
+    "SP07|PK|ban le giam chan cariny - loai a|ban le giam chan hafele a|hafele": {
+      "action": "update",
+      "time": 1778896638
+    },
+    "SP07|PK||banh xe cao 60|": {
+      "action": "add",
+      "time": 1778896638
+    },
+    "SP07|PK|selhan.2042 - d33||": {
+      "action": "accept_no_spec",
+      "time": 1778896638
+    },
+    "PK|sp02|soi rãnh|": {
+      "accepted_at": "2026-05-22 18:40:00",
+      "kind": "PK",
+      "name": "SOI RÃNH",
+      "actual_product": "SP02",
+      "spec": ""
+    },
+    "SP05|PK||inox mau|mau": {
+      "action": "manual_add",
+      "time": 1779467776,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "INOX MÀU",
+      "spec": "MÀU"
+    },
+    "SP05|PK||mat ban da chu nha cap|da chu nha cap": {
+      "action": "manual_add",
+      "time": 1779471603,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "MẶT BÀN ĐÁ CHỦ NHÀ CẤP",
+      "spec": "ĐÁ CHỦ NHÀ CẤP"
+    },
+    "SP05|PK||mat ban kinh tra nhat 10mm|kinh tra nhat 10mm": {
+      "action": "manual_add",
+      "time": 1779469682,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "MẶT BÀN KÍNH TRÀ NHẠT 10MM",
+      "spec": "KÍNH TRÀ NHẠT 10MM"
+    },
+    "SP05|PK||hau den fomix dan led thanh 3 phan 3 mat|fomix dan led thanh 3 phan 3 mat": {
+      "action": "manual_add",
+      "time": 1779468937,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "HẬU ĐÈN FOMIX DẮN LED THANH 3 PHÂN 3 MẮT",
+      "spec": "FOMIX DẮN LED THANH 3 PHÂN 3 MẮT"
+    },
+    "SP05|PK||dem mut k43|k43": {
+      "action": "manual_add",
+      "time": 1779471893,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "ĐỆM MÚT K43",
+      "spec": "K43"
+    },
+    "SP05|PK||canh mau dulux 20yy 74/055|mau dulux 20yy 74/055": {
+      "action": "manual_add",
+      "time": 1779470518,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "CÁNH MÀU DULUX 20YY 74/055",
+      "spec": "MÀU DULUX 20YY 74/055"
+    },
+    "SP05|PK||canh-pano kinh kinh song cuong luc mau...|kinh song cuong luc mau...": {
+      "action": "manual_add",
+      "time": 1779470843,
+      "product_code": "SP05",
+      "kind": "PK",
+      "model_name": "",
+      "target_name": "CÁNH-PANO KÍNH KÍNH SÓNG CƯỜNG LỰC MÀU…",
+      "spec": "KÍNH SÓNG CƯỜNG LỰC MÀU…"
+    },
+    "SP35|PK|cam bien cham||": {
+      "action": "accept",
+      "time": 1779520279,
+      "product_code": "SP35",
+      "kind": "PK",
+      "model_name": "Cảm Biến Chạm",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP34|PK|den led trung tinh goc 45|den led trung tinh|trung tinh": {
+      "action": "keep",
+      "time": 1779531442,
+      "product_code": "SP34",
+      "kind": "PK",
+      "model_name": "ĐÈN LED TRUNG TÍNH GÓC 45",
+      "target_name": "ĐÈN LED TRUNG TÍNH",
+      "spec": "TRUNG TÍNH"
+    },
+    "SP34|PK|nguon led 60w||": {
+      "action": "accept",
+      "time": 1779673455,
+      "product_code": "SP34",
+      "kind": "PK",
+      "model_name": "Nguồn LED 60W",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP34|PK|thanh nhom led||": {
+      "action": "accept",
+      "time": 1779673462,
+      "product_code": "SP34",
+      "kind": "PK",
+      "model_name": "Thanh nhôm LED",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP31|PK|den led|den led trung tinh|trung tinh": {
+      "action": "update",
+      "time": 1779675331,
+      "product_code": "SP31",
+      "kind": "PK",
+      "model_name": "Đèn led",
+      "target_name": "ĐÈN LED TRUNG TÍNH",
+      "spec": "TRUNG TÍNH"
+    },
+    "SP31|PK|den led trung tinh goc 45|den led trung tinh|trung tinh": {
+      "action": "rename_update",
+      "time": 1779675350,
+      "product_code": "SP31",
+      "kind": "PK",
+      "model_name": "ĐÈN LED TRUNG TÍNH GÓC 45",
+      "target_name": "ĐÈN LED TRUNG TÍNH",
+      "spec": "TRUNG TÍNH"
+    },
+    "SP32|PK|ray am - 450mm|ray am giam chan hafele 450mm|hafele": {
+      "action": "update",
+      "time": 1779721693,
+      "product_code": "SP32",
+      "kind": "PK",
+      "model_name": "Ray âm - 450mm",
+      "target_name": "ray âm giảm chấn hafele 450mm",
+      "spec": "HAFELE"
+    },
+    "SP32|PK|cam u 18.6||": {
+      "action": "accept",
+      "time": 1779750653,
+      "product_code": "SP32",
+      "kind": "PK",
+      "model_name": "CAM U 18.6",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP32|PK|123||": {
+      "action": "accept",
+      "time": 1779750647,
+      "product_code": "SP32",
+      "kind": "PK",
+      "model_name": "123",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP34|PK|den led trung tinh goc 45||": {
+      "action": "accept",
+      "time": 1780076392,
+      "product_code": "SP34",
+      "kind": "PK",
+      "model_name": "ĐÈN LED TRUNG TÍNH GÓC 45",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP33|PK|den led trung tinh 45 do||": {
+      "action": "accept",
+      "time": 1780107520,
+      "product_code": "SP33",
+      "kind": "PK",
+      "model_name": "ĐÈN LED TRUNG TÍNH  45 Độ",
+      "target_name": "",
+      "spec": ""
+    },
+    "SP33|PK|den led trung tinh 45 do|den led trung tinh|trung tinh": {
+      "action": "keep",
+      "time": 1779674152,
+      "product_code": "SP33",
+      "kind": "PK",
+      "model_name": "ĐÈN LED TRUNG TÍNH  45 Độ",
+      "target_name": "ĐÈN LED TRUNG TÍNH",
+      "spec": "TRUNG TÍNH"
+    },
+    "SP29|PK|ray am - 450mm|ray am giam chan hafele 450mm|": {
+      "action": "keep",
+      "time": 1780221777,
+      "product_code": "SP29",
+      "kind": "PK",
+      "model_name": "Ray âm - 450mm",
+      "target_name": "RAY ÂM GIẢM CHẤN HAFELE 450mm",
+      "spec": ""
+    },
+    "SP18|PK|ray am - 400mm|ray am giam chan hafele 400mm|hafele": {
+      "action": "update",
+      "time": 1780222491,
+      "product_code": "SP18",
+      "kind": "PK",
+      "model_name": "Ray âm - 400mm",
+      "target_name": "RAY ÂM GIẢM CHẤN HAFELE 400mm",
+      "spec": "HAFELE"
+    },
+    "SP18|PK|ray am - 500mm|ray bi giam chan hafele 500mm|hafele": {
+      "action": "update",
+      "time": 1780223255,
+      "product_code": "SP18",
+      "kind": "PK",
+      "model_name": "Ray âm - 500mm",
+      "target_name": "RAY BI GIẢM CHẤN HAFELE 500mm",
+      "spec": "HAFELE"
+    },
+    "SP19|PK|ray am - 300mm|ray am giam chan hafele 300mm|hafele": {
+      "action": "update",
+      "time": 1780223281,
+      "product_code": "SP19",
+      "kind": "PK",
+      "model_name": "Ray âm - 300mm",
+      "target_name": "RAY ÂM GIẢM CHẤN HAFELE 300mm",
+      "spec": "HAFELE"
+    },
+    "SP26|PK|ray am - 350mm|ray am giam chan hafele .32. 350mm|433.32.073": {
+      "action": "update",
+      "time": 1780544024,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "Ray âm - 350mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 350mm",
+      "spec": "433.32.073"
+    },
+    "SP26|PK|ray am giam chan hafele evo 350mm|ray am giam chan hafele 433.32.073|433.32.073": {
+      "action": "rename_update",
+      "time": 1780544040,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "spec": "433.32.073"
+    },
+    "SP26|PK|guong led ban trang diem|guong led|": {
+      "action": "update",
+      "time": 1780544062,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "Gương led bàn trang điểm",
+      "target_name": "GƯƠNG LED",
+      "spec": ""
+    },
+    "SP26|PK|tay nam tu|tay nam tu|": {
+      "action": "update",
+      "time": 1780544070,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "Tay Nắm Tủ",
+      "target_name": "TAY NẮM TỦ",
+      "spec": ""
+    },
+    "SP26|PK|ray am giam chan hafele 350mm|ray am giam chan hafele 433.32.073|433.32.073": {
+      "action": "rename_update",
+      "time": 1780563349,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "spec": "433.32.073"
+    },
+    "SP26|PK|ray am - 350mm|ray am giam chan hafele 433.32.073|433.32.073": {
+      "action": "update",
+      "time": 1780565116,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "Ray âm - 350mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "spec": "433.32.073"
+    },
+    "SP26|PK|ray am giam chan hafele 433.32.073|ray am giam chan hafele 433.32.073|433.32.073": {
+      "action": "update",
+      "time": 1780565125,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "spec": "433.32.073"
+    },
+    "SP30|PK|ray am - 300mm|ray am giam chan hafele .32. 300mm|433.32.075": {
+      "action": "update",
+      "time": 1780570732,
+      "product_code": "SP30",
+      "kind": "PK",
+      "model_name": "Ray âm - 300mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+      "spec": "433.32.075"
+    },
+    "SP30|PK|ray am giam chan hafele 300mm|ray am giam chan hafele 433.32.075|433.32.075": {
+      "action": "rename_update",
+      "time": 1780570744,
+      "product_code": "SP30",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 300mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+      "spec": "433.32.075"
+    },
+    "SP30|PK|ray am giam chan hafele .32. 300mm|ray am giam chan hafele 433.32.075|433.32.075": {
+      "action": "update",
+      "time": 1780570761,
+      "product_code": "SP30",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+      "spec": "433.32.075"
+    },
+    "SP26|PK|guong led|guong led|": {
+      "action": "update",
+      "time": 1780573184,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "Gương LED",
+      "target_name": "GƯƠNG LED",
+      "spec": ""
+    },
+    "SP29|PK|vach dau giuong - ma|vach dau giuong ma|ma": {
+      "action": "update",
+      "time": 1780575159,
+      "product_code": "SP29",
+      "kind": "PK",
+      "model_name": "VÁCH ĐÀU GIƯỜNG - MÃ",
+      "target_name": "VÁCH ĐÀU GIƯỜNG MÃ",
+      "spec": "MÃ"
+    },
+    "SP29|PK|ray am - 300mm|ray am tich hop nhan mo hafele|": {
+      "action": "update",
+      "time": 1780575159,
+      "product_code": "SP29",
+      "kind": "PK",
+      "model_name": "Ray âm - 300mm",
+      "target_name": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+      "spec": ""
+    },
+    "SP29|PK|ray am tich hop nhan mo hafele|ray am tich hop nhan mo hafele|": {
+      "action": "update",
+      "time": 1780575171,
+      "product_code": "SP29",
+      "kind": "PK",
+      "model_name": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+      "target_name": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+      "spec": ""
+    },
+    "SP29|PK|ray am tich hop nhan mo hafele 300mm|ray am tich hop nhan mo hafele|": {
+      "action": "rename_update",
+      "time": 1780575194,
+      "product_code": "SP29",
+      "kind": "PK",
+      "model_name": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE 300mm",
+      "target_name": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+      "spec": ""
+    },
+    "SP54|PK|nep t inox ma pvd ma pvd 002hl/fn|nep v,t inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "rename_update",
+      "time": 1780919116,
+      "product_code": "SP54",
+      "kind": "PK",
+      "model_name": "NẸP T INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "target_name": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP52|PK|t10 inox ma pvd ma pvd 002hl/fn|nep v,t inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "rename_update",
+      "time": 1780919285,
+      "product_code": "SP52",
+      "kind": "PK",
+      "model_name": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "target_name": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP53|PK|t10 inox ma pvd ma pvd 002hl/fn|nep v,t inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "rename_update",
+      "time": 1780921377,
+      "product_code": "SP53",
+      "kind": "PK",
+      "model_name": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "target_name": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP54|PK|nep t10 inox ma pvd ma pvd 002hl/fn|nep v,t inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "rename_update",
+      "time": 1780921388,
+      "product_code": "SP54",
+      "kind": "PK",
+      "model_name": "NẸP T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "target_name": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP57|PK|ray am 400mm|ray am giam chan hafele 32 400mm|433 32 075": {
+      "action": "update",
+      "time": 1780921828,
+      "product_code": "SP57",
+      "kind": "PK",
+      "model_name": "Ray âm - 400mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+      "spec": "433.32.075"
+    },
+    "SP57|PK|ray am giam chan hafele 400mm|ray am giam chan hafele 433 32 075|433 32 075": {
+      "action": "rename_update",
+      "time": 1780921837,
+      "product_code": "SP57",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+      "spec": "433.32.075"
+    },
+    "SP58|PK|ray am giam chan hafele 400mm|ray am giam chan hafele 32 400mm|433 32 075": {
+      "action": "rename_update",
+      "time": 1780936812,
+      "product_code": "SP58",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+      "spec": "433.32.075"
+    },
+    "SP26|PK|ray am giam chan hafele 350mm|ray am giam chan hafele 433 32 073|433 32 073": {
+      "action": "keep",
+      "time": 1780990526,
+      "product_code": "SP26",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+      "spec": "433.32.073"
+    },
+    "SP27|PK|den led anh sang vang|den led anh sang vang|anh sang vang": {
+      "action": "rename_update",
+      "time": 1780990719,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "ĐÈN LED ÁNH SÁNG VÀNG",
+      "target_name": "ĐÈN LED ÁNH SÁNG VÀNG",
+      "spec": "ÁNH SÁNG VÀNG"
+    },
+    "SP27|PK|ray am giam chan hafele 400mm|ray am giam chan hafele 32 400mm|433 32 075": {
+      "action": "rename_update",
+      "time": 1780990752,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+      "spec": "433.32.075"
+    },
+    "SP28|PK|ray am 350mm|ray bi giam chan hafele 02 350mm|494 02 061": {
+      "action": "update",
+      "time": 1780991536,
+      "product_code": "SP28",
+      "kind": "PK",
+      "model_name": "Ray âm - 350mm",
+      "target_name": "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+      "spec": "494.02.061"
+    },
+    "SP28|PK|ray bi giam chan hafele 350mm|ray bi giam chan hafele 494 02 061|494 02 061": {
+      "action": "rename_update",
+      "time": 1780991552,
+      "product_code": "SP28",
+      "kind": "PK",
+      "model_name": "RAY BI GIẢM CHẤN HAFELE 350mm",
+      "target_name": "RAY BI GIẢM CHẤN HAFELE 494.02.061",
+      "spec": "494.02.061"
+    },
+    "SP27|PK|ban le giam chan hafele loai a|ban le giam chan hafele hafele a|hafele": {
+      "action": "update",
+      "time": 1780991961,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "BẢN LỀ GIẨM CHẤN HAFELE - Loại A",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+      "spec": "HAFELE"
+    },
+    "SP27|PK|ban le giam chan hafele hafele a|ban le giam chan hafele hafele a|hafele": {
+      "action": "update",
+      "time": 1780992472,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+      "spec": "HAFELE"
+    },
+    "SP27|PK|thanh nhom led|thanh nhom led|": {
+      "action": "accept",
+      "time": 1780992483,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Thanh nhôm LED",
+      "target_name": "THANH NHÔM LED",
+      "spec": ""
+    },
+    "SP27|PK|nguon led 60w|nguon led|": {
+      "action": "accept",
+      "time": 1780992486,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Nguồn LED 60W",
+      "target_name": "NGUỒN LED",
+      "spec": ""
+    },
+    "SP27|PK|zsu led|den led|anh sang vang": {
+      "action": "manual_match",
+      "time": 1780999525,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "ZSU LED",
+      "target_name": "ĐÈN LED",
+      "spec": "ÁNH SÁNG VÀNG"
+    },
+    "SP27|PK|hafele loai a|ban le giam chan hafele|hafele": {
+      "action": "manual_match",
+      "time": 1780999659,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Hafele - Loại A",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE",
+      "spec": "HAFELE"
+    },
+    "SP27|PK|ray am 400mm|ban le giam chan hafele|hafele": {
+      "action": "manual_match",
+      "time": 1781001831,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Ray âm - 400mm",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE",
+      "spec": "HAFELE"
+    },
+    "SP28|PK|ray bi giam chan hafele 02 350mm|ray bi giam chan hafele 494 02 061|494 02 061": {
+      "action": "manual_match",
+      "time": 1781001865,
+      "product_code": "SP28",
+      "kind": "PK",
+      "model_name": "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+      "target_name": "RAY BI GIẢM CHẤN HAFELE 494.02.061",
+      "spec": "494.02.061"
+    },
+    "SP23|PK|ray am 400mm|ray am giam chan hafele 433 32 075|433 32 075": {
+      "action": "manual_match",
+      "time": 1781002507,
+      "product_code": "SP23",
+      "kind": "PK",
+      "model_name": "Ray âm - 400mm",
+      "target_name": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+      "spec": "433.32.075"
+    },
+    "SP27|PK|ban le hafele loai a|ban le giam chan hafele|hafele": {
+      "action": "manual_match",
+      "time": 1781002998,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Bàn lề Hafele - Loại A",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE",
+      "spec": "HAFELE"
+    },
+    "SP27|PK|ban le hafele loai c|ban le giam chan hafele|hafele": {
+      "action": "manual_match",
+      "time": 1781003013,
+      "product_code": "SP27",
+      "kind": "PK",
+      "model_name": "Bàn lề Hafele - Loại C",
+      "target_name": "BẢN LỀ GIẨM CHẤN HAFELE",
+      "spec": "HAFELE"
+    },
+    "SP23|PK|inox ma pvd ma pvd 002hl/fn khung canh tren|inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "manual_match",
+      "time": 1781086072,
+      "product_code": "SP23",
+      "kind": "PK",
+      "model_name": "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH TRÊN",
+      "target_name": "INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP23|PK|inox ma pvd ma pvd 002hl/fn khung canh duoi|inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "manual_match",
+      "time": 1781086076,
+      "product_code": "SP23",
+      "kind": "PK",
+      "model_name": "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH DƯỚI",
+      "target_name": "INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP23|PK|inox ma pvd ma pvd 002hl/fn 250x50 vi tri tay nam|inox ma pvd ma pvd 002hl/fn|ma pvd 002hl/fn": {
+      "action": "manual_match",
+      "time": 1781086080,
+      "product_code": "SP23",
+      "kind": "PK",
+      "model_name": "INOX MẠ PVD - MÃ PVD-002HL/FN 250x50 VỊ TRÍ TAY NẮM",
+      "target_name": "INOX MẠ PVD MÃ PVD-002HL/FN",
+      "spec": "MÃ PVD-002HL/FN"
+    },
+    "SP23|PK|den led|den led anh sang vang|anh sang vang": {
+      "action": "manual_match",
+      "time": 1781086086,
+      "product_code": "SP23",
+      "kind": "PK",
+      "model_name": "Đèn led",
+      "target_name": "ĐÈN LED ÁNH SÁNG VÀNG",
+      "spec": "ÁNH SÁNG VÀNG"
+    }
+  },
+  "mini_name_lineage": {
+    "SP35|PK|ray am giam chan hafele hafele 350mm": {
+      "product_code": "SP35",
+      "kind": "PK",
+      "root_name": "ray âm giảm chấn hafele HAFELE 350mm",
+      "root_norm": "ray am giam chan hafele hafele 350mm",
+      "aliases": [
+        "ray am giam chan hafele hafele 350mm"
+      ],
+      "display_names": [
+        "ray âm giảm chấn hafele HAFELE 350mm"
+      ],
+      "chain": [
+        {
+          "time": 1779510016,
+          "product_code": "SP35",
+          "kind": "PK",
+          "from": "ray âm giảm chấn hafele HAFELE 350mm",
+          "from_norm": "ray am giam chan hafele hafele 350mm",
+          "to": "ray âm giảm chấn hafele HAFELE 350mm",
+          "to_norm": "ray am giam chan hafele hafele 350mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-23 11:20:16",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP07|PK|ban le giam chan cariny - loai a": {
+      "product_code": "SP07",
+      "kind": "PK",
+      "root_name": "ban le giam chan cariny - loai a",
+      "root_norm": "ban le giam chan cariny - loai a",
+      "aliases": [
+        "ban le giam chan cariny - loai a",
+        "ban le giam chan hafele a",
+        "ban le giam chan cariny loai a"
+      ],
+      "display_names": [
+        "ban le giam chan cariny - loai a",
+        "ban le giam chan hafele a"
+      ],
+      "chain": [
+        {
+          "time": 1779510016,
+          "product_code": "SP07",
+          "kind": "PK",
+          "from": "ban le giam chan cariny - loai a",
+          "from_norm": "ban le giam chan cariny - loai a",
+          "to": "ban le giam chan hafele a",
+          "to_norm": "ban le giam chan hafele a",
+          "action": "update",
+          "spec": "hafele",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP07",
+          "kind": "PK",
+          "from": "ban le giam chan cariny - loai a",
+          "from_norm": "ban le giam chan cariny loai a",
+          "to": "ban le giam chan hafele a",
+          "to_norm": "ban le giam chan hafele a",
+          "action": "update",
+          "spec": "hafele",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-23 11:20:16",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP34|PK|den led trung tinh goc 45": {
+      "product_code": "SP34",
+      "kind": "PK",
+      "root_name": "ĐÈN LED TRUNG TÍNH GÓC 45",
+      "root_norm": "den led trung tinh goc 45",
+      "aliases": [
+        "den led trung tinh goc 45",
+        "den led trung tinh"
+      ],
+      "display_names": [
+        "ĐÈN LED TRUNG TÍNH GÓC 45",
+        "ĐÈN LED TRUNG TÍNH"
+      ],
+      "chain": [
+        {
+          "time": 1779531442,
+          "product_code": "SP34",
+          "kind": "PK",
+          "from": "ĐÈN LED TRUNG TÍNH GÓC 45",
+          "from_norm": "den led trung tinh goc 45",
+          "to": "ĐÈN LED TRUNG TÍNH",
+          "to_norm": "den led trung tinh",
+          "action": "keep",
+          "spec": "TRUNG TÍNH",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-05-23 17:17:22",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP33|PK|den led trung tinh 45 do": {
+      "product_code": "SP33",
+      "kind": "PK",
+      "root_name": "ĐÈN LED TRUNG TÍNH  45 Độ",
+      "root_norm": "den led trung tinh 45 do",
+      "aliases": [
+        "den led trung tinh 45 do",
+        "den led trung tinh"
+      ],
+      "display_names": [
+        "ĐÈN LED TRUNG TÍNH  45 Độ",
+        "ĐÈN LED TRUNG TÍNH"
+      ],
+      "chain": [
+        {
+          "time": 1779674152,
+          "product_code": "SP33",
+          "kind": "PK",
+          "from": "ĐÈN LED TRUNG TÍNH  45 Độ",
+          "from_norm": "den led trung tinh 45 do",
+          "to": "ĐÈN LED TRUNG TÍNH",
+          "to_norm": "den led trung tinh",
+          "action": "keep",
+          "spec": "TRUNG TÍNH",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-05-25 08:55:52",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP31|PK|den led": {
+      "product_code": "SP31",
+      "kind": "PK",
+      "root_name": "Đèn led",
+      "root_norm": "den led",
+      "aliases": [
+        "den led",
+        "den led trung tinh",
+        "den led trung tinh goc 45"
+      ],
+      "display_names": [
+        "Đèn led",
+        "ĐÈN LED TRUNG TÍNH",
+        "ĐÈN LED TRUNG TÍNH GÓC 45"
+      ],
+      "chain": [
+        {
+          "time": 1779675331,
+          "product_code": "SP31",
+          "kind": "PK",
+          "from": "Đèn led",
+          "from_norm": "den led",
+          "to": "ĐÈN LED TRUNG TÍNH",
+          "to_norm": "den led trung tinh",
+          "action": "update",
+          "spec": "TRUNG TÍNH",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1779675350,
+          "product_code": "SP31",
+          "kind": "PK",
+          "from": "ĐÈN LED TRUNG TÍNH",
+          "from_norm": "den led trung tinh",
+          "to": "ĐÈN LED TRUNG TÍNH GÓC 45",
+          "to_norm": "den led trung tinh goc 45",
+          "action": "rename",
+          "spec": "TRUNG TÍNH",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1779675350,
+          "product_code": "SP31",
+          "kind": "PK",
+          "from": "ĐÈN LED TRUNG TÍNH GÓC 45",
+          "from_norm": "den led trung tinh goc 45",
+          "to": "ĐÈN LED TRUNG TÍNH",
+          "to_norm": "den led trung tinh",
+          "action": "rename_update",
+          "spec": "TRUNG TÍNH",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-05-25 09:15:31",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP32|PK|ray am - 450mm": {
+      "product_code": "SP32",
+      "kind": "PK",
+      "root_name": "Ray âm - 450mm",
+      "root_norm": "ray am - 450mm",
+      "aliases": [
+        "ray am - 450mm",
+        "ray am giam chan hafele 450mm",
+        "ray am 450mm"
+      ],
+      "display_names": [
+        "Ray âm - 450mm",
+        "ray âm giảm chấn hafele 450mm"
+      ],
+      "chain": [
+        {
+          "time": 1779721693,
+          "product_code": "SP32",
+          "kind": "PK",
+          "from": "Ray âm - 450mm",
+          "from_norm": "ray am - 450mm",
+          "to": "ray âm giảm chấn hafele 450mm",
+          "to_norm": "ray am giam chan hafele 450mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP32",
+          "kind": "PK",
+          "from": "Ray âm - 450mm",
+          "from_norm": "ray am 450mm",
+          "to": "ray âm giảm chấn hafele 450mm",
+          "to_norm": "ray am giam chan hafele 450mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-25 22:08:13",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP29|PK|ray am - 450mm": {
+      "product_code": "SP29",
+      "kind": "PK",
+      "root_name": "Ray âm - 450mm",
+      "root_norm": "ray am - 450mm",
+      "aliases": [
+        "ray am - 450mm",
+        "ray am giam chan hafele 450mm",
+        "ray am 450mm"
+      ],
+      "display_names": [
+        "Ray âm - 450mm",
+        "RAY ÂM GIẢM CHẤN HAFELE 450mm"
+      ],
+      "chain": [
+        {
+          "time": 1780221777,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "Ray âm - 450mm",
+          "from_norm": "ray am - 450mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 450mm",
+          "to_norm": "ray am giam chan hafele 450mm",
+          "action": "update",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780221777,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "Ray âm - 450mm",
+          "from_norm": "ray am - 450mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 450mm",
+          "to_norm": "ray am giam chan hafele 450mm",
+          "action": "keep",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "Ray âm - 450mm",
+          "from_norm": "ray am 450mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 450mm",
+          "to_norm": "ray am giam chan hafele 450mm",
+          "action": "keep",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-31 17:02:57",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP18|PK|ray am - 400mm": {
+      "product_code": "SP18",
+      "kind": "PK",
+      "root_name": "Ray âm - 400mm",
+      "root_norm": "ray am - 400mm",
+      "aliases": [
+        "ray am - 400mm",
+        "ray am giam chan hafele 400mm",
+        "ray am 400mm"
+      ],
+      "display_names": [
+        "Ray âm - 400mm",
+        "RAY ÂM GIẢM CHẤN HAFELE 400mm"
+      ],
+      "chain": [
+        {
+          "time": 1780222491,
+          "product_code": "SP18",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am - 400mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 400mm",
+          "to_norm": "ray am giam chan hafele 400mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP18",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 400mm",
+          "to_norm": "ray am giam chan hafele 400mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-31 17:14:51",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP18|PK|ray am - 500mm": {
+      "product_code": "SP18",
+      "kind": "PK",
+      "root_name": "Ray âm - 500mm",
+      "root_norm": "ray am - 500mm",
+      "aliases": [
+        "ray am - 500mm",
+        "ray bi giam chan hafele 500mm",
+        "ray am 500mm"
+      ],
+      "display_names": [
+        "Ray âm - 500mm",
+        "RAY BI GIẢM CHẤN HAFELE 500mm"
+      ],
+      "chain": [
+        {
+          "time": 1780223255,
+          "product_code": "SP18",
+          "kind": "PK",
+          "from": "Ray âm - 500mm",
+          "from_norm": "ray am - 500mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE 500mm",
+          "to_norm": "ray bi giam chan hafele 500mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP18",
+          "kind": "PK",
+          "from": "Ray âm - 500mm",
+          "from_norm": "ray am 500mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE 500mm",
+          "to_norm": "ray bi giam chan hafele 500mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-31 17:27:35",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP19|PK|ray am - 300mm": {
+      "product_code": "SP19",
+      "kind": "PK",
+      "root_name": "Ray âm - 300mm",
+      "root_norm": "ray am - 300mm",
+      "aliases": [
+        "ray am - 300mm",
+        "ray am giam chan hafele 300mm",
+        "ray am 300mm"
+      ],
+      "display_names": [
+        "Ray âm - 300mm",
+        "RAY ÂM GIẢM CHẤN HAFELE 300mm"
+      ],
+      "chain": [
+        {
+          "time": 1780223281,
+          "product_code": "SP19",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am - 300mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 300mm",
+          "to_norm": "ray am giam chan hafele 300mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP19",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am 300mm",
+          "to": "RAY ÂM GIẢM CHẤN HAFELE 300mm",
+          "to_norm": "ray am giam chan hafele 300mm",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-05-31 17:28:01",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP26|PK|guong led ban trang diem": {
+      "product_code": "SP26",
+      "kind": "PK",
+      "root_name": "Gương led bàn trang điểm",
+      "root_norm": "guong led ban trang diem",
+      "aliases": [
+        "guong led ban trang diem",
+        "guong led"
+      ],
+      "display_names": [
+        "Gương led bàn trang điểm",
+        "GƯƠNG LED",
+        "Gương LED"
+      ],
+      "chain": [
+        {
+          "time": 1780544062,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Gương led bàn trang điểm",
+          "from_norm": "guong led ban trang diem",
+          "to": "GƯƠNG LED",
+          "to_norm": "guong led",
+          "action": "update",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780573184,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Gương LED",
+          "from_norm": "guong led",
+          "to": "GƯƠNG LED",
+          "to_norm": "guong led",
+          "action": "update",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-04 10:34:22",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP26|PK|tay nam tu": {
+      "product_code": "SP26",
+      "kind": "PK",
+      "root_name": "Tay Nắm Tủ",
+      "root_norm": "tay nam tu",
+      "aliases": [
+        "tay nam tu"
+      ],
+      "display_names": [
+        "Tay Nắm Tủ",
+        "TAY NẮM TỦ"
+      ],
+      "chain": [
+        {
+          "time": 1780544070,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Tay Nắm Tủ",
+          "from_norm": "tay nam tu",
+          "to": "TAY NẮM TỦ",
+          "to_norm": "tay nam tu",
+          "action": "update",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-04 10:34:30",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP29|PK|vach dau giuong - ma": {
+      "product_code": "SP29",
+      "kind": "PK",
+      "root_name": "VÁCH ĐÀU GIƯỜNG - MÃ",
+      "root_norm": "vach dau giuong - ma",
+      "aliases": [
+        "vach dau giuong - ma",
+        "vach dau giuong ma"
+      ],
+      "display_names": [
+        "VÁCH ĐÀU GIƯỜNG - MÃ",
+        "VÁCH ĐÀU GIƯỜNG MÃ"
+      ],
+      "chain": [
+        {
+          "time": 1780575159,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "VÁCH ĐÀU GIƯỜNG - MÃ",
+          "from_norm": "vach dau giuong - ma",
+          "to": "VÁCH ĐÀU GIƯỜNG MÃ",
+          "to_norm": "vach dau giuong ma",
+          "action": "update",
+          "spec": "MÃ",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "VÁCH ĐÀU GIƯỜNG - MÃ",
+          "from_norm": "vach dau giuong ma",
+          "to": "VÁCH ĐÀU GIƯỜNG MÃ",
+          "to_norm": "vach dau giuong ma",
+          "action": "update",
+          "spec": "MÃ",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-06-04 19:12:39",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP29|PK|ray am - 300mm": {
+      "product_code": "SP29",
+      "kind": "PK",
+      "root_name": "Ray âm - 300mm",
+      "root_norm": "ray am - 300mm",
+      "aliases": [
+        "ray am - 300mm",
+        "ray am tich hop nhan mo hafele",
+        "ray am tich hop nhan mo hafele 300mm",
+        "ray am 300mm"
+      ],
+      "display_names": [
+        "Ray âm - 300mm",
+        "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+        "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE 300mm"
+      ],
+      "chain": [
+        {
+          "time": 1780575159,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am - 300mm",
+          "to": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "to_norm": "ray am tich hop nhan mo hafele",
+          "action": "update",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780575171,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "from_norm": "ray am tich hop nhan mo hafele",
+          "to": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "to_norm": "ray am tich hop nhan mo hafele",
+          "action": "update",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780575194,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "from_norm": "ray am tich hop nhan mo hafele",
+          "to": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE 300mm",
+          "to_norm": "ray am tich hop nhan mo hafele 300mm",
+          "action": "rename",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780575194,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE 300mm",
+          "from_norm": "ray am tich hop nhan mo hafele 300mm",
+          "to": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "to_norm": "ray am tich hop nhan mo hafele",
+          "action": "rename_update",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP29",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am 300mm",
+          "to": "RAY ÂM TÍCH HỢP NHẤN MỞ HAFELE",
+          "to_norm": "ray am tich hop nhan mo hafele",
+          "action": "update",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-06-04 19:12:39",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP26|PK|ray am 350mm": {
+      "product_code": "SP26",
+      "kind": "PK",
+      "root_name": "Ray âm - 350mm",
+      "root_norm": "ray am 350mm",
+      "aliases": [
+        "ray am 350mm",
+        "ray am giam chan hafele 32 350mm",
+        "ray am - 350mm",
+        "ray am giam chan hafele .32. 350mm",
+        "ray am giam chan hafele evo 350mm",
+        "ray am giam chan hafele 433.32.073",
+        "ray am giam chan hafele 350mm",
+        "ray am giam chan hafele 433 32 073"
+      ],
+      "display_names": [
+        "Ray âm - 350mm",
+        "RAY ẨM GIẢM CHẤN HAFELE .32. 350mm",
+        "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+        "RAY ẨM GIẢM CHẤN HAFELE 350mm"
+      ],
+      "chain": [
+        {
+          "time": 1780909574,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Ray âm - 350mm",
+          "from_norm": "ray am 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 350mm",
+          "to_norm": "ray am giam chan hafele 32 350mm",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780544024,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Ray âm - 350mm",
+          "from_norm": "ray am - 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 350mm",
+          "to_norm": "ray am giam chan hafele .32. 350mm",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780544040,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE .32. 350mm",
+          "from_norm": "ray am giam chan hafele .32. 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+          "to_norm": "ray am giam chan hafele evo 350mm",
+          "action": "rename",
+          "spec": "433.32.073",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780544040,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+          "from_norm": "ray am giam chan hafele evo 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433.32.073",
+          "action": "rename_update",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780563349,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+          "from_norm": "ray am giam chan hafele evo 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "to_norm": "ray am giam chan hafele 350mm",
+          "action": "rename",
+          "spec": "433.32.073",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780563349,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "from_norm": "ray am giam chan hafele 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433.32.073",
+          "action": "rename_update",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780564921,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "from_norm": "ray am giam chan hafele 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "to_norm": "ray am giam chan hafele 350mm",
+          "action": "rename",
+          "spec": "433.32.073",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780565116,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Ray âm - 350mm",
+          "from_norm": "ray am - 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433.32.073",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780565123,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "from_norm": "ray am giam chan hafele 433.32.073",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "to_norm": "ray am giam chan hafele 350mm",
+          "action": "rename",
+          "spec": "433.32.073",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780565125,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "from_norm": "ray am giam chan hafele 433.32.073",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433.32.073",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE EVO 350mm",
+          "from_norm": "ray am giam chan hafele evo 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433 32 073",
+          "action": "rename_update",
+          "spec": "433.32.073",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "from_norm": "ray am giam chan hafele 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433 32 073",
+          "action": "rename_update",
+          "spec": "433.32.073",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "Ray âm - 350mm",
+          "from_norm": "ray am 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433 32 073",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "from_norm": "ray am giam chan hafele 433 32 073",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433 32 073",
+          "action": "update",
+          "spec": "433.32.073",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780990526,
+          "product_code": "SP26",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 350mm",
+          "from_norm": "ray am giam chan hafele 350mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.073",
+          "to_norm": "ray am giam chan hafele 433 32 073",
+          "action": "keep",
+          "spec": "433.32.073",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 16:06:14",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP30|PK|ray am 300mm": {
+      "product_code": "SP30",
+      "kind": "PK",
+      "root_name": "Ray âm - 300mm",
+      "root_norm": "ray am 300mm",
+      "aliases": [
+        "ray am 300mm",
+        "ray am giam chan hafele 32 300mm",
+        "ray am - 300mm",
+        "ray am giam chan hafele .32. 300mm",
+        "ray am giam chan hafele 300mm",
+        "ray am giam chan hafele 433.32.075",
+        "ray am giam chan hafele 433 32 075"
+      ],
+      "display_names": [
+        "Ray âm - 300mm",
+        "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 300mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 433.32.075"
+      ],
+      "chain": [
+        {
+          "time": 1780909574,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+          "to_norm": "ray am giam chan hafele 32 300mm",
+          "action": "update",
+          "spec": "433.32.075",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780570732,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "Ray âm - 300mm",
+          "from_norm": "ray am - 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+          "to_norm": "ray am giam chan hafele .32. 300mm",
+          "action": "update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780570744,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+          "from_norm": "ray am giam chan hafele .32. 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 300mm",
+          "to_norm": "ray am giam chan hafele 300mm",
+          "action": "rename",
+          "spec": "433.32.075",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780570744,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 300mm",
+          "from_norm": "ray am giam chan hafele 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433.32.075",
+          "action": "rename_update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780570761,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+          "from_norm": "ray am giam chan hafele .32. 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433.32.075",
+          "action": "update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 300mm",
+          "from_norm": "ray am giam chan hafele 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433 32 075",
+          "action": "rename_update",
+          "spec": "433.32.075",
+          "source": "accept_rule_migration"
+        },
+        {
+          "time": 1780909574,
+          "product_code": "SP30",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE .32. 300mm",
+          "from_norm": "ray am giam chan hafele 32 300mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433 32 075",
+          "action": "update",
+          "spec": "433.32.075",
+          "source": "accept_rule_migration"
+        }
+      ],
+      "created_at": "2026-06-08 16:06:14",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP54|PK|nep v,t inox ma pvd ma pvd 002hl/fn": {
+      "product_code": "SP54",
+      "kind": "PK",
+      "root_name": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "root_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+      "aliases": [
+        "nep v,t inox ma pvd ma pvd 002hl/fn",
+        "nep t inox ma pvd ma pvd 002hl/fn",
+        "nep t10 inox ma pvd ma pvd 002hl/fn"
+      ],
+      "display_names": [
+        "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "NẸP T INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+        "NẸP T10 INOX MẠ PVD - MÃ PVD-002HL/FN"
+      ],
+      "chain": [
+        {
+          "time": 1780919116,
+          "product_code": "SP54",
+          "kind": "PK",
+          "from": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "to_norm": "nep t inox ma pvd ma pvd 002hl/fn",
+          "action": "rename",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780919116,
+          "product_code": "SP54",
+          "kind": "PK",
+          "from": "NẸP T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep t inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "action": "rename_update",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780921388,
+          "product_code": "SP54",
+          "kind": "PK",
+          "from": "NẸP T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep t inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "to_norm": "nep t10 inox ma pvd ma pvd 002hl/fn",
+          "action": "rename",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780921388,
+          "product_code": "SP54",
+          "kind": "PK",
+          "from": "NẸP T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep t10 inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "action": "rename_update",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 18:45:16",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP52|PK|nep v,t inox ma pvd ma pvd 002hl/fn": {
+      "product_code": "SP52",
+      "kind": "PK",
+      "root_name": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "root_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+      "aliases": [
+        "nep v,t inox ma pvd ma pvd 002hl/fn",
+        "t10 inox ma pvd ma pvd 002hl/fn"
+      ],
+      "display_names": [
+        "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN"
+      ],
+      "chain": [
+        {
+          "time": 1780919285,
+          "product_code": "SP52",
+          "kind": "PK",
+          "from": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "to": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "to_norm": "t10 inox ma pvd ma pvd 002hl/fn",
+          "action": "rename",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780919285,
+          "product_code": "SP52",
+          "kind": "PK",
+          "from": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "t10 inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "action": "rename_update",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 18:48:05",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP53|PK|nep v,t inox ma pvd ma pvd 002hl/fn": {
+      "product_code": "SP53",
+      "kind": "PK",
+      "root_name": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+      "root_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+      "aliases": [
+        "nep v,t inox ma pvd ma pvd 002hl/fn",
+        "t10 inox ma pvd ma pvd 002hl/fn"
+      ],
+      "display_names": [
+        "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+        "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN"
+      ],
+      "chain": [
+        {
+          "time": 1780921377,
+          "product_code": "SP53",
+          "kind": "PK",
+          "from": "NẸP V,T INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "to": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "to_norm": "t10 inox ma pvd ma pvd 002hl/fn",
+          "action": "rename",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780921377,
+          "product_code": "SP53",
+          "kind": "PK",
+          "from": "T10 INOX MẠ PVD - MÃ PVD-002HL/FN",
+          "from_norm": "t10 inox ma pvd ma pvd 002hl/fn",
+          "to": "NẸP V,T INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "nep v,t inox ma pvd ma pvd 002hl/fn",
+          "action": "rename_update",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 19:22:57",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP57|PK|ray am 400mm": {
+      "product_code": "SP57",
+      "kind": "PK",
+      "root_name": "Ray âm - 400mm",
+      "root_norm": "ray am 400mm",
+      "aliases": [
+        "ray am 400mm",
+        "ray am giam chan hafele 32 400mm",
+        "ray am giam chan hafele 400mm",
+        "ray am giam chan hafele 433 32 075"
+      ],
+      "display_names": [
+        "Ray âm - 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 433.32.075"
+      ],
+      "chain": [
+        {
+          "time": 1780921828,
+          "product_code": "SP57",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+          "to_norm": "ray am giam chan hafele 32 400mm",
+          "action": "update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780921837,
+          "product_code": "SP57",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+          "from_norm": "ray am giam chan hafele 32 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "to_norm": "ray am giam chan hafele 400mm",
+          "action": "rename",
+          "spec": "433.32.075",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780921837,
+          "product_code": "SP57",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "from_norm": "ray am giam chan hafele 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433 32 075",
+          "action": "rename_update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 19:30:28",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP58|PK|ray am 400mm": {
+      "product_code": "SP58",
+      "kind": "PK",
+      "root_name": "Ray âm - 400mm",
+      "root_norm": "ray am 400mm",
+      "aliases": [
+        "ray am 400mm",
+        "ray am giam chan hafele 400mm",
+        "ray am giam chan hafele 32 400mm"
+      ],
+      "display_names": [
+        "Ray âm - 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm"
+      ],
+      "chain": [
+        {
+          "time": 1780936812,
+          "product_code": "SP58",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "to_norm": "ray am giam chan hafele 400mm",
+          "action": "rename",
+          "spec": "433.32.075",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780936812,
+          "product_code": "SP58",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "from_norm": "ray am giam chan hafele 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+          "to_norm": "ray am giam chan hafele 32 400mm",
+          "action": "rename_update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-08 23:40:12",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP27|PK|den led": {
+      "product_code": "SP27",
+      "kind": "PK",
+      "root_name": "Đèn led",
+      "root_norm": "den led",
+      "aliases": [
+        "den led",
+        "den led anh sang vang",
+        "zsu led"
+      ],
+      "display_names": [
+        "Đèn led",
+        "ĐÈN LED ÁNH SÁNG VÀNG",
+        "ZSU LED",
+        "ĐÈN LED"
+      ],
+      "chain": [
+        {
+          "time": 1780990711,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Đèn led",
+          "from_norm": "den led",
+          "to": "ĐÈN LED ÁNH SÁNG VÀNG",
+          "to_norm": "den led anh sang vang",
+          "action": "rename",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780990719,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "ZSU LED",
+          "from_norm": "zsu led",
+          "to": "ĐÈN LED ÁNH SÁNG VÀNG",
+          "to_norm": "den led anh sang vang",
+          "action": "rename",
+          "spec": "ÁNH SÁNG VÀNG",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780990719,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "ĐÈN LED ÁNH SÁNG VÀNG",
+          "from_norm": "den led anh sang vang",
+          "to": "ĐÈN LED ÁNH SÁNG VÀNG",
+          "to_norm": "den led anh sang vang",
+          "action": "rename_update",
+          "spec": "ÁNH SÁNG VÀNG",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780999525,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "ZSU LED",
+          "from_norm": "zsu led",
+          "to": "ĐÈN LED",
+          "to_norm": "den led",
+          "action": "manual_match",
+          "spec": "ÁNH SÁNG VÀNG",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 14:38:31",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP27|PK|ray am 400mm": {
+      "product_code": "SP27",
+      "kind": "PK",
+      "root_name": "Ray âm - 400mm",
+      "root_norm": "ray am 400mm",
+      "aliases": [
+        "ray am 400mm",
+        "ray am giam chan hafele 400mm",
+        "ray am giam chan hafele 32 400mm",
+        "hafele loai a",
+        "ban le giam chan hafele loai a",
+        "ban le giam chan hafele hafele a",
+        "ban le giam chan hafele",
+        "ban le hafele loai a",
+        "ban le hafele loai c"
+      ],
+      "display_names": [
+        "Ray âm - 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+        "Hafele - Loại A",
+        "BẢN LỀ GIẨM CHẤN HAFELE - Loại A",
+        "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+        "BẢN LỀ GIẨM CHẤN HAFELE",
+        "Bàn lề Hafele - Loại A",
+        "Bàn lề Hafele - Loại C"
+      ],
+      "chain": [
+        {
+          "time": 1780990752,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "to_norm": "ray am giam chan hafele 400mm",
+          "action": "rename",
+          "spec": "433.32.075",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780990752,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "RAY ẨM GIẢM CHẤN HAFELE 400mm",
+          "from_norm": "ray am giam chan hafele 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE .32. 400mm",
+          "to_norm": "ray am giam chan hafele 32 400mm",
+          "action": "rename_update",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780990682,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Hafele - Loại A",
+          "from_norm": "hafele loai a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE - Loại A",
+          "to_norm": "ban le giam chan hafele loai a",
+          "action": "rename",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780991961,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "BẢN LỀ GIẨM CHẤN HAFELE - Loại A",
+          "from_norm": "ban le giam chan hafele loai a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+          "to_norm": "ban le giam chan hafele hafele a",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780992472,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+          "from_norm": "ban le giam chan hafele hafele a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE HAFELE A",
+          "to_norm": "ban le giam chan hafele hafele a",
+          "action": "update",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780999659,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Hafele - Loại A",
+          "from_norm": "hafele loai a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE",
+          "to_norm": "ban le giam chan hafele",
+          "action": "manual_match",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781001831,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE",
+          "to_norm": "ban le giam chan hafele",
+          "action": "manual_match",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781002998,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Bàn lề Hafele - Loại A",
+          "from_norm": "ban le hafele loai a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE",
+          "to_norm": "ban le giam chan hafele",
+          "action": "manual_match",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781003013,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Bàn lề Hafele - Loại C",
+          "from_norm": "ban le hafele loai c",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE",
+          "to_norm": "ban le giam chan hafele",
+          "action": "manual_match",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 14:39:12",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP28|PK|ray am 350mm": {
+      "product_code": "SP28",
+      "kind": "PK",
+      "root_name": "Ray âm - 350mm",
+      "root_norm": "ray am 350mm",
+      "aliases": [
+        "ray am 350mm",
+        "ray bi giam chan hafele 02 350mm",
+        "ray bi giam chan hafele 350mm",
+        "ray bi giam chan hafele 494 02 061"
+      ],
+      "display_names": [
+        "Ray âm - 350mm",
+        "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+        "RAY BI GIẢM CHẤN HAFELE 350mm",
+        "RAY BI GIẢM CHẤN HAFELE 494.02.061"
+      ],
+      "chain": [
+        {
+          "time": 1780991536,
+          "product_code": "SP28",
+          "kind": "PK",
+          "from": "Ray âm - 350mm",
+          "from_norm": "ray am 350mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+          "to_norm": "ray bi giam chan hafele 02 350mm",
+          "action": "update",
+          "spec": "494.02.061",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1780991552,
+          "product_code": "SP28",
+          "kind": "PK",
+          "from": "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+          "from_norm": "ray bi giam chan hafele 02 350mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE 350mm",
+          "to_norm": "ray bi giam chan hafele 350mm",
+          "action": "rename",
+          "spec": "494.02.061",
+          "source": "manual_rename"
+        },
+        {
+          "time": 1780991552,
+          "product_code": "SP28",
+          "kind": "PK",
+          "from": "RAY BI GIẢM CHẤN HAFELE 350mm",
+          "from_norm": "ray bi giam chan hafele 350mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE 494.02.061",
+          "to_norm": "ray bi giam chan hafele 494 02 061",
+          "action": "rename_update",
+          "spec": "494.02.061",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781001865,
+          "product_code": "SP28",
+          "kind": "PK",
+          "from": "RAY BI GIẢM CHẤN HAFELE .02. 350mm",
+          "from_norm": "ray bi giam chan hafele 02 350mm",
+          "to": "RAY BI GIẢM CHẤN HAFELE 494.02.061",
+          "to_norm": "ray bi giam chan hafele 494 02 061",
+          "action": "manual_match",
+          "spec": "494.02.061",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 14:52:16",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP27|PK|thanh nhom led": {
+      "product_code": "SP27",
+      "kind": "PK",
+      "root_name": "Thanh nhôm LED",
+      "root_norm": "thanh nhom led",
+      "aliases": [
+        "thanh nhom led"
+      ],
+      "display_names": [
+        "Thanh nhôm LED",
+        "THANH NHÔM LED"
+      ],
+      "chain": [
+        {
+          "time": 1780992483,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Thanh nhôm LED",
+          "from_norm": "thanh nhom led",
+          "to": "THANH NHÔM LED",
+          "to_norm": "thanh nhom led",
+          "action": "accept",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 15:08:03",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP27|PK|nguon led 60w": {
+      "product_code": "SP27",
+      "kind": "PK",
+      "root_name": "Nguồn LED 60W",
+      "root_norm": "nguon led 60w",
+      "aliases": [
+        "nguon led 60w",
+        "nguon led"
+      ],
+      "display_names": [
+        "Nguồn LED 60W",
+        "NGUỒN LED"
+      ],
+      "chain": [
+        {
+          "time": 1780992486,
+          "product_code": "SP27",
+          "kind": "PK",
+          "from": "Nguồn LED 60W",
+          "from_norm": "nguon led 60w",
+          "to": "NGUỒN LED",
+          "to_norm": "nguon led",
+          "action": "accept",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 15:08:06",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP23|PK|ray am 400mm": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "Ray âm - 400mm",
+      "root_norm": "ray am 400mm",
+      "aliases": [
+        "ray am 400mm",
+        "ray am giam chan hafele 433 32 075"
+      ],
+      "display_names": [
+        "Ray âm - 400mm",
+        "RAY ẨM GIẢM CHẤN HAFELE 433.32.075"
+      ],
+      "chain": [
+        {
+          "time": 1781002507,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "Ray âm - 400mm",
+          "from_norm": "ray am 400mm",
+          "to": "RAY ẨM GIẢM CHẤN HAFELE 433.32.075",
+          "to_norm": "ray am giam chan hafele 433 32 075",
+          "action": "manual_match",
+          "spec": "433.32.075",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-09 17:55:07",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP23|PK|hafele loai a": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "Hafele - Loại A",
+      "root_norm": "hafele loai a",
+      "aliases": [
+        "hafele loai a",
+        "ban le giam chan hafele"
+      ],
+      "display_names": [
+        "Hafele - Loại A",
+        "BẢN LỀ GIẨM CHẤN HAFELE"
+      ],
+      "chain": [
+        {
+          "time": 1781083327,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "Hafele - Loại A",
+          "from_norm": "hafele loai a",
+          "to": "BẢN LỀ GIẨM CHẤN HAFELE",
+          "to_norm": "ban le giam chan hafele",
+          "action": "manual_match",
+          "spec": "HAFELE",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-10 16:22:07",
+      "updated_at": "2026-06-10 17:06:41"
+    },
+    "SP23|PK|inox ma pvd ma pvd 002hl/fn khung canh tren": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH TRÊN",
+      "root_norm": "inox ma pvd ma pvd 002hl/fn khung canh tren",
+      "aliases": [
+        "inox ma pvd ma pvd 002hl/fn khung canh tren",
+        "inox ma pvd ma pvd 002hl/fn",
+        "inox ma pvd ma pvd 002hl/fn khung canh duoi",
+        "inox ma pvd ma pvd 002hl/fn 250x50 vi tri tay nam"
+      ],
+      "display_names": [
+        "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH TRÊN",
+        "INOX MẠ PVD MÃ PVD-002HL/FN",
+        "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH DƯỚI",
+        "INOX MẠ PVD - MÃ PVD-002HL/FN 250x50 VỊ TRÍ TAY NẮM"
+      ],
+      "chain": [
+        {
+          "time": 1781083829,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH TRÊN",
+          "from_norm": "inox ma pvd ma pvd 002hl/fn khung canh tren",
+          "to": "INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "inox ma pvd ma pvd 002hl/fn",
+          "action": "manual_match",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781083933,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "INOX MẠ PVD - MÃ PVD-002HL/FN KHUNG CÁNH DƯỚI",
+          "from_norm": "inox ma pvd ma pvd 002hl/fn khung canh duoi",
+          "to": "INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "inox ma pvd ma pvd 002hl/fn",
+          "action": "manual_match",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        },
+        {
+          "time": 1781083941,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "INOX MẠ PVD - MÃ PVD-002HL/FN 250x50 VỊ TRÍ TAY NẮM",
+          "from_norm": "inox ma pvd ma pvd 002hl/fn 250x50 vi tri tay nam",
+          "to": "INOX MẠ PVD MÃ PVD-002HL/FN",
+          "to_norm": "inox ma pvd ma pvd 002hl/fn",
+          "action": "manual_match",
+          "spec": "MÃ PVD-002HL/FN",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-10 16:30:29",
+      "updated_at": "2026-06-10 17:08:03"
+    },
+    "SP23|PK|den led": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "Đèn led",
+      "root_norm": "den led",
+      "aliases": [
+        "den led",
+        "den led anh sang vang"
+      ],
+      "display_names": [
+        "Đèn led",
+        "ĐÈN LED ÁNH SÁNG VÀNG"
+      ],
+      "chain": [
+        {
+          "time": 1781083856,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "Đèn led",
+          "from_norm": "den led",
+          "to": "ĐÈN LED ÁNH SÁNG VÀNG",
+          "to_norm": "den led anh sang vang",
+          "action": "manual_match",
+          "spec": "ÁNH SÁNG VÀNG",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-10 16:30:56",
+      "updated_at": "2026-06-10 17:08:06"
+    },
+    "SP23|PK|suot ao": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "Suốt áo",
+      "root_norm": "suot ao",
+      "aliases": [
+        "suot ao",
+        "thanh treo quan ao"
+      ],
+      "display_names": [
+        "Suốt áo",
+        "THANH TREO QUẦN ÁO"
+      ],
+      "chain": [
+        {
+          "time": 1781083920,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "Suốt áo",
+          "from_norm": "suot ao",
+          "to": "THANH TREO QUẦN ÁO",
+          "to_norm": "thanh treo quan ao",
+          "action": "manual_match",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-10 16:32:00",
+      "updated_at": "2026-06-10 17:06:23"
+    },
+    "SP23|PK|unmatch test model": {
+      "product_code": "SP23",
+      "kind": "PK",
+      "root_name": "__UNMATCH_TEST_MODEL__",
+      "root_norm": "unmatch test model",
+      "aliases": [
+        "unmatch test model",
+        "unmatch test excel"
+      ],
+      "display_names": [
+        "__UNMATCH_TEST_MODEL__",
+        "__UNMATCH_TEST_EXCEL__"
+      ],
+      "chain": [
+        {
+          "time": 1781085758,
+          "product_code": "SP23",
+          "kind": "PK",
+          "from": "__UNMATCH_TEST_MODEL__",
+          "from_norm": "unmatch test model",
+          "to": "__UNMATCH_TEST_EXCEL__",
+          "to_norm": "unmatch test excel",
+          "action": "manual_match",
+          "spec": "__TEST_SPEC__",
+          "source": "accept_rule"
+        }
+      ],
+      "created_at": "2026-06-10 17:02:38",
+      "updated_at": "2026-06-10 17:02:40"
+    }
+  }
+}

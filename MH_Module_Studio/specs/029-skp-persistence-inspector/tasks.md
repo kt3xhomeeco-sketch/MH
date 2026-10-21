@@ -1,0 +1,7 @@
+- [x] Implement explicit SKP persistence and own-payload restoration.
+- [x] Add Parametric Read SketchUp and Save SKP including current variable draft.
+- [x] Keep source path/signature and back up overwritten module files.
+- [x] Replace crowded native controls with compact utility inspector.
+- [x] Preserve face references when switching center/fit; resize after opposing pick.
+- [x] Verify pure gate, browser interactions and native file/fit/live update roundtrips.
+- [x] Reload user model without changing its geometry; package runtime assets.

@@ -1,0 +1,6 @@
+- [x] Read the exact selected instance and reproduce the native mismatch.
+- [x] Separate portable source-frame lookup from native guide recovery/motion.
+- [x] Include points with direct mesh transforms and handle guide-only repair.
+- [x] Native repeated Y scales, T edit, repeated redraw; source retained.
+- [x] Final scoped gate, guide-only native check, package and live reload.
+- [x] Preserve the original model while user interaction is active; legacy repair runs on its next Scale/Redraw.

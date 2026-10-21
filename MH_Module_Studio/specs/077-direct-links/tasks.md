@@ -1,0 +1,4 @@
+- [x] Placement modifiers, raw fallback, opposing-face-only sizing.
+- [x] Multi-selection parameter aggregation and atomic batch edits.
+- [x] Direct contact prisms/dimensions and on-demand settings, old HUD suspended.
+- [x] Portable/browser/native verification, package, docs and reload.

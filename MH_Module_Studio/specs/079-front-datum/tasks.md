@@ -1,0 +1,5 @@
+- [x] Diagnose the real selected module and preserve an exact before receipt.
+- [x] Normalize only legacy annotated front import records inside Assembly.
+- [x] Portable eligibility/sign/idempotence and new real-face regressions.
+- [x] Native private-copy reproduction, repeated distances, T, rotated/mirrored scale.
+- [x] Full scoped gate, repair the captured module, package and reload verification.

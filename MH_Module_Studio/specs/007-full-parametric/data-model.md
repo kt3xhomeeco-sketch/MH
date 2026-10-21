@@ -1,0 +1,3 @@
+# Data model
+Own rule bundle retains its validated parameter definitions, full captured ATT program, original dictionaries and semantic face references. Positional entries add exact affine expression coefficients and indices of governing formulas; they are descriptive and never independently drive the solver.
+Published parametric records carry node ID, scope path, part key, attribute key, physical value/unit, original value, formula/unit metadata, access/options and computed/fixed/unsupported status. Preview records are evaluated using planned input values; the source registry remains untouched. Trials store the existing own rule JSON, public input selection and current values.

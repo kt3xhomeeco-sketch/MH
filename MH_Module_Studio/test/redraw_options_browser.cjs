@@ -1,0 +1,44 @@
+const {chromium}=require(process.env.MH_PLAYWRIGHT||'playwright');
+const assert=require('assert'),path=require('path'),fs=require('fs');
+(async()=>{
+ const browser=await chromium.launch({headless:true,executablePath:process.env.MH_BROWSER||undefined});
+ try{
+  const page=await browser.newPage({viewport:{width:320,height:300}}),errors=[];
+  page.on('pageerror',error=>errors.push(error.message));
+  await page.addInitScript(()=>{window.sent=[];window.sketchup={request:raw=>sent.push(JSON.parse(raw))};});
+  await page.goto('file:///'+path.resolve(__dirname,'../ui/module_options.html').replaceAll('\\','/'));
+  await page.evaluate(()=>window.receive({rows:[],empty:true,token:'empty',session:'model'}));
+  assert(await page.locator('#redraw').isHidden());assert(await page.locator('#save-skp').isHidden());
+  const row={id:'input:T1',name:'Độ dày tấm',category:'dimension',unit:'mm',value:18.6,editable:true,range:[.2,200]};
+  const state={rows:[row],root_pid:'module',token:'first',name:'KHUNG NÓC LỌT',session:'model'};
+  await page.evaluate(value=>window.receive(value),state);
+  const button=page.locator('#redraw'),save=page.locator('#save-skp');
+  assert(await button.isVisible());assert(await button.isEnabled());
+  const a=await button.boundingBox(),b=await save.boundingBox();
+  assert(a.x<b.x&&Math.abs(a.y-b.y)<1,'Redraw and Save SKP must be adjacent');
+  await button.click();
+  assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'redraw',root_pid:'module',token:'first'});
+  assert(await button.isDisabled());assert(await save.isDisabled());
+  const count=await page.evaluate(()=>sent.length);
+  await page.evaluate(()=>document.getElementById('redraw').click());
+  await page.locator('input').fill('20');await page.waitForTimeout(350);
+  assert.equal(await page.evaluate(()=>sent.length),count,'Edits wait for redraw acknowledgement');
+  await page.evaluate(value=>window.receive({...value,token:'second'}),state);
+  assert.deepEqual(await page.evaluate(()=>sent.at(-1)),{action:'change',root_pid:'module',token:'second',variable_id:'input:T1',value:20});
+  const ack={...state,token:'third',rows:[{...row,value:20}]};
+  await page.evaluate(value=>window.receive(value),ack);
+  assert(await button.isEnabled());assert.equal(await page.locator('input').inputValue(),'20');
+  await button.click();await page.evaluate(value=>window.receive({...value,error:'Quy tắc không phù hợp.'}),ack);
+  assert(await button.isEnabled());assert(await page.locator('#error').isVisible());
+  await button.click();await page.evaluate(value=>window.receive({...value,root_pid:'other',token:'other'}),state);
+  assert(await button.isEnabled());assert.equal(await page.locator('input').inputValue(),'18.6');
+  await page.setViewportSize({width:285,height:300});
+  assert(!(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth)));
+  await page.setViewportSize({width:320,height:300});
+  await page.evaluate(value=>window.receive({...value,token:'final'}),ack);
+  const folder=path.resolve(__dirname,'../outputs/redraw-074');fs.mkdirSync(folder,{recursive:true});
+  await page.screenshot({path:path.join(folder,'options.png')});
+  assert.deepEqual(errors,[]);fs.writeFileSync(path.join(folder,'browser.json'),JSON.stringify({passed:true,errors}));
+  console.log('Adjacent Redraw, stale-safe payload, pending edits, error recovery and compact sizing passed.');
+ }finally{await browser.close();}
+})().catch(error=>{console.error(error);process.exitCode=1;});

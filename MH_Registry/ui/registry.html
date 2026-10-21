@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <title>MH Registry</title>
+  <link rel="stylesheet" href="css/registry.css?v=material-code-contract-20260727-49" />
+  <script>
+    if (window.parent !== window && window.parent.sketchup) {
+      window.sketchup = window.parent.sketchup;
+    }
+  </script>
+  <script type="text/javascript" src="js/bridge.js"></script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">MH&nbsp;Registry</div>
+    <div class="ctx">
+      <span class="ctx-item">Model: <b id="modelName">…</b></span>
+      <span class="ctx-item">Project file: <code id="projectPath">…</code></span>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn ghost" id="btnReload">Tải lại</button>
+    </div>
+  </header>
+
+  <div class="tabs-row">
+    <nav class="tabs" id="tabs">
+      <button class="tab active" data-tab="main">Tổng hợp</button>
+      <button class="tab" data-tab="superimp">Superimp</button>
+      <button class="tab" data-tab="naming">Đặt Tên</button>
+    </nav>
+    <div class="tab-actions" data-tab-actions="superimp">
+      <button class="btn" id="btnReloadMaterialProfiles">Đồng bộ danh sách vật liệu</button>
+      <button class="btn" id="btnSaveSuperimpJson">Lưu JSON</button>
+      <button class="btn primary" id="btnSaveSuperimp">Lưu</button>
+    </div>
+  </div>
+
+  <main class="content">
+    <!-- ============ TỔNG HỢP (main) ============ -->
+    <section class="panel active" data-panel="main">
+      <div class="panel-head">
+        <div>
+          <h2>Tổng hợp</h2>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h3>JSON runtime</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="btnChooseThongkeJson">Thêm JSON ngoài thư mục...</button>
+          <button class="btn primary" id="btnReloadProjectJson" title="Gộp và nạp mọi JSON vật liệu hợp lệ trong SPEC/Data cho các app MH; không đọc hoặc tạo Excel">RELOAD JSON</button>
+          <span id="thongkeJsonPath" style="color:#aaa;font-size:12px">(chưa chọn)</span>
+        </div>
+        <p class="hint" style="margin:8px 0 0">RELOAD JSON đọc và gộp tất cả JSON vật liệu hợp lệ trong SPEC/Data; tự bỏ qua file cấu hình/không đúng định dạng. Có thể thêm một JSON vật liệu ngoài thư mục bằng nút bên trái.</p>
+        <div id="reloadJsonLog" style="margin-top:8px;font-size:12px;color:#aaa;white-space:pre-wrap"></div>
+      </div>
+
+      <div class="card" style="margin-bottom:12px">
+        <h3>Cấu hình vật liệu</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <button class="btn" id="btnReloadConfigMain" title="Đọc lại material_code_library.xlsx và cập nhật MH Material Assign, SuperImp">Tải lại Config từ Excel</button>
+        </div>
+        <p class="hint" style="margin:8px 0 0">Dùng sau khi sửa <code>D:/Cong viec/config/nhap_xuatvan/material_code_library.xlsx</code>. Nút này chỉ nạp lại cấu hình/cache; không tự gán lại vật liệu cho toàn model.</p>
+      </div>
+
+      <!-- Đánh dấu sản phẩm -->
+      <div class="card" style="margin-bottom:12px">
+        <h3>Đánh dấu sản phẩm</h3>
+        <p class="hint">Có thể nhập tay dải mã SP, hoặc đánh dấu toàn bộ mã từ JSON MH Thongke Desktop đã chọn.</p>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <label>Prefix: <input id="markPrefix" type="text" value="" placeholder="vd: A-" style="width:80px" /></label>
+          <label>Đầu: <input id="markStart" type="number" min="1" step="1" value="1" style="width:70px" /></label>
+          <label>Cuối: <input id="markEnd" type="number" min="1" step="1" value="1" style="width:70px" /></label>
+          <label>Khoảng cách: <input id="markSpacing" type="number" value="5000" min="100" step="100" style="width:90px" /> mm</label>
+          <button class="btn primary" id="btnMarkProducts">Đánh dấu thủ công</button>
+          <button class="btn" id="btnMarkProductsFromJson">Đánh dấu từ JSON</button>
+          <span id="markLog" style="font-size:12px;color:#aaa"></span>
+        </div>
+      </div>
+
+      <!-- Gán vật liệu -->
+      <div class="card" id="maSection" style="display:none">
+        <h3>Gán vật liệu</h3>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+          <span id="maDataCount" style="font-size:12px;color:#8f8"></span>
+          <button class="btn" id="btnAssignSelection">Gán VL Selection</button>
+          <button class="btn" id="btnAssignAll">Gán VL Toàn bộ</button>
+        </div>
+        <div id="maLog" style="margin-top:6px;font-size:12px;color:#aaa"></div>
+      </div>
+    </section>
+
+    <!-- ============ SUPERIMP / DC LIBRARY ============ -->
+    <section class="panel" data-panel="superimp">
+      <div class="panel-head">
+        <div>
+          <h2>Superimp <span class="badge glob">LIBRARY</span> <span class="badge proj">PROJECT</span></h2>
+        </div>
+      </div>
+
+      <div class="superimp-card-list" id="superimpCardList">
+      <div class="card superimp-card" data-card-id="superimp_import_list" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <h3>Superimp — Danh sách import</h3>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="superimp_import_list">+ dòng</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tbl_superimp_import_list"></div>
+      </div>
+
+      <div class="card superimp-card" data-card-id="dc_thickness_bindings" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <h3>DC — Binding tham số độ dày</h3>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="dc_thickness_bindings">+ dòng</button>
+          </div>
+        </div>
+
+        <div class="dc-learn-box" style="margin:8px 0 10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg0)">
+          <h3 style="margin:0 0 6px;font-size:13px">Học tham số (DC đang chọn)</h3>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px">
+            <button class="btn" id="btnLearnDCParams">Đọc tham số DC đang chọn</button>
+            <input id="dcBindMatch" placeholder="match (path hoặc group:Tên)" style="flex:1;min-width:200px" />
+            <input id="dcBindExtra" placeholder="param thêm: auto:key=panel, child:key=1" style="flex:1;min-width:220px" />
+            <button class="btn" id="btnAddExtraParam">+ Parameter</button>
+            <select id="dcBindUnit"><option value="length">length</option><option value="mm">mm</option><option value="none">none</option></select>
+            <button class="btn primary" id="btnCreateBinding">Tạo binding</button>
+          </div>
+          <div id="dcAttrsList" class="empty" style="font-size:12px;color:#ccc">Chưa đọc tham số DC.</div>
+        </div>
+
+        <div class="table-wrap" id="tbl_dc_thickness_bindings"></div>
+      </div>
+
+      <div class="card superimp-card" data-card-id="dc_manual_materials" style="margin-bottom:12px">
+        <div class="panel-head" style="margin:0 0 8px">
+          <span class="mh-card-drag-handle" title="Kéo để đổi vị trí">⋮⋮</span>
+          <div>
+            <div class="mh-manual-title-row">
+              <h3>Danh sách vật liệu</h3>
+              <input id="dcManualSearch" class="mh-manual-search" type="search" placeholder="Tìm mã VL..." />
+            </div>
+          </div>
+          <div class="panel-actions">
+            <button class="btn" data-add="dc_manual_materials">+ mã</button>
+          </div>
+        </div>
+        <div class="table-wrap" id="tbl_dc_manual_materials"></div>
+      </div>
+
+      </div>
+    </section>
+
+    <!-- ============ ĐẶT TÊN (Config.xlsx) ============ -->
+    <section class="panel" data-panel="naming">
+      <div class="panel-head">
+        <div>
+          <h2>Định nghĩa tên <span class="badge proj">PROJECT</span></h2>
+          <p class="hint">Rule mã sản phẩm nằm trong card <code>Cấu trúc mã sản phẩm</code>. JSON là nguồn app đọc; Excel chỉ giữ dữ liệu danh sách.</p>
+        </div>
+        <div class="panel-actions">
+          <button class="btn" id="btnOpenConfigFolder">Mở thư mục</button>
+          <button class="btn" id="btnReloadConfig">Tải từ Excel</button>
+          <button class="btn" id="btnExportConfigExcel">Xuất Excel</button>
+          <button class="btn primary" id="btnSaveConfig">Lưu JSON</button>
+        </div>
+      </div>
+
+      <div class="card product-code-rule-card" style="margin-bottom:12px">
+        <div class="panel-head">
+          <div>
+            <h3>Cấu trúc mã sản phẩm</h3>
+            <p class="hint">Đặt dấu tách, kéo các ô mã để đổi thứ tự. Mã sản phẩm dùng họ mã như SP, NT, D; app tự hiểu SP01, NT01, D01 mà không cần nhập từng mã.</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn xs" id="btnAddProductCodeCell" type="button">+ ô</button>
+          </div>
+        </div>
+
+        <div class="material-code-rule-grid">
+          <div>
+            <label>Dấu tách lớp</label>
+            <input id="pcr_segment_separator" value="." />
+          </div>
+          <label class="mcr-check"><input id="pcr_uppercase" type="checkbox" checked /> Viết hoa khi đọc</label>
+        </div>
+
+        <div id="pcr_builder" class="mcr-test-builder pcr-builder"></div>
+        <div class="mcr-test-separator-row" hidden>
+          <span>Dấu tách</span>
+          <input id="pcr_test_separator" class="mcr-test-separator-input" value="." />
+        </div>
+        <div id="pcr_contract" class="mcr-contract pcr-contract" hidden></div>
+        <textarea id="nc_suffix" rows="8" hidden></textarea>
+      </div>
+
+      <div class="card name-read-rules-card" style="margin-bottom:12px">
+        <div class="panel-head">
+          <div>
+            <h3>Quy tắc đọc mở rộng</h3>
+            <p class="hint">Chỉ dùng khi đọc tên đã có; không dùng để tạo mã mới. Mỗi nhóm tự có dấu tách phía sau, và có thể chọn product_code, module_no/modul_no, suffix, part…</p>
+          </div>
+          <div class="panel-actions">
+            <button class="btn xs" id="btnAddNameReadRule" type="button">+ quy tắc</button>
+          </div>
+        </div>
+        <div id="name_read_rules_builder"></div>
+      </div>
+
+      <div hidden>
+        <input id="nc_sep_sub_prefix" value="-" />
+        <input id="nc_sep_prefix" value="_" />
+        <input id="nc_sep_suffix" value="_" />
+        <input id="nc_default_prefix" value="SP" />
+        <select id="nc_active_sub_prefix"></select>
+        <select id="nc_active_prefix"></select>
+        <select id="nc_active_modul"></select>
+        <p id="nc_preview"></p>
+        <span id="nc_sub_prefix_col"></span>
+        <span id="nc_prefix_col"></span>
+        <span id="nc_modul_col"></span>
+        <textarea id="nc_sub_prefix" rows="1"></textarea>
+        <textarea id="nc_prefix" rows="1"></textarea>
+        <textarea id="nc_modul" rows="1"></textarea>
+      </div>
+
+    </section>
+
+  </main>
+
+  <footer class="statusbar"><span id="status">Sẵn sàng.</span></footer>
+
+  <script type="text/javascript" src="js/registry_app.js?v=remove-material-tab-20261001-1"></script>
+  <script type="text/javascript" src="js/registry_collapse.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/registry_card_sort.js?v=material-code-contract-20260626-48"></script>
+  <script type="text/javascript" src="js/registry_split_resize.js?v=material-code-contract-20260626-48"></script>
+</body>
+</html>
+

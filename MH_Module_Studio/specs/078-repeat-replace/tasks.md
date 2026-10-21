@@ -1,0 +1,4 @@
+- [x] Continuous Replace with Esc and click-time modifier regressions.
+- [x] Automatic preselection batch workflow, identity, atomic failure and Undo.
+- [x] Native Replace Component inheritance; optimize measured redundant work.
+- [x] Portable/native checks, timing receipt, docs, package and reload.

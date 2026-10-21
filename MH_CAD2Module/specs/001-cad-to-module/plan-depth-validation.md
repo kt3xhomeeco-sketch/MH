@@ -1,0 +1,25 @@
+# SP25 stock depth and section corroboration,0.23.3
+
+The previous preview used every selected CAD edge for its envelope. SP25 raw plans include unpaired diagonals, hatch and101 mm context bands: depths504.149/383.746/383.932 mm displaced the actual approximately310 mm stock depth. Raw-context comparison could also discard an otherwise valid bay result. Complete source transport and measured cabinet geometry now remain separate.
+
+cad_style retains effective DXF BYLAYER/BYBLOCK colour, true colour, linetype, continuous-pattern status and lineweight. Source index4 stores the metadata; index3/sources/history remain intact. Native scans retain available tag/line-style/colour and include them in content hashes and preflight watches. Imported CAD may already have lost some original DXF styling; the app cannot reconstruct unavailable properties.
+
+Compatible stroke groups prove closed stock witnesses for datum/depth measurement, with continuous non-context preference and explicit cache identity. Plan validation compares stock bounds to detected bays. Failing partitions retain a preview whoseY interval comes from measured axial stock, preserving source origin, all raw CAD and measured height. Context rectangles or unsupported diagonals do not enlarge this depth. Real diagonal/curved construction paths remain available. Existing module partitioning is not declared solved merely because envelope depth is corrected.
+
+SP25 plan depths309.858/309.816/310 are corroborated by its three same-family cuts1-1/2-2/3-3, each310. A repeated agreeing section result may reconcile up to1 mm plan drafting discrepancy, stored alongside original plan measurements. Stock tolerance remains0.15 mm. Foreign families, contradictory supported cuts or larger differences cannot silently override plan depth. Ruby verifies stock/source bounds, local section family/width agreement and native box placement.
+
+## Evidence
+
+- Required gate:404 pytest passed,47 dependency warnings,118.21s;78 Ruby tests/295 assertions;26 runtime Ruby files scoped RuboCop/rubocop-sketchup clean. Added11 Python and2 Ruby cases for orderedY stock/noise, incompatible styles, BYBLOCK resolution, cache invalidation, context/bay retention, actual three-cutSP25 and invalid cut/native proofs.
+- Actual original DWG re-indexed once with style metadata:13.160s total/11.086s index extraction; second resident analysis0.975s (memory index0.000423s). Fresh-process disk-index analysis1.700s/index0.018070s. All actualSP25 outputs report310 depth/2730 height. The new index is already prepared for this source; future source revisions require their own first extraction.
+- Three browser suites passed, including visible310 depth, all three cut names, measured2730 height and pending module partition. Source CAD remains complete.
+- New native depth suite8.419s: unchanged legacy preview refreshed in place through ReferenceBuild; moved/edited/locked/manual/different-source guards all preserved boxes. CAD/GroupIDs/height retained; retries idempotent. Native capture verifies inherited tag/stroke metadata, changed-style watch rejection and new source hash. Test geometry was aborted and user state retained.
+- NativeSP25 overlay/tags/11 sourceGroups/three copies passed1.810s; SP24 six levels/23 Groups/directions passed6.300s; retained-reference restore10→11/edit protection passed2.621s. Previous height refresh regression passed9.462s after shared untouched-cube checks were extracted.
+
+## Live repair and package
+
+During testing two SP25 boxes were removed. The initial three-member live guard canceled before any mutation. After inspecting the new state, repair targeted only the retained unchanged box570083, exact assembly/job/source, in E:/MAC/OneDrive/Desktop/2.skp. It is now3694.829×310×2730 mm, with frontY shifted73.931 mm from the raw source datum to the measured stock front. All CAD/other entities, selection, camera and on-disk file hash were preserved; deleted boxes stayed deleted. One undoable operation took0.207s; model not saved. Backup outputs/sp25-depth-before-20261021-092401.json and plan-depth-live-result.json retain the prior state. This captured-state repair script must not be rerun blindly.
+
+Runtime0.23.3 safely loaded, idle worker stopped, recognizer36; Manager stayed closed. Final live receipt outputs/plan-depth-live-load-result.json confirms310×2730 and all three measured section proofs. Preview partition remains pending because other outline/trim evidence is unresolved.
+
+Package outputs/MH_CAD2Module-0.23.3.rbz:79 byte-verified entries, SHA256d075183db99da3ad6c7e8447f21860b4023202ed5268b7c320815b58a3773ecb. Other receipts: plan-depth-package-result.json, plan-depth-native-result.json and actual styled source product. Existing rescued Settings JSON/eval tracepoint noise remains; aborted native style QA also triggered unrelated external-plugin deleted-entity/material observer traces. No external plugin code was changed, original DWG edited, AutoCAD launched, accepted library removed, commit or delegation performed.

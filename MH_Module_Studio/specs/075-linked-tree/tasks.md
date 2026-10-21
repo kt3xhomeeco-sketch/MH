@@ -1,0 +1,3 @@
+- [x] Filter viewport tree by scoped references in live links.
+- [x] Add direct access and instructions for existing template / assembly saving.
+- [x] Verify tree regressions, browser, native read-only check and scoped gate.

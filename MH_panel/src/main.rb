@@ -1,0 +1,81 @@
+# encoding: UTF-8
+
+require 'sketchup'
+require 'json'
+require File.join(Sketchup.find_support_file('Plugins'), 'MH_shared.rb')
+
+module MH
+  module Panel
+    ROOT = File.expand_path('..', __dir__).freeze
+    SRC = __dir__.freeze
+    DEBUG = false unless const_defined?(:DEBUG, false)
+
+    module_function
+
+    def dbg(message)
+      puts message if DEBUG
+    end
+
+    def require_core
+      %w[
+        geo_adapter
+        base
+        model
+        settings
+        view
+        abf
+        isolate
+        group
+        material
+        board
+        purge
+        preset
+      ].each { |name| require_relative "core/#{name}" }
+      require_relative 'tools/taovan'
+      require_relative 'tools/taocanh'
+      require_relative 'tools/catvan'
+      require_relative 'tools/duckhung'
+    end
+
+    def reload
+      active_tool_class = begin
+        active_tool = Sketchup.active_model.tools.active_tool
+        name = active_tool.class.name.to_s
+        active_tool.class if active_tool && name.start_with?('MH::Panel::')
+      rescue
+        nil
+      end
+      original_verbose = $VERBOSE
+      $VERBOSE = nil
+      files = Dir.glob(File.join(SRC, '**/*.rb')).sort
+      files.each { |file| load file }
+      Sketchup.active_model.select_tool(active_tool_class.new) if active_tool_class
+      dbg("MH::Panel reloaded #{files.size} file(s)")
+      true
+    ensure
+      $VERBOSE = original_verbose
+    end
+
+    def activate_tao_van
+      Sketchup.active_model.select_tool(MH::Panel::TaoVan.new)
+    end
+
+    def activate_tao_canh
+      Sketchup.active_model.select_tool(MH::Panel::TaoCanh.new)
+    end
+
+    def activate_cat_van
+      Sketchup.active_model.select_tool(MH::Panel::CatVan.new)
+    end
+
+    def activate_duc_khung
+      Sketchup.active_model.select_tool(MH::Panel::DucKhung.new)
+    end
+
+    def open_settings(tab = 'cai_dat')
+      MH::Panel::Settings.open_settings(tab)
+    end
+  end
+end
+
+MH::Panel.require_core

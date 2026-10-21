@@ -1,0 +1,503 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>MH Nep</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f5f7;
+      --panel: #ffffff;
+      --text: #1f2328;
+      --muted: #68707d;
+      --line: #d7dbe2;
+      --accent: #0f7b6c;
+      --accent-strong: #0a5f54;
+      --danger: #b3261e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      padding: 16px;
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    h1 {
+      margin: 0 0 14px;
+      font-size: 18px;
+      font-weight: 650;
+    }
+
+    .section {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      margin-bottom: 10px;
+      font-weight: 650;
+      color: #30343b;
+    }
+
+    .row {
+      display: grid;
+      grid-template-columns: 140px 1fr;
+      gap: 10px;
+      align-items: center;
+      margin: 9px 0;
+    }
+
+    label {
+      color: var(--muted);
+      line-height: 1.25;
+    }
+
+    select,
+    input[type="text"],
+    input[type="number"],
+    textarea {
+      width: 100%;
+      min-height: 32px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 5px 8px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+    }
+
+    textarea {
+      min-height: 76px;
+      resize: vertical;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+    }
+
+    button {
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--text);
+      font: inherit;
+      cursor: pointer;
+    }
+
+    .segmented button.active {
+      border-color: var(--accent);
+      background: #e5f3f0;
+      color: var(--accent-strong);
+      font-weight: 650;
+    }
+
+    .inline-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .check-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+    }
+
+    .check-line input { margin: 0; }
+
+    .swatch-line {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+      margin-top: 6px;
+    }
+
+    .swatch {
+      width: 18px;
+      height: 18px;
+      border: 1px solid rgba(0, 0, 0, 0.18);
+      border-radius: 4px;
+      flex: 0 0 auto;
+      background: #ddd;
+    }
+
+    .preview {
+      color: var(--muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .actions button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #fff;
+      font-weight: 650;
+    }
+
+    .actions button.secondary {
+      border-color: #82b7ad;
+      color: var(--accent-strong);
+      font-weight: 650;
+    }
+
+    .actions button.danger { color: var(--danger); }
+
+    .status {
+      min-height: 36px;
+      margin-top: 12px;
+      padding: 9px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fff;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .status.ok {
+      border-color: #92c7bb;
+      color: #0a5f54;
+      background: #eef8f5;
+    }
+
+    .status.err {
+      border-color: #e7aaa6;
+      color: var(--danger);
+      background: #fff3f2;
+    }
+
+    .disabled-note {
+      display: none;
+      margin-bottom: 12px;
+      padding: 10px;
+      border: 1px solid #e4b860;
+      border-radius: 6px;
+      background: #fff8e6;
+      color: #6a4d00;
+    }
+
+    body.abf-missing .disabled-note { display: block; }
+    body.abf-missing .section,
+    body.abf-missing .actions { opacity: 0.55; }
+  </style>
+</head>
+<body>
+  <h1>MH Nep</h1>
+  <div class="disabled-note">ABF chưa sẵn sàng. Bật ABF xong bấm cập nhật lại.</div>
+
+  <div class="section">
+    <div class="section-title">Kiểu dán</div>
+    <div class="row">
+      <label>Chế độ</label>
+      <div class="segmented">
+        <button id="mode-view" type="button">Theo hướng</button>
+        <button id="mode-plain" type="button">Không hướng</button>
+      </div>
+    </div>
+    <div class="row" id="direction-row">
+      <label>Hướng chính</label>
+      <select id="direction"></select>
+    </div>
+    <div class="row">
+      <label>Phạm vi</label>
+      <select id="scope">
+        <option value="selection">Selection</option>
+        <option value="model">Toàn bộ context</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Lọc chi tiết</div>
+    <div class="row">
+      <label>Dày tấm (mm)</label>
+      <div class="inline-grid">
+        <input id="min-thickness" type="number" min="0" step="0.1" placeholder="> xx">
+        <input id="max-thickness" type="number" min="0" step="0.1" placeholder="< yy">
+      </div>
+    </div>
+    <div class="row">
+      <label>Bỏ cạnh ngắn</label>
+      <input id="min-edge-length" type="number" min="0" step="1" placeholder="Không dán cạnh ngắn hơn mm">
+    </div>
+    <div class="row">
+      <label>Bỏ qua chi tiết</label>
+      <textarea id="ignore-names" placeholder="Tên hoặc cụm tên, mỗi dòng một chi tiết"></textarea>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Nẹp từ thư viện ABF</div>
+    <div class="row">
+      <label id="primary-label">Nẹp hướng chính</label>
+      <div>
+        <select id="primary"></select>
+        <div class="swatch-line">
+          <span class="swatch" id="primary-swatch"></span>
+          <span class="preview" id="primary-preview"></span>
+        </div>
+      </div>
+    </div>
+    <div class="row" id="other-row">
+      <label>Nẹp cạnh còn lại</label>
+      <div>
+        <select id="other"></select>
+        <div class="swatch-line">
+          <span class="swatch" id="other-swatch"></span>
+          <span class="preview" id="other-preview"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">Rule vật liệu</div>
+    <div class="row">
+      <label>Bật rule</label>
+      <div class="check-line">
+        <input id="material-rule" type="checkbox">
+        <span>Vật liệu bắt đầu bằng prefix thì dùng nẹp veneer</span>
+      </div>
+    </div>
+    <div class="row">
+      <label>Prefix vật liệu</label>
+      <input id="material-prefix" type="text" value="ver">
+    </div>
+    <div class="row">
+      <label>Nẹp veneer</label>
+      <div>
+        <select id="veneer"></select>
+        <div class="swatch-line">
+          <span class="swatch" id="veneer-swatch"></span>
+          <span class="preview" id="veneer-preview"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button type="button" id="refresh">Cập nhật thư viện</button>
+    <button type="button" id="hud" class="secondary">Bật HUD</button>
+    <button type="button" id="manual" class="secondary">Dán tay</button>
+    <button type="button" id="clear" class="danger">Xóa nẹp</button>
+    <button type="button" id="apply">Dán nẹp</button>
+    <button type="button" id="apply-all" class="primary">Dán nẹp toàn bộ</button>
+  </div>
+
+  <div id="status" class="status">Đang tải thư viện ABF...</div>
+
+  <script>
+    const state = {
+      mode: 'view',
+      direction: 'y-',
+      scope: 'selection',
+      library: [],
+      primary_id: null,
+      other_id: null,
+      veneer_id: null
+    };
+    let loading = true;
+    let saveTimer = null;
+
+    const el = (id) => document.getElementById(id);
+
+    function byId(id) {
+      return state.library.find((item) => String(item.id) === String(id));
+    }
+
+    function setStatus(message, ok) {
+      const box = el('status');
+      box.textContent = message;
+      box.className = 'status ' + (ok === true ? 'ok' : ok === false ? 'err' : '');
+    }
+
+    function setMode(mode) {
+      state.mode = mode === 'plain' ? 'plain' : 'view';
+      el('mode-view').classList.toggle('active', state.mode === 'view');
+      el('mode-plain').classList.toggle('active', state.mode === 'plain');
+      el('direction-row').style.display = state.mode === 'view' ? 'grid' : 'none';
+      el('other-row').style.display = state.mode === 'view' ? 'grid' : 'none';
+      el('primary-label').textContent = state.mode === 'view' ? 'Nẹp hướng chính' : 'Nẹp cạnh';
+      scheduleSave();
+    }
+
+    function optionLabel(item) {
+      if (!item) return 'Không dán';
+      return item.display_name || `${item.name} - ${item.thickness}mm`;
+    }
+
+    function fillSelect(select, items, allowBlank) {
+      select.innerHTML = '';
+      if (allowBlank) {
+        const blank = document.createElement('option');
+        blank.value = '';
+        blank.textContent = 'Không dán';
+        select.appendChild(blank);
+      }
+      items.forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.id;
+        option.textContent = optionLabel(item);
+        select.appendChild(option);
+      });
+    }
+
+    function updatePreview(kind) {
+      const id = el(kind).value;
+      const item = byId(id);
+      const swatch = el(`${kind}-swatch`);
+      const preview = el(`${kind}-preview`);
+      if (!item) {
+        swatch.style.background = '#ddd';
+        preview.textContent = 'Không dán';
+        return;
+      }
+      swatch.style.background = item.color || '#ddd';
+      preview.textContent = `${item.name} | dày ${item.thickness}mm | rộng ${item.width} | ${item.color}`;
+    }
+
+    function collectOptions() {
+      return {
+        mode: state.mode,
+        direction: el('direction').value,
+        scope: el('scope').value,
+        primary_id: el('primary').value,
+        other_id: el('other').value,
+        min_thickness_mm: el('min-thickness').value,
+        max_thickness_mm: el('max-thickness').value,
+        min_edge_length_mm: el('min-edge-length').value,
+        material_rule_enabled: el('material-rule').checked,
+        material_prefix: el('material-prefix').value,
+        veneer_id: el('veneer').value,
+        ignore_names: el('ignore-names').value
+      };
+    }
+
+    function scheduleSave() {
+      if (loading || !window.sketchup) return;
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => {
+        try {
+          sketchup.save_settings(JSON.stringify(collectOptions()));
+          setStatus('Đã lưu setting.', true);
+        } catch (error) {
+          setStatus('Không lưu được setting.', false);
+          console.error(error);
+        }
+      }, 250);
+    }
+
+    function setInputValue(id, value) {
+      el(id).value = value === null || value === undefined ? '' : value;
+    }
+
+    function applyDefaults(defaults) {
+      if (!defaults) return;
+      setMode(defaults.mode || 'view');
+      state.direction = defaults.direction || 'y-';
+      state.scope = defaults.scope || 'selection';
+      state.primary_id = defaults.primary_id;
+      state.other_id = defaults.other_id;
+      state.veneer_id = defaults.veneer_id;
+      setInputValue('min-thickness', defaults.min_thickness_mm);
+      setInputValue('max-thickness', defaults.max_thickness_mm);
+      setInputValue('min-edge-length', defaults.min_edge_length_mm);
+      setInputValue('ignore-names', defaults.ignore_names);
+      el('material-rule').checked = defaults.material_rule_enabled === true || defaults.material_rule_enabled === 'true';
+      setInputValue('material-prefix', defaults.material_prefix || 'ver');
+    }
+
+    function selectValueOrFallback(select, wanted, fallbackItem, allowBlank) {
+      if (wanted && byId(wanted)) {
+        select.value = wanted;
+      } else if (fallbackItem) {
+        select.value = fallbackItem.id;
+      } else if (allowBlank) {
+        select.value = '';
+      }
+    }
+
+    window.mhNepLoad = function(payload) {
+      loading = true;
+      document.body.classList.toggle('abf-missing', !payload.abf_ready);
+      state.library = payload.library || [];
+      applyDefaults(payload.defaults);
+
+      el('direction').innerHTML = '';
+      (payload.directions || []).forEach((item) => {
+        const option = document.createElement('option');
+        option.value = item.key;
+        option.textContent = item.label;
+        el('direction').appendChild(option);
+      });
+      el('direction').value = state.direction;
+      el('scope').value = state.scope;
+
+      fillSelect(el('primary'), state.library, false);
+      fillSelect(el('other'), state.library, true);
+      fillSelect(el('veneer'), state.library, false);
+
+      const first = state.library[0];
+      const firstVeneer = state.library.find((item) => Math.abs(Number(item.thickness) - 0.5) < 0.001) || first;
+      selectValueOrFallback(el('primary'), state.primary_id, first, false);
+      selectValueOrFallback(el('other'), state.other_id, first, true);
+      selectValueOrFallback(el('veneer'), state.veneer_id, firstVeneer, false);
+
+      updatePreview('primary');
+      updatePreview('other');
+      updatePreview('veneer');
+
+      if (!payload.abf_ready) {
+        setStatus('ABF chưa sẵn sàng.', false);
+      } else {
+        setStatus(`Đã tải ${state.library.length} nẹp từ thư viện ABF.`, true);
+      }
+      loading = false;
+    };
+
+    window.mhNepSetStatus = function(payload) {
+      setStatus(payload.message || '', !!payload.ok);
+    };
+
+    el('mode-view').addEventListener('click', () => setMode('view'));
+    el('mode-plain').addEventListener('click', () => setMode('plain'));
+    el('primary').addEventListener('change', () => { updatePreview('primary'); scheduleSave(); });
+    el('other').addEventListener('change', () => { updatePreview('other'); scheduleSave(); });
+    el('veneer').addEventListener('change', () => { updatePreview('veneer'); scheduleSave(); });
+    ['direction', 'scope', 'min-thickness', 'max-thickness', 'min-edge-length', 'material-rule', 'material-prefix', 'ignore-names'].forEach((id) => {
+      const node = el(id);
+      node.addEventListener('change', scheduleSave);
+      node.addEventListener('input', scheduleSave);
+    });
+    el('refresh').addEventListener('click', () => sketchup.refresh_library());
+    el('hud').addEventListener('click', () => sketchup.hud(JSON.stringify(collectOptions())));
+    el('manual').addEventListener('click', () => sketchup.manual(JSON.stringify(collectOptions())));
+    el('apply').addEventListener('click', () => sketchup.apply(JSON.stringify(collectOptions())));
+    el('apply-all').addEventListener('click', () => sketchup.apply_all(JSON.stringify(collectOptions())));
+    el('clear').addEventListener('click', () => sketchup.clear(JSON.stringify(collectOptions())));
+
+    setMode('view');
+    if (window.sketchup) sketchup.ready();
+  </script>
+</body>
+</html>

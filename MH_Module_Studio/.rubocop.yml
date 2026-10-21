@@ -1,0 +1,35 @@
+plugins:
+  - rubocop-sketchup
+
+# A focused correctness gate; formatting/complexity policy can be added later.
+AllCops:
+  TargetRubyVersion: 3.2
+  DisabledByDefault: true
+  NewCops: disable
+  SuggestExtensions: false
+  Include:
+    - 'outputs/lint-source/**/*.rb'
+    - 'test/**/*.rb'
+    - 'tools/**/*.rb'
+  SketchUp:
+    SourcePath: outputs/lint-source
+    TargetSketchUpVersion: 2025
+    EncryptedExtension: false
+    Exclude:
+      - 'test/**/*.rb'
+      - 'tools/**/*.rb'
+
+Lint:
+  Enabled: true
+Security:
+  Enabled: true
+SketchupBugs:
+  Enabled: true
+SketchupDeprecations:
+  Enabled: true
+SketchupPerformance:
+  Enabled: true
+SketchupRequirements:
+  Enabled: true
+SketchupSuggestions:
+  Enabled: true

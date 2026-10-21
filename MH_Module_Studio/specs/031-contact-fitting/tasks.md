@@ -1,0 +1,8 @@
+- [x] Add portable translation/size contact correction and measured native solver.
+- [x] Attempt translation before changing size; preserve owned panel thickness.
+- [x] Persist new contacts in the existing wrapper's local rule table.
+- [x] Fill A/B reference faces with translucent native triangles.
+- [x] Verify expansion, contraction, two-axis fit, inset faces and copied assemblies.
+- [x] Verify readable true-conflict errors and atomic rollback.
+- [x] Exercise current user library modules on independent temporary copies.
+- [x] Run RuboCop, Ruby and browser checks; package RBZ and reload via existing VBO.

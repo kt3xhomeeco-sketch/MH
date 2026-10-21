@@ -1,0 +1,6 @@
+- [x] Read MH_Superimp rail selection and actual Studio drawer payloads without changing source SKPs.
+- [x] Share cavity capture for Shift, leaving normal saved-link and Ctrl priority intact.
+- [x] Isolate portable same-family rail selection and nominal-depth fitting.
+- [x] Resolve preview/click and each replacement target, with bounded JSON reuse and atomic batch operations.
+- [x] Test real drawer files, generic Fit, rotated/mirrored Scale, checked contacts, Undo and failed-batch rollback in SketchUp.
+- [x] Complete final scoped gate, runtime package byte verification and live reload.

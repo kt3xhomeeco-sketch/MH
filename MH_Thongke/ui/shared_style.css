@@ -1,0 +1,180 @@
+/* shared_style.css - Design System cho MH_Thongke */
+
+/* Typography & Variables */
+:root {
+  --bg-main: #2b2d31;
+  --bg-header: #1e1e24;
+  --bg-table: #222529;
+  --bg-th: #343a40;
+  --bg-hover: #3d444b;
+  --bg-selected: #1a5276;
+  --text-main: #dcdcdc;
+  --text-title: #fff;
+  --text-highlight: #e67e22;
+  --border-color: #3a3f44;
+  --border-table: #6b7580;
+  --border-cell: #555d65;
+  --btn-default: #3a3f44;
+  --btn-primary: #2980b9;
+  --btn-success: #16a085;
+  --btn-danger: #c0392b;
+  --btn-warning: #f1c40f;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  font-size: 11px;
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text-main);
+}
+
+/* Common Layout */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--bg-header);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.title {
+  font-size: 14px;
+  font-weight: bold;
+  color: var(--text-title);
+}
+
+.title span {
+  color: var(--text-highlight);
+}
+
+.wrap {
+  padding: 10px;
+}
+
+/* Tables */
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+  border: 1px solid var(--border-table);
+  border-radius: 4px;
+  overflow: hidden;
+  background: var(--bg-table);
+  margin-bottom: 10px;
+}
+
+th {
+  background: var(--bg-th);
+  color: var(--text-title);
+  padding: 4px;
+  text-align: left;
+  font-size: 9px;
+  border-right: 1px solid var(--border-table);
+  border-bottom: 1px solid var(--border-table);
+  white-space: nowrap;
+}
+
+td {
+  border-bottom: 1px solid var(--border-cell);
+  border-right: 1px solid var(--border-cell);
+  padding: 2px 4px;
+  font-size: 10px;
+  line-height: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+th:last-child, td:last-child {
+  border-right: none;
+}
+tr:last-child td {
+  border-bottom: none;
+}
+
+tr:hover {
+  background: var(--bg-hover);
+}
+
+tr.selected {
+  background: var(--bg-selected) !important;
+  color: #fff;
+}
+
+/* Buttons */
+.btn {
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+  height: 20px;
+  line-height: 20px;
+  padding: 0 8px;
+  cursor: pointer;
+  font-size: 9px;
+  font-family: inherit;
+  font-weight: bold;
+  text-transform: uppercase;
+  box-sizing: border-box;
+  background: var(--btn-default);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  appearance: none;
+  -webkit-appearance: none;
+  outline: none;
+}
+.btn:focus{outline:none;box-shadow:0 0 0 1px rgba(52,152,219,.45);}
+.btn:active{transform:translateY(1px);}
+
+.btn-primary { background: var(--btn-primary); }
+.btn-primary:hover { background: #3498db; }
+.btn-success { background: var(--btn-success); }
+.btn-danger { background: var(--btn-danger); }
+.btn-warning { background: var(--btn-warning); color: #1f2933; }
+
+/* Status Text */
+.status-khop { color: #2ecc71; font-weight: bold; text-align: center; font-size: 13px; }
+.status-missing { color: #e67e22; font-weight: bold; text-align: center; }
+.status-extra { color: #e74c3c; font-weight: bold; text-align: center; font-size: 10px; }
+
+b { color: var(--text-highlight); }
+
+/* Các CSS đặc thù cho Bảng Tổng Hợp (Được chuyển từ html_builder.rb) */
+.tabs{display:flex;background:#1e1e24;border-bottom:1px solid #3a3f44;flex-wrap:wrap;}
+.tab{padding:9px 13px;cursor:pointer;color:#a1a1aa;font-weight:bold;font-size:12px;transition:background 0.2s;}
+.tab:hover{background:#282a2e;}.tab.active{background:#3498db;color:#fff;}
+.content{display:block;padding:10px;}
+th{background:#343a40;color:#fff;padding:6px;text-align:left;font-size:12px;border-right:1px solid #6b7580;border-bottom:1px solid #6b7580;overflow:hidden;white-space:nowrap;user-select:none;position:relative;}
+th:last-child{border-right:none;}
+.col-resizer{position:absolute;right:0;top:0;width:7px;height:100%;cursor:col-resize;user-select:none;z-index:3;background:transparent;}
+.col-resizer:hover,.col-resizer.active{background:#3498db;}
+td{border-bottom:1px solid #555d65;border-right:1px solid #555d65;padding:4px 5px;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+td:last-child{border-right:none;}tr:last-child td{border-bottom:none;}tr:hover{background:#3d444b;}
+.data-row{opacity:0.9;}
+.btn-green{background:#27ae60;border-color:#1f8f4f;}.btn-green:hover{background:#2ecc71;border-color:#27ae60;}
+.btn-blue{background:#2980b9;border-color:#236d9f;}.btn-blue:hover{background:#3498db;border-color:#2980b9;}
+.btn-gray{background:#555;border-color:#666;}.btn-gray:hover{background:#777;border-color:#888;}
+.btn-red{background:#c0392b;border-color:#a93226;}.btn-red:hover{background:#e74c3c;border-color:#c0392b;}
+.btn-orange{background:#d35400;border-color:#b74700;}.btn-orange:hover{background:#e67e22;border-color:#d35400;}
+.group-filter{margin-top:5px;padding:10px;background:#222529;border-radius:4px;border:1px solid #3a3f44;}
+.settings-box{background:#222529;padding:15px;border-radius:4px;max-height:500px;overflow-y:auto;border:1px solid #3a3f44;margin-bottom:15px;}
+input[type="text"],input[type="number"],select{outline:none;border:1px solid #454d55;border-radius:3px;background:#1e1e24;color:#fff;padding:5px;font-family:inherit;}
+input[type="text"]:focus,select:focus{border-color:#3498db;}
+td input[type="text"]{outline:none;border:1px solid transparent;border-radius:2px;background:transparent;color:#fff;padding:3px;font-family:inherit;width:100%;box-sizing:border-box;}
+td input[type="text"]:focus{border-color:#454d55;background:#1e1e24;}
+td select{outline:none;border:1px solid #454d55;border-radius:2px;background:#1e1e24;color:#fff;padding:2px;font-family:inherit;width:100%;box-sizing:border-box;}
+::-webkit-scrollbar{width:8px;height:8px;}::-webkit-scrollbar-track{background:#1e1e24;}
+::-webkit-scrollbar-thumb{background:#555;border-radius:4px;}::-webkit-scrollbar-thumb:hover{background:#777;}
+.diff-row{background-color:#3d1515 !important;}
+.cell-diff{background-color:#4a1a1a !important;}
+.excel-diff-note{display:block;margin-top:2px;font-size:10px;line-height:1.2;color:#ff9f9f;white-space:normal;word-break:break-word;}
+.ngay-dat-btn{background:transparent;border:1px solid #555;color:#aaa;padding:1px 4px;font-size:10px;cursor:pointer;border-radius:2px;}
+.ngay-dat-btn:hover{background:#2c3e50;color:#fff;}
+.bulk-cell-selected{background:#5a4814!important;outline:2px solid #f1c40f;outline-offset:-2px;}
+.bulk-cell-selected input{background:#1e1e24!important;}

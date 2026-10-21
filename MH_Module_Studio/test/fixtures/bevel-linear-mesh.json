@@ -1,0 +1,592 @@
+{
+  "id": "a958d11c-2234-44a4-864f-4482473e2a3c",
+  "label": "CÁNH VÁT ĐƠN.skp",
+  "parameter": 18.0,
+  "source": {
+    "kind": "selection",
+    "root_pid": "841493"
+  },
+  "parts": [
+    {
+      "key": "root:mesh",
+      "name": "CANHVATCANH",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          299.99999999999966,
+          18.0,
+          300.0
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": false,
+      "face_count": 0,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {
+      },
+      "affine_verified": false,
+      "linear_mesh_verified": false
+    },
+    {
+      "key": "part:0001",
+      "name": "CANHDUOI",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          299.99999999999994,
+          17.999999999999996,
+          245.0
+        ]
+      ],
+      "thickness_axis": 1,
+      "box_verified": false,
+      "face_count": 5,
+      "edge_count": 12,
+      "visible": true,
+      "dc_attributes": {
+        "_formatversion": 1.0,
+        "_has_movetool_behaviors": 0.0,
+        "_hasbehaviors": 1.0,
+        "_inst___iscollapsed_access": null,
+        "_inst___iscollapsed_formlabel": null,
+        "_inst___iscollapsed_formula": null,
+        "_inst___iscollapsed_formulaunits": null,
+        "_inst___iscollapsed_label": null,
+        "_inst___iscollapsed_options": null,
+        "_inst___iscollapsed_units": null,
+        "_inst__iscollapsed": "false",
+        "_iscollapsed": "false",
+        "_lastmodified": "2024-06-20 14:18",
+        "_lengthunits": "CENTIMETERS",
+        "_lenx_error": "<span class=subformula-success>30.0</span>",
+        "_lenx_formula": "CANHVATCANH!LenX",
+        "_lenx_label": "LenX",
+        "_leny_error": "<span class=subformula-success>1.7999999999999998</span>",
+        "_leny_formula": "CANHVATCANH!DAYVAN",
+        "_leny_label": "LenY",
+        "_lenz_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>+-3",
+        "_lenz_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+        "_lenz_label": "LenZ",
+        "_name": "CANHDUOI",
+        "lenx": 11.811023622047244,
+        "leny": 0.7086614173228346,
+        "lenz": 9.645669291338583
+      },
+      "affine_verified": true,
+      "linear_mesh_verified": true
+    },
+    {
+      "key": "part:0002",
+      "name": "CANHVAT",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          245.0
+        ],
+        [
+          300.0,
+          18.0,
+          275.00000000000006
+        ]
+      ],
+      "thickness_axis": null,
+      "box_verified": false,
+      "face_count": 6,
+      "edge_count": 15,
+      "visible": true,
+      "dc_attributes": {
+        "_formatversion": 1.0,
+        "_has_movetool_behaviors": 1.0,
+        "_hasbehaviors": 1.0,
+        "_inst___iscollapsed_access": null,
+        "_inst___iscollapsed_formlabel": null,
+        "_inst___iscollapsed_formula": null,
+        "_inst___iscollapsed_formulaunits": null,
+        "_inst___iscollapsed_label": null,
+        "_inst___iscollapsed_options": null,
+        "_inst___iscollapsed_units": null,
+        "_inst__iscollapsed": "false",
+        "_inst__y_access": null,
+        "_inst__y_formlabel": null,
+        "_inst__y_formula": null,
+        "_inst__y_formulaunits": null,
+        "_inst__y_label": "Y",
+        "_inst__y_options": null,
+        "_inst__y_units": null,
+        "_inst__z_access": null,
+        "_inst__z_formlabel": null,
+        "_inst__z_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+        "_inst__z_formulaunits": null,
+        "_inst__z_label": "Z",
+        "_inst__z_options": null,
+        "_inst__z_units": null,
+        "_inst_y": 0.0,
+        "_inst_z": 9.645669291338583,
+        "_iscollapsed": "false",
+        "_lastmodified": "2024-06-25 10:01",
+        "_lengthunits": "CENTIMETERS",
+        "_lenx_error": "<span class=subformula-success>30.0</span>",
+        "_lenx_formula": "CANHVATCANH!LenX",
+        "_lenx_label": "LenX",
+        "_leny_error": "<span class=subformula-success>1.7999999999999998</span>",
+        "_leny_formula": "CANHVATCANH!DAYVAN",
+        "_leny_label": "LenY",
+        "_lenz_error": "3",
+        "_lenz_formula": "3",
+        "_lenz_label": "LenZ",
+        "_name": "CANHVAT",
+        "_z_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>+-3",
+        "_z_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+        "_z_label": "Z",
+        "lenx": 11.811023622047244,
+        "leny": 0.7086614173228346,
+        "lenz": 1.1811023622047243,
+        "z": 9.645669291338583
+      },
+      "affine_verified": false,
+      "linear_mesh_verified": true
+    },
+    {
+      "key": "part:0003",
+      "name": "CV_KH",
+      "bounds": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          299.99999999999966,
+          0.0,
+          275.00000000000006
+        ]
+      ],
+      "thickness_axis": null,
+      "box_verified": false,
+      "face_count": 0,
+      "edge_count": 2,
+      "visible": true,
+      "dc_attributes": {
+        "_formatversion": 1.0,
+        "_has_movetool_behaviors": 0.0,
+        "_hasbehaviors": 1.0,
+        "_inst___iscollapsed_access": null,
+        "_inst___iscollapsed_formlabel": null,
+        "_inst___iscollapsed_formula": null,
+        "_inst___iscollapsed_formulaunits": null,
+        "_inst___iscollapsed_label": null,
+        "_inst___iscollapsed_options": null,
+        "_inst___iscollapsed_units": null,
+        "_inst__iscollapsed": "false",
+        "_iscollapsed": "false",
+        "_lastmodified": "2024-06-25 09:49",
+        "_lengthunits": "CENTIMETERS",
+        "_lenx_error": "<span class=subformula-success>30.0</span>",
+        "_lenx_formula": "CANHVATCANH!LenX",
+        "_lenx_label": "LenX",
+        "_leny_label": "LenY",
+        "_lenz_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>",
+        "_lenz_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC",
+        "_lenz_label": "LenZ",
+        "_name": "CV_KH",
+        "lenx": 11.811023622047244,
+        "leny": 0.0,
+        "lenz": 10.826771653543307
+      },
+      "affine_verified": false,
+      "linear_mesh_verified": false
+    }
+  ],
+  "envelope": [
+    [
+      0.0,
+      0.0,
+      0.0
+    ],
+    [
+      300.0,
+      18.0,
+      300.0
+    ]
+  ],
+  "dc_inputs": {
+    "_dayvan_access": "VIEW",
+    "_dayvan_formlabel": "CHIỀU DÀY CÁNH",
+    "_dayvan_formulaunits": "CENTIMETERS",
+    "_dayvan_label": "DAYVAN",
+    "_dayvan_options": "&",
+    "_dayvan_units": "MILLIMETERS",
+    "_formatversion": 1.0,
+    "_has_movetool_behaviors": 0.0,
+    "_hasbehaviors": 1.0,
+    "_inst__rotz_access": "LIST",
+    "_inst__rotz_formlabel": "XOAY",
+    "_inst__rotz_formula": null,
+    "_inst__rotz_formulaunits": null,
+    "_inst__rotz_label": "RotZ",
+    "_inst__rotz_options": "&0=0&90=90&",
+    "_inst__rotz_units": "DEGREES",
+    "_inst_rotz": 0.0,
+    "_khemoc_access": "TEXTBOX",
+    "_khemoc_formlabel": "KHE MÓC TAY",
+    "_khemoc_formulaunits": "CENTIMETERS",
+    "_khemoc_label": "KHEMOC",
+    "_khemoc_options": "&",
+    "_khemoc_units": "MILLIMETERS",
+    "_lastmodified": "2024-06-27 21:15",
+    "_lengthunits": "CENTIMETERS",
+    "_lenx_access": "TEXTBOX",
+    "_lenx_formlabel": "CHIỀU RỘNG CÁNH",
+    "_lenx_label": "LenX",
+    "_lenx_nominal": 11.811023622047244,
+    "_lenx_units": "MILLIMETERS",
+    "_leny_access": "NONE",
+    "_leny_label": "LenY",
+    "_leny_nominal": 0.7086614173228346,
+    "_leny_units": "MILLIMETERS",
+    "_lenz_access": "TEXTBOX",
+    "_lenz_formlabel": "CHIỀU DÀI CÁNH",
+    "_lenz_label": "LenZ",
+    "_lenz_nominal": 11.811023622047244,
+    "_lenz_units": "MILLIMETERS",
+    "_name": "CANHVATCANH",
+    "_name_label": "Name",
+    "_scaletool_formlabel": "ScaleTool",
+    "_scaletool_label": "ScaleTool",
+    "_scaletool_units": "STRING",
+    "dayvan": "0.7086614173228346",
+    "khemoc": "0.984251968503937",
+    "lenx": "11.811023622047244",
+    "leny": "0.7086614173228346",
+    "lenz": "11.811023622047244",
+    "name": "CÁNH VÁT 18",
+    "scaletool": "114",
+    "_rotz_access": "LIST",
+    "_rotz_formlabel": "XOAY",
+    "_rotz_label": "RotZ",
+    "_rotz_options": "&0=0&90=90&",
+    "_rotz_units": "DEGREES",
+    "rotz": "0"
+  },
+  "captured_at": "2026-10-17T16:39:39Z",
+  "parameter_source": {
+    "kind": "dc_parameter_set",
+    "dc_keys": [
+      "dayvan"
+    ]
+  },
+  "dc_graph": {
+    "nodes": [
+      {
+        "id": "root:mesh",
+        "parent_id": "",
+        "path": [
+          "root:mesh"
+        ],
+        "name": "CANHVATCANH",
+        "attributes": {
+          "_lengthunits": "MILLIMETERS",
+          "_lenx_formula": "parent!LenX",
+          "_leny_formula": "parent!LenY",
+          "_lenz_formula": "parent!LenZ"
+        },
+        "virtual_root_mesh": true,
+        "transform": [
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
+          0,
+          0,
+          0,
+          1
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.81102362204723,
+            0.7086614173228347,
+            11.811023622047244
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "part_key": "root:mesh"
+      },
+      {
+        "id": "1",
+        "parent_id": "",
+        "path": [
+          "canhduoi"
+        ],
+        "name": "CANHDUOI",
+        "attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_inst___iscollapsed_access": null,
+          "_inst___iscollapsed_formlabel": null,
+          "_inst___iscollapsed_formula": null,
+          "_inst___iscollapsed_formulaunits": null,
+          "_inst___iscollapsed_label": null,
+          "_inst___iscollapsed_options": null,
+          "_inst___iscollapsed_units": null,
+          "_inst__iscollapsed": "false",
+          "_iscollapsed": "false",
+          "_lastmodified": "2024-06-20 14:18",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>30.0</span>",
+          "_lenx_formula": "CANHVATCANH!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.7999999999999998</span>",
+          "_leny_formula": "CANHVATCANH!DAYVAN",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>+-3",
+          "_lenz_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+          "_lenz_label": "LenZ",
+          "_name": "CANHDUOI",
+          "lenx": 11.811023622047244,
+          "leny": 0.7086614173228346,
+          "lenz": 9.645669291338583
+        },
+        "transform": [
+          1.000000000000001,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0000000000000004,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          0.36567164179104483,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.81102362204723,
+            0.7086614173228343,
+            26.37795275590551
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "visibility_flattened": false,
+        "part_key": "part:0001"
+      },
+      {
+        "id": "2",
+        "parent_id": "",
+        "path": [
+          "canhvat"
+        ],
+        "name": "CANHVAT",
+        "attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 1.0,
+          "_hasbehaviors": 1.0,
+          "_inst___iscollapsed_access": null,
+          "_inst___iscollapsed_formlabel": null,
+          "_inst___iscollapsed_formula": null,
+          "_inst___iscollapsed_formulaunits": null,
+          "_inst___iscollapsed_label": null,
+          "_inst___iscollapsed_options": null,
+          "_inst___iscollapsed_units": null,
+          "_inst__iscollapsed": "false",
+          "_inst__y_access": null,
+          "_inst__y_formlabel": null,
+          "_inst__y_formula": null,
+          "_inst__y_formulaunits": null,
+          "_inst__y_label": "Y",
+          "_inst__y_options": null,
+          "_inst__y_units": null,
+          "_inst__z_access": null,
+          "_inst__z_formlabel": null,
+          "_inst__z_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+          "_inst__z_formulaunits": null,
+          "_inst__z_label": "Z",
+          "_inst__z_options": null,
+          "_inst__z_units": null,
+          "_inst_y": 0.0,
+          "_inst_z": 9.645669291338583,
+          "_iscollapsed": "false",
+          "_lastmodified": "2024-06-25 10:01",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>30.0</span>",
+          "_lenx_formula": "CANHVATCANH!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.7999999999999998</span>",
+          "_leny_formula": "CANHVATCANH!DAYVAN",
+          "_leny_label": "LenY",
+          "_lenz_error": "3",
+          "_lenz_formula": "3",
+          "_lenz_label": "LenZ",
+          "_name": "CANHVAT",
+          "_z_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>+-3",
+          "_z_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC-3",
+          "_z_label": "Z",
+          "lenx": 11.811023622047244,
+          "leny": 0.7086614173228346,
+          "lenz": 1.1811023622047243,
+          "z": 9.645669291338583
+        },
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          9.645669291338583,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.811023622047244,
+            0.7086614173228347,
+            1.1811023622047259
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "visibility_flattened": false,
+        "part_key": "part:0002"
+      },
+      {
+        "id": "3",
+        "parent_id": "",
+        "path": [
+          "cv_kh"
+        ],
+        "name": "CV_KH",
+        "attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_inst___iscollapsed_access": null,
+          "_inst___iscollapsed_formlabel": null,
+          "_inst___iscollapsed_formula": null,
+          "_inst___iscollapsed_formulaunits": null,
+          "_inst___iscollapsed_label": null,
+          "_inst___iscollapsed_options": null,
+          "_inst___iscollapsed_units": null,
+          "_inst__iscollapsed": "false",
+          "_iscollapsed": "false",
+          "_lastmodified": "2024-06-25 09:49",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>30.0</span>",
+          "_lenx_formula": "CANHVATCANH!LenX",
+          "_lenx_label": "LenX",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>30.0</span>+-1*<span class=subformula-success>2.5</span>",
+          "_lenz_formula": "CANHVATCANH!LenZ-CANHVATCANH!KHEMOC",
+          "_lenz_label": "LenZ",
+          "_name": "CV_KH",
+          "lenx": 11.811023622047244,
+          "leny": 0.0,
+          "lenz": 10.826771653543307
+        },
+        "transform": [
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0,
+          0.0,
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ],
+        "local_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            11.81102362204723,
+            0.0,
+            10.82677165354331
+          ]
+        ],
+        "hidden": false,
+        "tag_visible": true,
+        "visibility_flattened": false,
+        "part_key": "part:0003"
+      }
+    ],
+    "root_frame": [
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1.0,
+      0,
+      0,
+      0,
+      0,
+      1
+    ]
+  },
+  "module_name": "CANHVATCANH",
+  "visibility_version": 1,
+  "formula_frame_version": 2
+}

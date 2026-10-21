@@ -1,0 +1,14 @@
+{
+  "mode": "plain",
+  "direction": "y-",
+  "scope": "model",
+  "primary_id": "17103807",
+  "other_id": "17103807",
+  "min_thickness_mm": "12",
+  "max_thickness_mm": "20",
+  "min_edge_length_mm": "",
+  "material_rule_enabled": false,
+  "material_prefix": "ver",
+  "veneer_id": "948190118",
+  "ignore_names": "Dưỡng"
+}

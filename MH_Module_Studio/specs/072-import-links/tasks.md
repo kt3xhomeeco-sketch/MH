@@ -1,0 +1,7 @@
+- [x] Portable template schema, partial face fitting and master thickness rules.
+- [x] Parametric editor and payload persistence.
+- [x] Native host face hover, preview and atomic contact placement.
+- [x] Master/group synchronization and noncumulative opposed-door reservation.
+- [x] Pure/browser/native regressions, full gate, package and reload.
+- [x] Verify inset child follows host T and native Scale before/after Group and SKP reopen.
+- [x] Verify independent opposed door T changes preserve aggregate depth with editable clearance.

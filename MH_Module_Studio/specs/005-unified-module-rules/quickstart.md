@@ -1,0 +1,2 @@
+# Quickstart
+Select a cabinet group/component → Đọc SketchUp → Tự nhận diện. Expand Chi tiết / Tham số / Quan hệ in the floating MODULE browser. Select a rule to inspect or edit its faces and gap. Choose Thử tham số, adjust ticked values, preview, then create an independent trial. Save rules for reuse. ATT items show their formulas; inferred contacts on ATT modules remain references unless enabled by the user.

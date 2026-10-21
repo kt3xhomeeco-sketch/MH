@@ -1,0 +1,3 @@
+- [x] Add ID-based, reference-aware symbol migration.
+- [x] Test generated/manual/dependent formulas and reject unsafe edits atomically.
+- [x] Verify portable gate and native saved-rule edits; reload and package.

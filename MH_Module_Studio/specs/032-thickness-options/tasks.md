@@ -1,0 +1,10 @@
+- [x] Read-only audit of all 69 own-library SKPs and identify duplicate thickness inputs.
+- [x] Resolve duplicate policy with the user: merge to one T1/T2 and shared value.
+- [x] Implement portable driver classification, alias validation and formula migration.
+- [x] Preserve high-envelope anchors and previously verified source joints for layered merges.
+- [x] Add grouped/mixed option rows and compact module section separators.
+- [x] Apply common/private option edits and assembly solving atomically; retain copy independence.
+- [x] Verify stale tokens, Undo, failed second-member rollback and member editing context.
+- [x] Back up, migrate and reopen/verify all 69 own-library SKPs.
+- [x] Update all three live owned modules; retain bindings and sync source signatures.
+- [x] Run scoped Ruby/RuboCop, native and browser checks; package and reload through existing VBO.

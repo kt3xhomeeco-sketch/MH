@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Cài Đặt Chung</title>
+    <link rel="stylesheet" href="css/style.css">
+    <script src="js/vue.min.js"></script>
+    <script src="js/setting.js"></script>
+</head>
+<body>
+
+<div id="app" class="container">
+    <div class="col2">
+        <h3>Hiển thị cài đặt</h3>
+
+        <div class="switch" title="Cỡ chữ của các nút cài đặt trên màn hình.">
+            <span>Cỡ chữ</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('co_chu_cai_dat_mau')" :disabled="settings.co_chu_cai_dat_mau <= 5">−</button>
+                <input type="number" v-model.number="settings.co_chu_cai_dat_mau" @change="saveSetting('co_chu_cai_dat_mau')" @blur="validateInt('co_chu_cai_dat_mau', 5, 64)" @keyup.enter="validateInt('co_chu_cai_dat_mau', 5, 64)" min="5" max="64" step="1">
+                <button class="spinner-btn" @click="incrementInt('co_chu_cai_dat_mau')" :disabled="settings.co_chu_cai_dat_mau >= 64">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Độ đậm của nền các nút trên màn hình, giá trị từ 0-100.
+Giá trị bằng 0 tương đương trong suốt hoàn toàn.">
+            <span>Độ đậm nút</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('do_dam', 0)" :disabled="settings.do_dam <= 0">−</button>
+                <input type="number" v-model.number="settings.do_dam" @change="saveSetting('do_dam')" @blur="validateRange('do_dam', 0, 100)" @keyup.enter="validateRange('do_dam', 0, 100)" min="0" max="100" step="1">
+                <button class="spinner-btn" @click="incrementInt('do_dam', 100)" :disabled="settings.do_dam >= 100">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Khoảng cách theo chiều dọc giữa các nút cài đặt.">
+            <span>Khoảng cách nút</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('khoang_cach', 0)" :disabled="settings.khoang_cach <= 0">−</button>
+                <input type="number" v-model.number="settings.khoang_cach" @change="saveSetting('khoang_cach')" @blur="validateRange('khoang_cach', 0, 20)" @keyup.enter="validateRange('khoang_cach', 0, 20)" min="0" max="20" step="1">
+                <button class="spinner-btn" @click="incrementInt('khoang_cach', 20)" :disabled="settings.khoang_cach >= 20">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Tên font chữ dùng cho các nút trên màn hình.">
+            <span>Kiểu chữ</span>
+            <div class="text-input-group">
+                <input type="text" v-model="settings.kieu_chu" @input="saveSetting('kieu_chu')" placeholder="Arial">
+            </div>
+        </div>
+
+        <div class="switch" title="In đậm chữ trên các nút cài đặt.">
+            <span>Chữ đậm</span>
+            <input type="checkbox" v-model="settings.chu_dam" @change="saveSetting('chu_dam')" id="chu_dam">
+            <label class="switch-label" for="chu_dam"></label>
+        </div>
+
+        <div class="switch" title="Hiện cụm nút cài đặt mẫu trên màn hình khi dùng công cụ.">
+            <span>Hiện nút cài đặt</span>
+            <input type="checkbox" v-model="settings.hien_thi_cai_dat_mau" @change="saveSetting('hien_thi_cai_dat_mau')" id="hien_thi_cai_dat_mau">
+            <label class="switch-label" for="hien_thi_cai_dat_mau"></label>
+        </div>
+
+        <div class="switch" title="Hiện cụm nút chuyển chế độ trên màn hình.">
+            <span>Hiện nút chế độ</span>
+            <input type="checkbox" v-model="settings.hien_thi_che_do" @change="saveSetting('hien_thi_che_do')" id="hien_thi_che_do">
+            <label class="switch-label" for="hien_thi_che_do"></label>
+        </div>
+
+        <div class="switch" title="Hiện thông số kích thước trên màn hình.">
+            <span>Hiện thông số</span>
+            <input type="checkbox" v-model="settings.hien_thi_thong_so" @change="saveSetting('hien_thi_thong_so')" id="hien_thi_thong_so">
+            <label class="switch-label" for="hien_thi_thong_so"></label>
+        </div>
+
+        <h3>Hình xem trước</h3>
+
+        <div class="switch" title="Độ dày của nét vẽ trong hình xem trước.">
+            <span>Độ đậm nét</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('do_dam_net_xem_truoc')" :disabled="settings.do_dam_net_xem_truoc <= 1">−</button>
+                <input type="number" v-model.number="settings.do_dam_net_xem_truoc" @change="saveSetting('do_dam_net_xem_truoc')" @blur="validateInt('do_dam_net_xem_truoc', 1, 64)" @keyup.enter="validateInt('do_dam_net_xem_truoc', 1, 64)" min="1" max="64" step="1">
+                <button class="spinner-btn" @click="incrementInt('do_dam_net_xem_truoc')" :disabled="settings.do_dam_net_xem_truoc >= 64">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Độ đậm của mặt trong hình xem trước, giá trị từ 0-100.
+Giá trị bằng 0 tương đương trong suốt hoàn toàn.">
+            <span>Độ đậm mặt</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('do_dam_mat_xem_truoc', 0)" :disabled="settings.do_dam_mat_xem_truoc <= 0">−</button>
+                <input type="number" v-model.number="settings.do_dam_mat_xem_truoc" @change="saveSetting('do_dam_mat_xem_truoc')" @blur="validateRange('do_dam_mat_xem_truoc', 0, 100)" @keyup.enter="validateRange('do_dam_mat_xem_truoc', 0, 100)" min="0" max="100" step="1">
+                <button class="spinner-btn" @click="incrementInt('do_dam_mat_xem_truoc', 100)" :disabled="settings.do_dam_mat_xem_truoc >= 100">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Cỡ chữ kích thước và ghi chú trong hình xem trước.">
+            <span>Cỡ chữ</span>
+            <div class="number-input-group">
+                <button class="spinner-btn" @click="decrementInt('co_chu_ghi_chu')" :disabled="settings.co_chu_ghi_chu <= 5">−</button>
+                <input type="number" v-model.number="settings.co_chu_ghi_chu" @change="saveSetting('co_chu_ghi_chu')" @blur="validateInt('co_chu_ghi_chu', 5, 36)" @keyup.enter="validateInt('co_chu_ghi_chu', 5, 36)" min="5" max="36" step="1">
+                <button class="spinner-btn" @click="incrementInt('co_chu_ghi_chu')" :disabled="settings.co_chu_ghi_chu >= 36">+</button>
+            </div>
+        </div>
+
+        <div class="switch" title="Màu của nét vẽ trong hình xem trước.">
+            <span>Màu nét</span>
+            <div class="color-input-group">
+                <input type="color" v-model="mau_net_xem_truoc_hex" @input="saveColor('mau_net_xem_truoc')">
+            </div>
+        </div>
+
+        <div class="switch" title="Màu của mặt trong hình xem trước.">
+            <span>Màu mặt</span>
+            <div class="color-input-group">
+                <input type="color" v-model="mau_mat_xem_truoc_hex" @input="saveColor('mau_mat_xem_truoc')">
+            </div>
+        </div>
+
+        <div class="switch" title="Màu của kích thước và ghi chú trong hình xem trước.">
+            <span>Màu chữ</span>
+            <div class="color-input-group">
+                <input type="color" v-model="mau_chu_ghi_chu_hex" @input="saveColor('mau_chu_ghi_chu')">
+            </div>
+        </div>
+
+        <div class="switch" title="Màu cảnh báo khi thao tác không hợp lệ.">
+            <span>Màu cảnh báo</span>
+            <div class="color-input-group">
+                <input type="color" v-model="mau_canh_bao_hex" @input="saveColor('mau_canh_bao')">
+            </div>
+        </div>
+
+        <h3>Thanh công cụ</h3>
+
+        <div v-for="tool in tools" :key="tool.key" class="switch">
+            <span>{{ tool.name }}</span>
+            <input type="checkbox" v-model="tool.enabled" @change="sendToolSetting(tool)" :id="tool.key">
+            <label class="switch-label" :for="tool.key"></label>
+        </div>
+    </div>
+
+    <div class="col3">
+        <h3>Hệ thống điều khiển MH Panel</h3>
+
+        <div style="padding-top:7px;">
+            <button class="action-button-full" style="padding: 6px 10px;" title="Lưu toàn bộ cài đặt hiện tại ra file sao lưu." @click="postAction('export_settings')">Sao lưu cài đặt</button>
+            <button class="action-button-full" style="padding: 6px 10px;" title="Nhập lại toàn bộ cài đặt từ file sao lưu." @click="postAction('import_settings')">Phục hồi cài đặt</button>
+            <button class="action-button-full danger" style="padding: 6px 10px;" title="Khôi phục tất cả cài đặt về mặc định." @click="postAction('reset_settings')">Đặt lại cài đặt gốc</button>
+        </div>
+
+        <h3 style="margin-top: 15px;">Thông tin</h3>
+
+        <div style="padding-top:7px; font-size: 12px; color: #6e6e73; line-height: 1.5;">
+            MH Panel — Dựng tấm ván &amp; dựng cánh tủ.<br>
+            Engine WPS, giao diện OpenZSU, namespace MH::Panel.
+        </div>
+    </div>
+</div>
+
+<script>
+    const toolData = [
+        {key: "tao_van", name: "Tạo ván"},
+        {key: "tao_canh", name: "Tạo cánh"},
+        {key: "duc_khung", name: "Đục khung"}
+    ];
+
+    new Vue({
+        el: '#app',
+        mixins: [SettingsMixin('cai_dat')],
+        data: {
+            settings: {
+                co_chu_cai_dat_mau: 8,
+                do_dam: 25,
+                khoang_cach: 5,
+                kieu_chu: 'Arial',
+                chu_dam: false,
+                hien_thi_cai_dat_mau: true,
+                hien_thi_che_do: true,
+                hien_thi_thong_so: true,
+                do_dam_net_xem_truoc: 2,
+                do_dam_mat_xem_truoc: 10,
+                co_chu_ghi_chu: 8,
+                mau_net_xem_truoc: [74, 68, 115],
+                mau_mat_xem_truoc: [60, 175, 214],
+                mau_chu_ghi_chu: [74, 68, 115],
+                mau_canh_bao: [210, 117, 159]
+            },
+            tools: toolData.map(t => ({...t, enabled: true}))
+        },
+        computed: {
+            mau_mat_xem_truoc_hex: colorComputed('mau_mat_xem_truoc'),
+            mau_net_xem_truoc_hex: colorComputed('mau_net_xem_truoc'),
+            mau_chu_ghi_chu_hex: colorComputed('mau_chu_ghi_chu'),
+            mau_canh_bao_hex: colorComputed('mau_canh_bao')
+        },
+        methods: {
+            postAction(action) {
+                if (window.parent !== window) {
+                    window.parent.postMessage({action: action}, '*');
+                }
+            },
+
+            sendToolSetting(tool) {
+                if (window.parent !== window) {
+                    window.parent.postMessage({
+                        action: 'save_setting',
+                        tabId: 'cai_dat',
+                        key: tool.key,
+                        value: tool.enabled
+                    }, '*');
+                }
+            },
+
+            validateRange(key, min, max) {
+                let n = parseInt(this.settings[key], 10);
+                if (isNaN(n) || n < min) n = min;
+                if (n > max) n = max;
+                this.settings[key] = n;
+                this.saveSetting(key);
+            },
+
+            loadSettings(settings) {
+                this.tools.forEach(t => {
+                    if (settings[t.key] !== undefined) {
+                        t.enabled = !!settings[t.key];
+                    } else {
+                        t.enabled = true;
+                    }
+                });
+
+                const self = this;
+                Object.keys(settings).forEach(function (key) {
+                    if (self.settings.hasOwnProperty(key)) {
+                        let value = settings[key];
+                        if (typeof value === 'string' && !isNaN(value) && value !== '') {
+                            value = parseFloat(value);
+                        }
+                        if (self.isColorKey(key) && typeof value === 'string') {
+                            value = value.split(',').map(v => parseInt(v.trim()));
+                        }
+                        self.settings[key] = value;
+                    }
+                });
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

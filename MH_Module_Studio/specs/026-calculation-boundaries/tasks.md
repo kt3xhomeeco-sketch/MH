@@ -1,0 +1,5 @@
+- [x] Record behavior baselines and dependency inventory.
+- [x] Extract portable math, formula classes, Scale plan and host DC capture.
+- [x] Extract sheet and Studio rule-building policy; protect input ownership.
+- [x] Add architecture and cross-feature regression checks; compare baselines.
+- [x] Run portable/native checks and package/document final structure.

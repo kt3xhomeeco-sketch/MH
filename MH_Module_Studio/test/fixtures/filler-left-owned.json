@@ -1,0 +1,1915 @@
+{
+  "rule": {
+    "format": "mh_module_studio",
+    "version": 1,
+    "kind": "module_rule_system",
+    "id": "ad504dc7-59ec-4a2a-bc73-5554196858fb",
+    "parts": [
+      {
+        "key": "sp14_nẹp bù",
+        "name": "SP14_Nẹp Bù",
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            50.00000000000001,
+            17.599999999999998,
+            500.0
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_iscollapsed": "false",
+          "_lastmodified": "2026-06-08 20:17",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_error": "<span class=subformula-success>5.0</span>",
+          "_lenx_formula": "parent!LenX",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>1.76</span>",
+          "_leny_formula": "parent!DoDayTam",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>50.0</span>",
+          "_lenz_formula": "parent!LenZ",
+          "_lenz_label": "LenZ",
+          "_name": "Nẹp Bù",
+          "_x_label": "X",
+          "_y_label": "Y",
+          "_z_label": "Z",
+          "lenx": 1.968503937007874,
+          "leny": 0.6929133858267716,
+          "lenz": 19.68503937007874,
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "affine_verified": true,
+        "base_bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            50.00000000000001,
+            17.599999999999998,
+            500.0
+          ]
+        ],
+        "driver": false
+      },
+      {
+        "key": "sp14_xương nẹp",
+        "name": "SP14_Xương Nẹp",
+        "bounds": [
+          [
+            0.0,
+            17.599999999999998,
+            0.0
+          ],
+          [
+            17.599999999999998,
+            67.6,
+            500.0
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 1.0,
+          "_hasbehaviors": 1.0,
+          "_iscollapsed": "false",
+          "_lastmodified": "2026-06-08 20:18",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_formula": "parent!DoDayTam",
+          "_lenx_label": "LenX",
+          "_leny_error": "<span class=subformula-success>5</span>",
+          "_leny_formula": "parent!Xuong",
+          "_leny_label": "LenY",
+          "_lenz_error": "<span class=subformula-success>50.0</span>",
+          "_lenz_formula": "parent!LenZ",
+          "_lenz_label": "LenZ",
+          "_name": "Xương Nẹp",
+          "_y_error": "<span class=subformula-success>1.76</span>",
+          "_y_formula": "parent!DoDayTam",
+          "_y_label": "Y",
+          "_z_label": "Z",
+          "lenx": 0.6929133858267716,
+          "leny": 1.968503937007874,
+          "lenz": 19.68503937007874,
+          "y": 0.6929133858267716,
+          "z": 0.0
+        },
+        "affine_verified": true,
+        "base_bounds": [
+          [
+            0.0,
+            17.599999999999998,
+            0.0
+          ],
+          [
+            17.599999999999998,
+            67.6,
+            500.0
+          ]
+        ],
+        "driver": false
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        50.00000000000001,
+        67.6,
+        500.0
+      ]
+    ],
+    "parameters": [
+      {
+        "key": "dodaytam",
+        "label": "Độ Dày Tấm",
+        "value": 17.6,
+        "unit": "mm",
+        "options": [],
+        "editable": true,
+        "status": "learned",
+        "rule_source": "dc_attributes",
+        "input_range": [
+          0.2,
+          10000.0
+        ],
+        "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+      }
+    ],
+    "constraints": [
+      {
+        "id": "1443cce4-f4fe-4635-a79e-5d9b709265b7",
+        "type": "contact",
+        "source": "geometry",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 1,
+          "side": 0
+        },
+        "gap": 0.0,
+        "label": "SP14_Nẹp Bù → SP14_Xương Nẹp"
+      },
+      {
+        "id": "5c5887f7-107f-4ed3-bbd2-8667037f90a8",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_nẹp bù · lenx",
+        "formula": "parent!LenX",
+        "translated": true
+      },
+      {
+        "id": "4e456234-7f7b-4da4-b35c-7a01470cc127",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_nẹp bù · leny",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "id": "daacb4f9-979e-421d-9b8d-ed997b2a5539",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_nẹp bù · lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      },
+      {
+        "id": "c41bbdf4-47fc-4bbd-b980-e4e9b8e33737",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_xương nẹp · y",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "id": "a9fb4a57-b21f-4018-bb7a-4bb985606b06",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_xương nẹp · lenx",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "id": "af10aade-6d1a-457d-9cee-93ec66a16a2e",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_xương nẹp · leny",
+        "formula": "parent!Xuong",
+        "translated": true
+      },
+      {
+        "id": "fc5c1ab8-0c25-45b4-b065-99afbf961629",
+        "type": "formula",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "label": "sp14_xương nẹp · lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:0:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 0
+        },
+        "other": {
+          "part": "@module",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt trái → Mép trái",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          0
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "@module",
+          "axis": 0,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt phải → Mép phải",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          0
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:dimension:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenx": 1.0
+          }
+        },
+        "label": "Rộng",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          0
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:1:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 1,
+          "side": 0
+        },
+        "other": {
+          "part": "@module",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt trước → Mép trước",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          1
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "@module",
+          "axis": 1,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "dodaytam": -1.0,
+            "@leny": 1.0
+          }
+        },
+        "label": "Mặt sau → Mép sau",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          1
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:dimension:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "dodaytam": 1.0
+          }
+        },
+        "label": "Sâu",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          1
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:2:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 0
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt dưới → Mép dưới",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          2,
+          6
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:distance:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt trên → Mép trên",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          2,
+          6
+        ]
+      },
+      {
+        "id": "position:sp14_nẹp bù:dimension:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenz": 1.0
+          }
+        },
+        "label": "Cao",
+        "part_name": "SP14_Nẹp Bù",
+        "translated": true,
+        "formula_indices": [
+          2
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:0:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 0,
+          "side": 0
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt trái → Mép trái",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          0,
+          4
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 0,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "dodaytam": -1.0,
+            "@lenx": 1.0
+          }
+        },
+        "label": "Mặt phải → Mép phải",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          0,
+          4
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:dimension:0:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 0,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 0,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "dodaytam": 1.0
+          }
+        },
+        "label": "Rộng",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          4
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:1:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 1,
+          "side": 0
+        },
+        "other": {
+          "part": "@module",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "dodaytam": 1.0
+          }
+        },
+        "label": "Mặt trước → Mép trước",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "@module",
+          "axis": 1,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": -50.0,
+          "coefficients": {
+            "dodaytam": -1.0,
+            "@leny": 1.0
+          }
+        },
+        "label": "Mặt sau → Mép sau",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:dimension:1:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 1,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 1,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 50.0,
+          "coefficients": {}
+        },
+        "label": "Sâu",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          3,
+          5
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:2:0",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 0
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt dưới → Mép dưới",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          2,
+          6
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:distance:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_nẹp bù",
+          "axis": 2,
+          "side": 1
+        },
+        "measure": "distance",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {}
+        },
+        "label": "Mặt trên → Mép trên",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          2,
+          6
+        ]
+      },
+      {
+        "id": "position:sp14_xương nẹp:dimension:2:1",
+        "type": "position",
+        "source": "dc_attributes",
+        "enabled": true,
+        "drive": false,
+        "face": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 1
+        },
+        "other": {
+          "part": "sp14_xương nẹp",
+          "axis": 2,
+          "side": 0
+        },
+        "measure": "dimension",
+        "expression": {
+          "constant": 0.0,
+          "coefficients": {
+            "@lenz": 1.0
+          }
+        },
+        "label": "Cao",
+        "part_name": "SP14_Xương Nẹp",
+        "translated": true,
+        "formula_indices": [
+          6
+        ]
+      }
+    ],
+    "formula_engine": {
+      "format": "mh_module_studio",
+      "version": 1,
+      "kind": "module_parameter_set",
+      "id": "ad504dc7-59ec-4a2a-bc73-5554196858fb",
+      "parameter_label": "CotTrai",
+      "parameters": [
+        {
+          "key": "dodaytam",
+          "label": "Độ Dày Tấm",
+          "value": 17.6,
+          "unit": "mm",
+          "options": [],
+          "editable": true,
+          "status": "learned",
+          "rule_source": "dc_attributes",
+          "input_range": [
+            0.2,
+            10000.0
+          ],
+          "reason": "Quy tắc lấy trực tiếp từ công thức ATT."
+        }
+      ],
+      "rules": {
+        "dodaytam": {
+          "format": "mh_module_studio",
+          "version": 1,
+          "kind": "dc_formula_rule",
+          "id": "c32f9f63-1a6a-4ca4-9e74-f1de2a11ff03",
+          "rule_source": "dc_attributes",
+          "parameter_label": "Độ Dày Tấm",
+          "sample_count": 1,
+          "distinct_samples": 1,
+          "sample_range": [
+            0.2,
+            10000.0
+          ],
+          "input_range": [
+            0.2,
+            10000.0
+          ],
+          "base_parameter": 17.6,
+          "envelope": [
+            [
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              50.00000000000001,
+              67.6,
+              500.0
+            ]
+          ],
+          "parts": [
+            {
+              "key": "sp14_nẹp bù",
+              "name": "SP14_Nẹp Bù",
+              "thickness_axis": 1,
+              "driver": true,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 50.00000000000001,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 1.0,
+                    "intercept": -3.552713678800501e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 500.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  50.00000000000001,
+                  17.599999999999998,
+                  500.0
+                ]
+              ],
+              "max_error": 0.0
+            },
+            {
+              "key": "sp14_xương nẹp",
+              "name": "SP14_Xương Nẹp",
+              "thickness_axis": 0,
+              "driver": true,
+              "coefficients": [
+                [
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 1.0,
+                    "intercept": -3.552713678800501e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 0.0,
+                    "error": 0.0
+                  }
+                ],
+                [
+                  {
+                    "slope": 1.0,
+                    "intercept": -3.552713678800501e-15,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 1.000000000000071,
+                    "intercept": 49.99999999999874,
+                    "error": 0.0
+                  },
+                  {
+                    "slope": 0.0,
+                    "intercept": 500.0,
+                    "error": 0.0
+                  }
+                ]
+              ],
+              "base_bounds": [
+                [
+                  0.0,
+                  17.599999999999998,
+                  0.0
+                ],
+                [
+                  17.599999999999998,
+                  67.6,
+                  500.0
+                ]
+              ],
+              "max_error": 0.0
+            }
+          ],
+          "recognition": "probed_dependency",
+          "probe_value": 17.700000000000003,
+          "recognition_diagnostic": null,
+          "relations": [],
+          "status": "dc_attributes",
+          "warnings": [],
+          "dc_parameter": {
+            "dc_key": "dodaytam",
+            "factor": 25.4
+          },
+          "control_context": {}
+        }
+      },
+      "control_context": {},
+      "parts": [
+        {
+          "key": "sp14_nẹp bù",
+          "name": "SP14_Nẹp Bù",
+          "thickness_axis": 1,
+          "driver": true,
+          "coefficients": [
+            [
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              }
+            ],
+            [
+              {
+                "slope": 0.0,
+                "intercept": 50.00000000000001,
+                "error": 0.0
+              },
+              {
+                "slope": 1.0,
+                "intercept": -3.552713678800501e-15,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 500.0,
+                "error": 0.0
+              }
+            ]
+          ],
+          "base_bounds": [
+            [
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              50.00000000000001,
+              17.599999999999998,
+              500.0
+            ]
+          ],
+          "max_error": 0.0,
+          "parameter_key": "dodaytam"
+        },
+        {
+          "key": "sp14_xương nẹp",
+          "name": "SP14_Xương Nẹp",
+          "thickness_axis": 0,
+          "driver": true,
+          "coefficients": [
+            [
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              },
+              {
+                "slope": 1.0,
+                "intercept": -3.552713678800501e-15,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 0.0,
+                "error": 0.0
+              }
+            ],
+            [
+              {
+                "slope": 1.0,
+                "intercept": -3.552713678800501e-15,
+                "error": 0.0
+              },
+              {
+                "slope": 1.000000000000071,
+                "intercept": 49.99999999999874,
+                "error": 0.0
+              },
+              {
+                "slope": 0.0,
+                "intercept": 500.0,
+                "error": 0.0
+              }
+            ]
+          ],
+          "base_bounds": [
+            [
+              0.0,
+              17.599999999999998,
+              0.0
+            ],
+            [
+              17.599999999999998,
+              67.6,
+              500.0
+            ]
+          ],
+          "max_error": 0.0,
+          "parameter_key": "dodaytam"
+        }
+      ],
+      "relations": [],
+      "sample_count": 1,
+      "envelope": [
+        [
+          0.0,
+          0.0,
+          0.0
+        ],
+        [
+          50.00000000000001,
+          67.6,
+          500.0
+        ]
+      ],
+      "warnings": [
+        "Ưu tiên công thức ATT. Chỉ dùng so sánh mẫu khi ATT thiếu hoặc chưa dịch được.",
+        "Công thức ATT được tính lại cho giá trị mới; chỉ tác động hình học sau khi kiểm tra phủ bì và giao tấm."
+      ],
+      "attribute_program": {
+        "id": "0a642c87-8b52-45e1-ac94-28b7d6185b57",
+        "label": "",
+        "parameter": 17.6,
+        "source": {
+          "kind": "selection",
+          "root_pid": "466189"
+        },
+        "parts": [
+          {
+            "key": "sp14_nẹp bù",
+            "name": "SP14_Nẹp Bù",
+            "bounds": [
+              [
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                50.00000000000001,
+                17.599999999999998,
+                500.0
+              ]
+            ],
+            "thickness_axis": 1,
+            "box_verified": true,
+            "face_count": 6,
+            "edge_count": 12,
+            "visible": true,
+            "dc_attributes": {
+              "_formatversion": 1.0,
+              "_has_movetool_behaviors": 0.0,
+              "_hasbehaviors": 1.0,
+              "_iscollapsed": "false",
+              "_lastmodified": "2026-06-08 20:17",
+              "_lengthunits": "CENTIMETERS",
+              "_lenx_error": "<span class=subformula-success>5.0</span>",
+              "_lenx_formula": "parent!LenX",
+              "_lenx_label": "LenX",
+              "_leny_error": "<span class=subformula-success>1.76</span>",
+              "_leny_formula": "parent!DoDayTam",
+              "_leny_label": "LenY",
+              "_lenz_error": "<span class=subformula-success>50.0</span>",
+              "_lenz_formula": "parent!LenZ",
+              "_lenz_label": "LenZ",
+              "_name": "Nẹp Bù",
+              "_x_label": "X",
+              "_y_label": "Y",
+              "_z_label": "Z",
+              "lenx": 1.968503937007874,
+              "leny": 0.6929133858267716,
+              "lenz": 19.68503937007874,
+              "x": 0.0,
+              "y": 0.0,
+              "z": 0.0
+            },
+            "affine_verified": true
+          },
+          {
+            "key": "sp14_xương nẹp",
+            "name": "SP14_Xương Nẹp",
+            "bounds": [
+              [
+                0.0,
+                17.599999999999998,
+                0.0
+              ],
+              [
+                17.599999999999998,
+                67.6,
+                500.0
+              ]
+            ],
+            "thickness_axis": 0,
+            "box_verified": true,
+            "face_count": 6,
+            "edge_count": 12,
+            "visible": true,
+            "dc_attributes": {
+              "_formatversion": 1.0,
+              "_has_movetool_behaviors": 1.0,
+              "_hasbehaviors": 1.0,
+              "_iscollapsed": "false",
+              "_lastmodified": "2026-06-08 20:18",
+              "_lengthunits": "CENTIMETERS",
+              "_lenx_formula": "parent!DoDayTam",
+              "_lenx_label": "LenX",
+              "_leny_error": "<span class=subformula-success>5</span>",
+              "_leny_formula": "parent!Xuong",
+              "_leny_label": "LenY",
+              "_lenz_error": "<span class=subformula-success>50.0</span>",
+              "_lenz_formula": "parent!LenZ",
+              "_lenz_label": "LenZ",
+              "_name": "Xương Nẹp",
+              "_y_error": "<span class=subformula-success>1.76</span>",
+              "_y_formula": "parent!DoDayTam",
+              "_y_label": "Y",
+              "_z_label": "Z",
+              "lenx": 0.6929133858267716,
+              "leny": 1.968503937007874,
+              "lenz": 19.68503937007874,
+              "y": 0.6929133858267716,
+              "z": 0.0
+            },
+            "affine_verified": true
+          }
+        ],
+        "envelope": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            50.00000000000001,
+            67.6,
+            500.0
+          ]
+        ],
+        "dc_inputs": {
+          "_dodaytam_access": "TEXTBOX",
+          "_dodaytam_formlabel": "Độ Dày Tấm",
+          "_dodaytam_formulaunits": "CENTIMETERS",
+          "_dodaytam_label": "DoDayTam",
+          "_dodaytam_options": "&",
+          "_dodaytam_units": "MILLIMETERS",
+          "_formatversion": 1.0,
+          "_has_movetool_behaviors": 0.0,
+          "_hasbehaviors": 1.0,
+          "_lastmodified": "2026-06-08 20:20",
+          "_lengthunits": "CENTIMETERS",
+          "_lenx_label": "LenX",
+          "_lenx_nominal": 1.9685039370078738,
+          "_leny_label": "LenY",
+          "_leny_nominal": 7.984251968503939,
+          "_lenz_access": "NONE",
+          "_lenz_formulaunits": "CENTIMETERS",
+          "_lenz_label": "LenZ",
+          "_lenz_nominal": 19.68503937007874,
+          "_lenz_options": "&",
+          "_lenz_units": "MILLIMETERS",
+          "_name": "CotTrai",
+          "_scaletool_formlabel": "ScaleTool",
+          "_scaletool_label": "ScaleTool",
+          "_scaletool_units": "STRING",
+          "_xuong_formulaunits": "STRING",
+          "_xuong_label": "Xuong",
+          "dodaytam": "0.6929133858267716",
+          "lenx": 37.95275590551181,
+          "leny": 9.330708661417322,
+          "lenz": "19.68503937007874",
+          "scaletool": "123",
+          "xuong": "5"
+        },
+        "captured_at": "2026-10-16T14:30:11Z",
+        "parameter_source": {
+          "kind": "dc_parameter_set",
+          "dc_keys": [
+            "dodaytam"
+          ]
+        },
+        "dc_graph": {
+          "nodes": [
+            {
+              "id": "0",
+              "parent_id": "",
+              "path": [
+                "sp14_nẹp bù"
+              ],
+              "name": "SP14_Nẹp Bù",
+              "attributes": {
+                "_formatversion": 1.0,
+                "_has_movetool_behaviors": 0.0,
+                "_hasbehaviors": 1.0,
+                "_iscollapsed": "false",
+                "_lastmodified": "2026-06-08 20:17",
+                "_lengthunits": "CENTIMETERS",
+                "_lenx_error": "<span class=subformula-success>5.0</span>",
+                "_lenx_formula": "parent!LenX",
+                "_lenx_label": "LenX",
+                "_leny_error": "<span class=subformula-success>1.76</span>",
+                "_leny_formula": "parent!DoDayTam",
+                "_leny_label": "LenY",
+                "_lenz_error": "<span class=subformula-success>50.0</span>",
+                "_lenz_formula": "parent!LenZ",
+                "_lenz_label": "LenZ",
+                "_name": "Nẹp Bù",
+                "_x_label": "X",
+                "_y_label": "Y",
+                "_z_label": "Z",
+                "lenx": 1.968503937007874,
+                "leny": 0.6929133858267716,
+                "lenz": 19.68503937007874,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+              },
+              "transform": [
+                0.10964912280700916,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.07026904405426265,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                3.067484662576687,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                1.0
+              ],
+              "local_bounds": [
+                [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  17.952755905513186,
+                  9.860862562634196,
+                  6.417322834645669
+                ]
+              ],
+              "hidden": false,
+              "tag_visible": true,
+              "visibility_flattened": false,
+              "part_key": "sp14_nẹp bù"
+            },
+            {
+              "id": "1",
+              "parent_id": "",
+              "path": [
+                "sp14_xương nẹp"
+              ],
+              "name": "SP14_Xương Nẹp",
+              "attributes": {
+                "_formatversion": 1.0,
+                "_has_movetool_behaviors": 1.0,
+                "_hasbehaviors": 1.0,
+                "_iscollapsed": "false",
+                "_lastmodified": "2026-06-08 20:18",
+                "_lengthunits": "CENTIMETERS",
+                "_lenx_formula": "parent!DoDayTam",
+                "_lenx_label": "LenX",
+                "_leny_error": "<span class=subformula-success>5</span>",
+                "_leny_formula": "parent!Xuong",
+                "_leny_label": "LenY",
+                "_lenz_error": "<span class=subformula-success>50.0</span>",
+                "_lenz_formula": "parent!LenZ",
+                "_lenz_label": "LenZ",
+                "_name": "Xương Nẹp",
+                "_y_error": "<span class=subformula-success>1.76</span>",
+                "_y_formula": "parent!DoDayTam",
+                "_y_label": "Y",
+                "_z_label": "Z",
+                "lenx": 0.6929133858267716,
+                "leny": 1.968503937007874,
+                "lenz": 19.68503937007874,
+                "y": 0.6929133858267716,
+                "z": 0.0
+              },
+              "transform": [
+                0.03652141105451801,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                0.21097046413502113,
+                0.0,
+                0.0,
+                0.0,
+                0.0,
+                3.067484662576687,
+                0.0,
+                0.0,
+                0.6929133858267716,
+                0.0,
+                1.0
+              ],
+              "local_bounds": [
+                [
+                  0.0,
+                  0.0,
+                  0.0
+                ],
+                [
+                  18.97279885468862,
+                  9.330708661417322,
+                  6.417322834645669
+                ]
+              ],
+              "hidden": false,
+              "tag_visible": true,
+              "visibility_flattened": false,
+              "part_key": "sp14_xương nẹp"
+            }
+          ],
+          "root_frame": [
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1.0,
+            0,
+            0,
+            0,
+            0,
+            1
+          ]
+        },
+        "visibility_version": 1,
+        "formula_frame_version": 2
+      },
+      "attribute_formulas": [
+        {
+          "path": "sp14_nẹp bù",
+          "node_id": "0",
+          "attribute": "lenx",
+          "formula": "parent!LenX",
+          "translated": true
+        },
+        {
+          "path": "sp14_nẹp bù",
+          "node_id": "0",
+          "attribute": "leny",
+          "formula": "parent!DoDayTam",
+          "translated": true
+        },
+        {
+          "path": "sp14_nẹp bù",
+          "node_id": "0",
+          "attribute": "lenz",
+          "formula": "parent!LenZ",
+          "translated": true
+        },
+        {
+          "path": "sp14_xương nẹp",
+          "node_id": "1",
+          "attribute": "y",
+          "formula": "parent!DoDayTam",
+          "translated": true
+        },
+        {
+          "path": "sp14_xương nẹp",
+          "node_id": "1",
+          "attribute": "lenx",
+          "formula": "parent!DoDayTam",
+          "translated": true
+        },
+        {
+          "path": "sp14_xương nẹp",
+          "node_id": "1",
+          "attribute": "leny",
+          "formula": "parent!Xuong",
+          "translated": true
+        },
+        {
+          "path": "sp14_xương nẹp",
+          "node_id": "1",
+          "attribute": "lenz",
+          "formula": "parent!LenZ",
+          "translated": true
+        }
+      ],
+      "envelope_policy": {
+        "version": 1,
+        "axes": [],
+        "source": "readonly_att_independent_geometry"
+      },
+      "attribute_formula_count": 7,
+      "attribute_unsupported_functions": [],
+      "attribute_diagnostic": null,
+      "observed_parameter_values": [
+        {
+          "dodaytam": 17.6
+        }
+      ],
+      "training_sample_ids": [
+        "0a642c87-8b52-45e1-ac94-28b7d6185b57"
+      ],
+      "exposed_parameter_keys": [
+        "dodaytam"
+      ]
+    },
+    "exposed_parameter_keys": [
+      "dodaytam"
+    ],
+    "warnings": [
+      "Ưu tiên công thức ATT. Chỉ dùng so sánh mẫu khi ATT thiếu hoặc chưa dịch được.",
+      "Công thức ATT được tính lại cho giá trị mới; chỉ tác động hình học sau khi kiểm tra phủ bì và giao tấm."
+    ],
+    "rules": {
+      "dodaytam": {
+        "format": "mh_module_studio",
+        "version": 1,
+        "kind": "dc_formula_rule",
+        "id": "c32f9f63-1a6a-4ca4-9e74-f1de2a11ff03",
+        "rule_source": "dc_attributes",
+        "parameter_label": "Độ Dày Tấm",
+        "sample_count": 1,
+        "distinct_samples": 1,
+        "sample_range": [
+          0.2,
+          10000.0
+        ],
+        "input_range": [
+          0.2,
+          10000.0
+        ],
+        "base_parameter": 17.6,
+        "envelope": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            50.00000000000001,
+            67.6,
+            500.0
+          ]
+        ],
+        "parts": [
+          {
+            "key": "sp14_nẹp bù",
+            "name": "SP14_Nẹp Bù",
+            "thickness_axis": 1,
+            "driver": true,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 50.00000000000001,
+                  "error": 0.0
+                },
+                {
+                  "slope": 1.0,
+                  "intercept": -3.552713678800501e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 500.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                0.0,
+                0.0
+              ],
+              [
+                50.00000000000001,
+                17.599999999999998,
+                500.0
+              ]
+            ],
+            "max_error": 0.0
+          },
+          {
+            "key": "sp14_xương nẹp",
+            "name": "SP14_Xương Nẹp",
+            "thickness_axis": 0,
+            "driver": true,
+            "coefficients": [
+              [
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                },
+                {
+                  "slope": 1.0,
+                  "intercept": -3.552713678800501e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 0.0,
+                  "error": 0.0
+                }
+              ],
+              [
+                {
+                  "slope": 1.0,
+                  "intercept": -3.552713678800501e-15,
+                  "error": 0.0
+                },
+                {
+                  "slope": 1.000000000000071,
+                  "intercept": 49.99999999999874,
+                  "error": 0.0
+                },
+                {
+                  "slope": 0.0,
+                  "intercept": 500.0,
+                  "error": 0.0
+                }
+              ]
+            ],
+            "base_bounds": [
+              [
+                0.0,
+                17.599999999999998,
+                0.0
+              ],
+              [
+                17.599999999999998,
+                67.6,
+                500.0
+              ]
+            ],
+            "max_error": 0.0
+          }
+        ],
+        "recognition": "probed_dependency",
+        "probe_value": 17.700000000000003,
+        "recognition_diagnostic": null,
+        "relations": [],
+        "status": "dc_attributes",
+        "warnings": [],
+        "dc_parameter": {
+          "dc_key": "dodaytam",
+          "factor": 25.4
+        },
+        "control_context": {}
+      }
+    },
+    "relations": [],
+    "attribute_formulas": [
+      {
+        "path": "sp14_nẹp bù",
+        "node_id": "0",
+        "attribute": "lenx",
+        "formula": "parent!LenX",
+        "translated": true
+      },
+      {
+        "path": "sp14_nẹp bù",
+        "node_id": "0",
+        "attribute": "leny",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "path": "sp14_nẹp bù",
+        "node_id": "0",
+        "attribute": "lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      },
+      {
+        "path": "sp14_xương nẹp",
+        "node_id": "1",
+        "attribute": "y",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "path": "sp14_xương nẹp",
+        "node_id": "1",
+        "attribute": "lenx",
+        "formula": "parent!DoDayTam",
+        "translated": true
+      },
+      {
+        "path": "sp14_xương nẹp",
+        "node_id": "1",
+        "attribute": "leny",
+        "formula": "parent!Xuong",
+        "translated": true
+      },
+      {
+        "path": "sp14_xương nẹp",
+        "node_id": "1",
+        "attribute": "lenz",
+        "formula": "parent!LenZ",
+        "translated": true
+      }
+    ],
+    "control_context": {},
+    "position_rules_version": 2,
+    "parameter_binding_aliases": {},
+    "parametric_variables": [
+      {
+        "id": "input:dodaytam",
+        "binding": "dodaytam",
+        "name": "Độ Dày Tấm",
+        "symbol": "T1",
+        "category": "dimension",
+        "unit": "mm",
+        "value": 17.6,
+        "formula": "",
+        "exported": true
+      }
+    ],
+    "thickness_symbols_version": 2,
+    "thickness_symbol_roles": {
+      "input:dodaytam": "T1"
+    }
+  },
+  "snapshot": {
+    "id": "42b4c87d-8775-4bab-aa68-f31f5d50fc88",
+    "label": "MH File Module",
+    "parameter": 17.6,
+    "source": {
+      "kind": "selection",
+      "root_pid": "466480"
+    },
+    "parts": [
+      {
+        "key": "sp14_nẹp bù",
+        "name": "SP14_Nẹp Bù",
+        "bounds": [
+          [
+            0.0,
+            0.0,
+            0.0
+          ],
+          [
+            50.00000000000001,
+            17.6,
+            500.0
+          ]
+        ],
+        "thickness_axis": 1,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {},
+        "affine_verified": true
+      },
+      {
+        "key": "sp14_xương nẹp",
+        "name": "SP14_Xương Nẹp",
+        "bounds": [
+          [
+            0.0,
+            17.6,
+            0.0
+          ],
+          [
+            17.6,
+            67.6,
+            500.0
+          ]
+        ],
+        "thickness_axis": 0,
+        "box_verified": true,
+        "face_count": 6,
+        "edge_count": 12,
+        "visible": true,
+        "dc_attributes": {},
+        "affine_verified": true
+      }
+    ],
+    "envelope": [
+      [
+        0.0,
+        0.0,
+        0.0
+      ],
+      [
+        50.00000000000001,
+        67.6,
+        500.0
+      ]
+    ],
+    "dc_inputs": {},
+    "captured_at": "2026-10-16T14:36:47Z",
+    "dc_graph": {
+      "nodes": [
+        {
+          "id": "0",
+          "parent_id": "",
+          "path": [
+            "sp14_nẹp bù"
+          ],
+          "name": "SP14_Nẹp Bù",
+          "attributes": {},
+          "transform": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "local_bounds": [
+            [
+              0.0,
+              0.0,
+              0.0
+            ],
+            [
+              1.9685039370078745,
+              0.6929133858267718,
+              19.68503937007874
+            ]
+          ],
+          "hidden": false,
+          "tag_visible": true,
+          "visibility_flattened": true,
+          "part_key": "sp14_nẹp bù"
+        },
+        {
+          "id": "1",
+          "parent_id": "",
+          "path": [
+            "sp14_xương nẹp"
+          ],
+          "name": "SP14_Xương Nẹp",
+          "attributes": {},
+          "transform": [
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            1.0
+          ],
+          "local_bounds": [
+            [
+              0.0,
+              0.6929133858267718,
+              0.0
+            ],
+            [
+              0.6929133858267718,
+              2.6614173228346454,
+              19.68503937007874
+            ]
+          ],
+          "hidden": false,
+          "tag_visible": true,
+          "visibility_flattened": true,
+          "part_key": "sp14_xương nẹp"
+        }
+      ],
+      "root_frame": [
+        1.0,
+        0,
+        0,
+        0,
+        0,
+        1.0,
+        0,
+        0,
+        0,
+        0,
+        1.0,
+        0,
+        0,
+        0,
+        0,
+        1
+      ]
+    },
+    "visibility_version": 1,
+    "formula_frame_version": 2,
+    "parameter_values": {
+      "dodaytam": 17.6
+    }
+  },
+  "values": {
+    "dodaytam": 17.6
+  }
+}
