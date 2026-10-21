@@ -11,6 +11,8 @@ module MH
 
     MAX_SELECTED_ENTITIES = 50
     MAX_FACE_VERTICES = 64
+    APP_NAME = 'MH SketchUp Plugins'
+    REPOSITORY_URL = 'https://github.com/kt3xhomeeco-sketch/MH'
 
     def install_menu
       return if @menu_installed
@@ -31,10 +33,15 @@ module MH
         return
       end
 
-      prompts = ['Tên ứng dụng/dự án (tùy chọn)', 'URL kho mã nguồn/GitHub (tùy chọn)', 'Commit SHA/phiên bản (tùy chọn)', 'Lỗi/thông báo', 'Vị trí hoặc kết quả mong muốn', 'Kết quả thực tế', 'DWG/DXF liên quan (nếu có)']
-      defaults = ['', '', '', '', '', '', '']
+      prompts = ['Mô tả lỗi/yêu cầu (nêu plugin nếu biết; mong muốn, thực tế, DWG/DXF nếu cần)']
+      defaults = ['']
       answers = UI.inputbox(prompts, defaults, 'MH · Ngữ cảnh lỗi')
       return unless answers
+      issue_description = answers[0].to_s.strip
+      if issue_description.empty?
+        UI.messagebox('Hãy mô tả ngắn gọn lỗi hoặc điều cần phân tích.')
+        return
+      end
 
       stamp = Time.now.strftime('%Y%m%d_%H%M%S')
       default_dir = File.join(ENV.fetch('USERPROFILE', Dir.home), 'Documents', 'MH_AI_Context')
@@ -46,7 +53,7 @@ module MH
       json_path = "#{base_path}.json"
       markdown_path = "#{base_path}.md"
       image_path = "#{base_path}.png"
-      payload = build_payload(model, selection, answers, stamp)
+      payload = build_payload(model, selection, issue_description, stamp)
 
       File.write(json_path, JSON.pretty_generate(payload), mode: 'w:UTF-8')
       File.write(markdown_path, render_markdown(payload, File.basename(image_path)), mode: 'w:UTF-8')
@@ -66,7 +73,7 @@ module MH
       UI.messagebox("Không xuất được gói ngữ cảnh: #{error.class}: #{error.message}")
     end
 
-    def build_payload(model, selection, answers, stamp)
+    def build_payload(model, selection, issue_description, stamp)
       options = model.options['UnitsOptions']
       view = model.active_view
       camera = view.camera
@@ -75,9 +82,9 @@ module MH
         'created_at' => Time.now.iso8601,
         'host' => { 'application' => 'SketchUp', 'version' => Sketchup.version },
         'project' => {
-          'app_name' => answers[0].to_s.strip,
-          'repository_url' => answers[1].to_s.strip,
-          'commit_sha' => answers[2].to_s.strip
+          'app_name' => APP_NAME,
+          'repository_url' => REPOSITORY_URL,
+          'commit_sha' => ''
         },
         'source' => {
           'model_title' => model.title,
@@ -90,10 +97,10 @@ module MH
           'active_path' => Array(model.active_path).map { |entity| entity_summary(entity, include_geometry: false) }
         },
         'problem' => {
-          'reported_error' => answers[3],
-          'expected' => answers[4],
-          'actual' => answers[5],
-          'related_dwg_dxf' => answers[6]
+          'reported_error' => issue_description,
+          'expected' => '',
+          'actual' => '',
+          'related_dwg_dxf' => ''
         },
         'view' => {
           'camera_eye' => point_array(camera.eye),
@@ -188,10 +195,10 @@ module MH
         "- Units: #{payload.dig('source', 'length_unit')}",
         '',
         '## Reported issue',
-        "- Error: #{problem['reported_error']}",
-        "- Expected: #{problem['expected']}",
-        "- Actual: #{problem['actual']}",
-        "- Related DWG/DXF: #{problem['related_dwg_dxf']}",
+        "- Error / request: #{markdown_value(problem['reported_error'])}",
+        "- Expected: #{markdown_value(problem['expected'])}",
+        "- Actual: #{markdown_value(problem['actual'])}",
+        "- Related DWG/DXF: #{markdown_value(problem['related_dwg_dxf'])}",
         '',
         '## Selected entities',
         *payload.fetch('selection').each_with_index.map do |entity, index|
