@@ -33,15 +33,82 @@ module MH
         return
       end
 
-      prompts = ['Mô tả lỗi hoặc yêu cầu cần phân tích']
-      defaults = ['']
-      answers = UI.inputbox(prompts, defaults, 'MH · Ngữ cảnh lỗi')
-      return unless answers
-      issue_description = answers[0].to_s.strip
-      if issue_description.empty?
-        UI.messagebox('Hãy mô tả ngắn gọn lỗi hoặc điều cần phân tích.')
-        return
+      prompt_issue_description do |issue_description|
+        export_context_for_issue(model, selection, issue_description)
       end
+    rescue StandardError => error
+      UI.messagebox("Không xuất được gói ngữ cảnh: #{error.class}: #{error.message}")
+    end
+
+    def prompt_issue_description(&on_submit)
+      @issue_dialog&.close
+      @issue_dialog = UI::HtmlDialog.new(
+        dialog_title: 'MH · Ngữ cảnh lỗi',
+        preferences_key: 'MH_AI_ContextExporter_IssueDialog',
+        width: 820,
+        height: 500,
+        min_width: 640,
+        min_height: 380,
+        resizable: true,
+        style: UI::HtmlDialog::STYLE_DIALOG
+      )
+      @issue_dialog.add_action_callback('submit_issue') do |_context, raw|
+        data = JSON.parse(raw)
+        issue_description = data['description'].to_s.strip
+        if issue_description.empty?
+          UI.messagebox('Hãy mô tả ngắn gọn lỗi hoặc điều cần phân tích.')
+          next
+        end
+
+        @issue_dialog.close
+        @issue_dialog = nil
+        on_submit.call(issue_description)
+      end
+      @issue_dialog.add_action_callback('cancel_issue') do |_context, _raw|
+        @issue_dialog.close
+        @issue_dialog = nil
+      end
+      @issue_dialog.set_html(issue_description_html)
+      @issue_dialog.show
+    end
+
+    def issue_description_html
+      <<~HTML
+        <!doctype html>
+        <html lang="vi">
+        <head>
+          <meta charset="utf-8">
+          <style>
+            * { box-sizing: border-box; }
+            body { margin: 0; padding: 22px; font: 15px "Segoe UI", sans-serif; color: #202124; }
+            label { display: block; margin-bottom: 10px; font-size: 17px; font-weight: 600; }
+            textarea { display: block; width: 100%; height: calc(100vh - 112px); min-height: 210px; resize: vertical; padding: 12px; border: 1px solid #9aa0a6; border-radius: 5px; font: 15px "Segoe UI", sans-serif; }
+            .buttons { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+            button { min-width: 110px; padding: 9px 18px; border: 1px solid #9aa0a6; border-radius: 5px; background: #f8f9fa; font: 15px "Segoe UI", sans-serif; cursor: pointer; }
+            button.primary { color: white; background: #1769aa; border-color: #1769aa; }
+          </style>
+        </head>
+        <body>
+          <label for="description">Mô tả lỗi hoặc yêu cầu cần phân tích</label>
+          <textarea id="description" autofocus placeholder="Có thể xuống dòng để mô tả chi tiết…"></textarea>
+          <div class="buttons">
+            <button onclick="sketchup.cancel_issue('')">Hủy</button>
+            <button class="primary" onclick="submitIssue()">Tiếp tục</button>
+          </div>
+          <script>
+            function submitIssue() {
+              sketchup.submit_issue(JSON.stringify({ description: document.getElementById('description').value }));
+            }
+            document.getElementById('description').addEventListener('keydown', function(event) {
+              if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') submitIssue();
+            });
+          </script>
+        </body>
+        </html>
+      HTML
+    end
+
+    def export_context_for_issue(model, selection, issue_description)
 
       stamp = Time.now.strftime('%Y%m%d_%H%M%S')
       default_dir = File.join(ENV.fetch('USERPROFILE', Dir.home), 'Documents', 'MH_AI_Context')
