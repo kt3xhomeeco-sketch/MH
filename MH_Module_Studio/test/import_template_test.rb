@@ -104,6 +104,20 @@ class ModuleStudioImportTemplateTest < Minitest::Test
     assert(result['matches'].find { |m| m['slot']==[1,0] }['target']['virtual'])
   end
 
+  def test_front_edge_screen_distance_includes_narrow_faces_and_clamps_to_segments
+    polygon=[[0,0],[4,0],[4,100],[0,100]]
+    assert_equal 0,S::ImportTemplate.screen_distance2([2,50],polygon)
+    assert_equal 0,S::ImportTemplate.screen_distance2([4,50],polygon)
+    assert_equal 144,S::ImportTemplate.screen_distance2([16,50],polygon)
+    assert_operator S::ImportTemplate.screen_distance2([16.01,50],polygon),:>,144
+    assert_equal 200,S::ImportTemplate.screen_distance2([14,110],polygon)
+    assert_equal Float::INFINITY,S::ImportTemplate.screen_distance2([0,0],[])
+    triangle=[[0,0],[100,0],[0,100]]
+    assert_equal 0,S::ImportTemplate.screen_distance2([10,10],triangle)
+    assert_operator S::ImportTemplate.screen_distance2([90,90],triangle),:>,144
+    assert_equal S::ImportTemplate.screen_distance2([90,90],triangle),S::ImportTemplate.screen_distance2([90,90],triangle.reverse)
+  end
+
   def test_same_symbol_physical_thickness_sync_is_private_and_serializes_with_template
     snapshot=FormulaFixtures.snapshot
     engine=S::Core.learn_module([snapshot]);master=S::ThicknessSymbols.normalize(S::RuleSystem.build(snapshot,engine))

@@ -56,10 +56,10 @@ module MH
         RuleSystem.validate!(copy)
       end
 
-      def value(bundle,param)
+      def value(bundle,param,programs: nil)
         source=bundle.dig('formula_engine','attribute_program')
         return param['value'] unless source && param['value'].is_a?(Numeric) && !param.dig('dc_attribute','formula').to_s.empty?
-        program=DCFormulas::Program.new(source)
+        program=programs ? (programs[source] ||= DCFormulas::Program.new(source)) : DCFormulas::Program.new(source)
         values=Core.formula_values(source,program.controls)
         program.controls.each_key do |key|
           resolved=yield(key)

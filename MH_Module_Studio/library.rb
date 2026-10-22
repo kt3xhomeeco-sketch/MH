@@ -304,6 +304,21 @@ module MH
         publish('Đã lưu bảng icon HUD.')
       end
 
+      def move_hud_free(id,position,folder:@config['hud_board'],replace:nil)
+        entry(id)
+        changed=HUDBoards.put_free(@config,id,position,folder,replace:replace)
+        save_settings(changed.slice(*HUDBoards::FIELDS))
+        publish('Đã lưu vị trí icon tự do.')
+      end
+
+      def anchor_legacy_hud_free(folder,positions)
+        return if positions.empty?
+        changed=Core.copy_data(@config);board=HUDBoards.current(changed,folder)
+        positions.each { |id,position| board['free'][id]=position if board && board['free'].key?(id) }
+        @config=LibraryCatalog.settings(changed)
+        persist
+      end
+
       def require_owned(root)
         unless root.is_a?(Sketchup::ComponentInstance) && root.get_attribute(Reader::DICT, 'trial', false)
           raise Core::Error, 'Chọn component đã Tạo model bằng MH Module Studio để lưu thư viện.'
@@ -345,14 +360,14 @@ module MH
         end
           if recover
             plan=ImportRecovery.plan(data,snapshot)
-            Runtime.apply_plan(bindings,plan)
+            Runtime.apply_plan(bindings,plan,rule:data['rule'])
             Runtime.stamp(root,data['rule'],bindings,plan['target'])
             Runtime.verify_result(root,plan)
             return validate_geometry(root,data)
           end
           raise Core::Error, 'Hình học SKP không khớp bộ quy tắc đã lưu. Lưu lại module từ Studio.'
         end
-        plan = Core.plan(data['rule'], snapshot, {})
+        plan = imports.normalization_plan(data['rule'],snapshot)
         raise Core::Error, 'Giá trị đã lưu chưa khớp công thức. Cập nhật module rồi lưu lại.' unless plan['changed_count'].zero?
         [snapshot, bindings, plan]
       end
@@ -482,7 +497,14 @@ module MH
         current = imports.payload(definition.get_attribute(Reader::DICT, LibraryCatalog::PAYLOAD_KEY))
         root = entities.add_instance(definition, Geom::Transformation.new)
         root.name = current['name'].to_s
-        Runtime.private_tree(root)
+        # Keep the loaded source untouched even when this is its first instance.
+        # make_unique otherwise leaves an unshared definition attached to the file.
+        seed=entities.add_instance(definition,Geom::Transformation.new)
+        begin
+          Runtime.private_tree(root)
+        ensure
+          seed.erase! if seed.valid?
+        end
         if current['format']==AssemblyFile::FORMAT
           AssemblyFile.restore(root,current)
           root.set_attribute(Reader::DICT,'generated',true)
@@ -499,8 +521,8 @@ module MH
         if targets.any? { |key,value| normalization['target'][key]!=value }
           normalization = Core.plan(current['rule'],snapshot,targets)
         end
-        Runtime.apply_plan(bindings,normalization)
-        Runtime.stamp(root,current['rule'],bindings,normalization['target'])
+        Runtime.apply_plan(bindings,normalization,rule:current['rule'])
+        Runtime.stamp_prepared(root,bindings,imports.stamp_metadata(current['rule'],normalization['target']))
         Runtime.verify_result(root,normalization)
         root.set_attribute(Reader::DICT, 'generated', true)
         root.set_attribute(Reader::DICT, 'library_source_path', item['path'])
@@ -510,6 +532,7 @@ module MH
       end
 
       def resolve_fit(data,placement,within_operation: false)
+        placement=ImportTemplate.replace_bounds(data,placement)
         return [data,placement] unless placement && (placement['mode']!='template' || placement['kind']=='inside')
         scales=Frames.scale_frame(placement['frame'])
         depth=placement['fit_depth_mm'] || Core.dimensions(placement['bounds'])[1]*scales[5]

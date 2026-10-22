@@ -60,7 +60,7 @@ build tooling share this explicit manifest; adding a component must update it.
 | `assembly_containers.rb` | Managed parent Components, component-local rule persistence, root/panel remapping, explicit connected assembly grouping and copied-wrapper independence; Save Link never groups; no internal ATT calculation |
 | `assembly_contacts.rb` | Contact translation and opposing-face size fitting; predicts eligible owned leaf/root face responses through ScalePlan, retains native probing fallback, delegates linear corrections to AssemblyMath and verifies applied geometry |
 | `assembly_envelope.rb` | Native aggregate-box verification and correction after parent Scale or member parameter edits; measures free dimension responses, excludes derived thickness axes, delegates arithmetic to AssemblyMath and reconstruction to existing assembly/Scale owners |
-| `assembly_hud.rb`, `assembly_tree.rb` | Persistent Overlay session, expandable native viewport tree and model highlights; survives native Tool changes, closes on model switch |
+| `assembly_hud.rb`, `assembly_tree.rb` | Persistent linking session; contact/draft display only while the linking Tool is active, empty overlay extents outside it; closes on model switch |
 | `assembly_hud_input.rb`, `native/assembly_input_v2.dll` | UI-thread mouse events limited to the visible tree rectangle; never captures keyboard; timer dispatch outside Overlay callbacks |
 | `assembly_inspector.rb`, `ui/assembly.*` | Compact utility-window controls anchored beside the viewport; picking and constrained drag explicitly reactivate the model Tool |
 | `module_file.rb` | Explicit verified SKP writes, file signatures/backups and payload restoration; temporary native work aborts before file replacement |
@@ -195,6 +195,14 @@ native probing. Aggregate probes keep their measured step and correct from the
 result, avoiding an unnecessary restore/redraw. Every final native result and
 contact is still checked. Parameter-set validation constructs one Program per
 bundle, checking every scalar rule against it; no global validation cache exists.
+
+During one Scale repair, ScaleRedraw uses the bounded LibraryImport calculation
+cache with complete rule/current-geometry/value keys, discarding it on exit.
+Only an in-memory call-site proof carries validation through nested ScalePlan,
+RuleSystem and parameter planning; public entry points still validate by default.
+Parametric shares a custom-attribute Program only within one variable evaluation
+and resets inputs before reading each custom value; it keeps no cross-module
+evaluator state. Native bindings and final geometry are always read afresh.
 
 ScaleRedraw acknowledges each verified root's current signature before its caller
 commits. This prevents duplicate observer reconstruction without acknowledging an
@@ -513,3 +521,70 @@ texture. HUD title/close/guidance disappear; modal/tooltip/settings feedback sta
 The process-local Windows message helper v3 captures 0–9 and numpad; it retains
 view-thread filtering and releases the hook on exit. Developer C source/build
 remain outside RBZ; the explicit manifest ships only the built v3 DLL.
+
+
+Feature 083 extends HUDBoards schema3 with normalized free icon coordinates and
+optional ring-slot references per axis. HUDLayout owns viewport clamping, 10-pixel
+axis snapping and guide geometry; LibraryHUD owns free drag/drop, drawing, picking
+and native event handling. HUDConfig remaps free entry identities alongside slots,
+docks and digits. Existing schemas migrate without moving icons. No model geometry
+or placement rules change. Module Options removes only its busy status text; its
+automatic apply queue, action disabling and error display remain unchanged.
+
+
+Feature 084 keeps door front targeting in ImportLinks. ImportTemplate owns pure
+2D polygon distance; ImportLinks projects real front triangles and applies a
+12-logical-pixel acquisition band before automatic inset classification. A no-hit
+front-rim fallback broad-phases visible host envelopes, then requires a real front
+triangle. It never invents mounting faces; explicit Inside and ordinary Shift Fit
+retain their existing behavior. Hover and placement-click use the same detector.
+
+LibraryImport reuses bounded JSON normalization plans keyed by complete rules and
+live snapshot contents (excluding capture identity only), validated serialized
+rules and prepared metadata. Parametric prepares pure validated metadata; Runtime
+assigns live identities and bindings through the same writer used by ordinary
+stamp. Cache hits still read actual geometry and verify the applied result. The
+loaded SKP definition is protected by a short-lived seed instance while the actual
+root becomes private, so the first import cannot turn the reusable loaded source
+into a parameter-edited instance. The seed is removed before transaction commit.
+
+
+Feature 085 gates AssemblyHUD drawing and AssemblyOverlay extents on the active
+linking Tool. Switching to Select/Move/Scale retains saved contacts/session data
+but draws no contact dimensions/prisms/draft geometry. Library placement owns
+its independent host highlights. No constraint records are modified by visibility.
+
+ImportTemplate.replace_bounds is a portable Library Replace policy for samples
+with saved door-role metadata. It keeps the actual source span along the mounting
+axis in physical mm and the target's opposite/front plane, accounting for scaled
+frames; other target axes remain fixed. Library.resolve_fit applies this to both
+preview and the actual single/batch Replace path before existing T/ATT validation.
+Source moldings retain their complete span; this is not a generic relaxation for
+ordinary modules or native Scale, and does not invent/remove existing contacts.
+
+
+Feature 086 keeps construction-point motion in the native GuideGeometry adapter.
+Runtime.apply_plan transforms direct construction points with the same local
+affine map as direct faces/edges, excluding independently driven descendants.
+GeometryMotion.guide_reference resolves original ATT ancestry as portable data;
+GuideGeometry uses it only for legacy unmarked points outside current mesh bounds
+whose local coordinates still fit the captured node bounds. Recovery maps through
+source mesh bounds into current mesh bounds, without clamping/deleting points.
+A per-point version marker prevents repeated reinterpretation of later user edits.
+ScaleRedraw checks pending bound guides before its zero-mesh-change early return.
+Reader's part capture remains mesh based; native definition bounds still include
+guides, so QA verifies both separately. Rule/Scale solving and observer timing are
+unchanged. Runtime callers pass the rule to preserve recovery across edit/import/
+export paths; no mutation occurs in the portable core or read-only capture.
+
+
+Feature 089 adds the native UpdateWork coordinator. Adapter calculation barriers
+unwind and abort tentative operations before scheduling a portable worker; the
+worker only calls a fixed calculation whitelist. The final replay commits once
+with prepared values and fresh native bindings. No host transaction survives a
+worker wait. A model revision/open-operation observer and selection guards reject
+stale work; superseding Options input carries all outstanding fields and a reply
+revision so old replies cannot erase newer drafts. Per-job caches are bounded and
+must preserve data ownership. Internal synchronous APIs remain usable by existing
+transactions. Native latency checks measure full callbacks and event-loop gaps,
+not only background calculation or geometry correctness.

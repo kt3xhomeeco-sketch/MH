@@ -56,6 +56,49 @@ class ModuleStudioLibraryImportTest < Minitest::Test
     end
   end
 
+  def test_normalization_reuses_only_identical_rule_and_actual_snapshot_and_returns_private_data
+    importer=S::LibraryImport.new;calls=0
+    plan=->(_rule,current,_values) { calls+=1;{'parts'=>S::Core.copy_data(current['parts']),'target'=>{}} }
+    snapshot={'id'=>'first','label'=>'QA','parts'=>[{'bounds'=>[[0,0,0],[600,500,800]],'visible'=>true}]}
+    S::Core.stub(:plan,plan) do
+      first=importer.normalization_plan({'id'=>'rule'},snapshot);first['parts'].clear
+      again=importer.normalization_plan({'id'=>'rule'},snapshot.merge('id'=>'new','label'=>'other'))
+      assert_equal 1,calls;assert_equal 1,again['parts'].length
+      changed=S::Core.copy_data(snapshot);changed['parts'][0]['bounds'][1][0]=601
+      importer.normalization_plan({'id'=>'rule'},changed)
+      importer.normalization_plan({'id'=>'edited rule'},snapshot)
+      changed=S::Core.copy_data(snapshot);changed['parts'][0]['visible']=false
+      importer.normalization_plan({'id'=>'rule'},changed)
+      assert_equal 4,calls
+    end
+  end
+
+  def test_stamp_recipe_is_private_and_invalidated_by_rule_or_values_without_native_ids
+    importer=S::LibraryImport.new;calls=0
+    producer=->(rule,target) { calls+=1;{'rule'=>rule,'target'=>target,'rule_json'=>JSON.generate(rule)} }
+    S::Parametric.stub(:stamp_metadata,producer) do
+      first=importer.stamp_metadata({'id'=>'rule'},{'T1'=>18});first['rule']['id']='mutated'
+      assert_equal 'rule',importer.stamp_metadata({'id'=>'rule'},{'T1'=>18})['rule']['id']
+      assert_equal 1,calls
+      importer.stamp_metadata({'id'=>'rule'},{'T1'=>20})
+      importer.stamp_metadata({'id'=>'other'},{'T1'=>18})
+      assert_equal 3,calls
+    end
+  end
+
+  def test_validated_rule_cache_rejects_edits_and_keeps_results_private
+    importer=S::LibraryImport.new;calls=0
+    validator=->(rule) { calls+=1;raise S::Core::Error,'Invalid' if rule['bad'];rule }
+    S::Core.stub(:rule!,validator) do
+      first=importer.validated_rule('{"name":"first"}');first['name']='mutated'
+      assert_equal 'first',importer.validated_rule('{"name":"first"}')['name']
+      assert_equal 1,calls
+      importer.validated_rule('{"name":"second"}')
+      2.times { assert_raises(S::Core::Error) { importer.validated_rule('{"bad":true}') } }
+      assert_equal 4,calls
+    end
+  end
+
   def test_cached_legacy_copy_rules_keep_the_same_parametric_result
     data=JSON.parse(captured).merge('format'=>'mh_module_library','version'=>1,'name'=>'Chân bệ')
     importer=S::LibraryImport.new;raw=JSON.generate(data)

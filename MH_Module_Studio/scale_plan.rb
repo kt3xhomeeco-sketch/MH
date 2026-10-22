@@ -23,10 +23,10 @@ module MH
         result
       end
 
-      def plan(rule, current, saved)
+      def plan(rule, current, saved,validated: false)
         rule = Core.copy_data(rule)
         current = Core.copy_data(current)
-        RuleSystem.validate!(rule)
+        RuleSystem.validate!(rule) unless validated
         return DCCopies.plan(rule,current,saved,absolute:true) if DCCopies.needed?(rule,current,saved)
         Core.snapshot!(current)
         values = rule['parameters'].select { |param| param['editable'] }.to_h do |param|
@@ -55,7 +55,7 @@ module MH
           end
           DCVisibility.apply_metadata!(seed,program.node_visibility)
         end
-        result = RuleSystem.plan(rule, seed, values, previous_values: values)
+        result = RuleSystem.plan(rule, seed, values, previous_values: values,validated:true)
         if engine
           EnvelopePolicy.input_axes(engine['attribute_program'],engine['envelope_policy']).each do |axis|
             unless 2.times.all? { |side| (result['envelope'][side][axis]-current['envelope'][side][axis]).abs<=Core::ENVELOPE_TOLERANCE }

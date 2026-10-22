@@ -16,7 +16,7 @@ module MH
         root.set_attribute(Reader::DICT,'formula_envelope_json',seed[2]) if seed[2]
         current,bindings=Reader.live(root,label:'Replace Component',parameter:Runtime.read_parameter(rule,values))
         plan=ScalePlan.plan(rule,current,values)
-        Runtime.apply_plan(bindings,plan);Runtime.stamp(root,rule,bindings,plan['target']);Runtime.verify_result(root,plan)
+        Runtime.apply_plan(bindings,plan,rule:rule);Runtime.stamp(root,rule,bindings,plan['target']);Runtime.verify_result(root,plan)
       end
       def watch(model)
         return unless model
@@ -47,14 +47,14 @@ module MH
             @seen=seen;roots
           end
           def onTransactionCommit(_model)
-            return if @busy
+            return if @busy || UpdateWork.active?
             generation=@generation+=1
             UI.start_timer(0,false) { adopt if generation==@generation && Sketchup.active_model.equal?(@model) }
           end
           def adopt
             return unless @model.active_path.nil? || @model.active_path.empty?
             roots=candidates;return if roots.empty?
-            touched=true;@busy=true;@model.start_operation('MH Nhận Quy Tắc Component',true,false,true);operation=true
+            @busy=true;@model.start_operation('MH Nhận Quy Tắc Component',true,false,true);operation=true
             roots.each { |root| LibraryAdoption.apply(root) }
             @model.commit_operation;operation=false
             LibraryAdoption.instance_variable_set(:@last_error,nil)
@@ -66,11 +66,12 @@ module MH
             Sketchup.status_text="MH Replace Component: #{error.message}"
           ensure
             @busy=false
-            ScaleRedraw.watch(@model).reset if touched
+            # Runtime.stamp acknowledges each adopted instance. Resetting every
+            # root here would lose another module's still-pending Scale/Stretch.
             MH::ModuleStudio.instance_variable_get(:@module_options)&.schedule_refresh unless roots.nil? || roots.empty?
           end
           %i[onTransactionUndo onTransactionRedo onTransactionAbort].each do |event|
-            define_method(event) { |_model| @generation+=1;@seen={} unless @busy }
+            define_method(event) { |_model| @generation+=1;@seen={} unless @busy || UpdateWork.active? }
           end
         end
         class AppObserver < Sketchup::AppObserver

@@ -268,9 +268,9 @@ module MH
         rows
       end
 
-      def plan_parameters(bundle, current, requested)
+      def plan_parameters(bundle, current, requested,validated: false)
         return DCCopies.plan(bundle,current,requested) if DCCopies.needed?(bundle,current,requested)
-        parameter_set!(bundle)
+        parameter_set!(bundle) unless validated
         snapshot!(current)
         check_dc_context!(bundle, current)
         raise Error, 'Cần nhập các giá trị của bộ tham số module.' unless requested.is_a?(Hash)

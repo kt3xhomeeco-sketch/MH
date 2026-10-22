@@ -77,7 +77,7 @@ module MH
         if AssemblyContainers.managed?(root)
           AssemblyExternal.resize_assembly(root)
         elsif imports
-          rule=Core.rule!(JSON.parse(root.get_attribute(Reader::DICT,'rule_json')))
+          rule=imports.validated_rule(root.get_attribute(Reader::DICT,'rule_json'))
           saved=JSON.parse(root.get_attribute(Reader::DICT,'parameter_values_json','{}'))
           current,=Reader.live(root,label:'Replace',parameter:Runtime.read_parameter(rule,saved))
           ScaleRedraw.apply(root.model,[[root,rule,imports.resize_plan(rule,current,saved)]])

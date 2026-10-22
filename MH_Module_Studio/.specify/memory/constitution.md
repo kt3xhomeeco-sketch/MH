@@ -79,7 +79,13 @@ folders. Sparse slots persist exactly, with no folder auto-fill. Directional
 selection applies only outside Edit; placement modifiers remain unchanged. Feature 082 adds viewport-edge docks and
 explicit per-icon digits, preserving sparse positions and file identity across
 moves/config transfer. Spacing is independent of icon/image size; no numeric
-shortcut is inferred from position.
+shortcut is inferred from position. Feature 083 permits free viewport positions
+with horizontal/vertical snapping; saved alignment to a ring icon follows that
+ring axis without changing icon size or model geometry. Feature 085 limits contact
+dimensions/prisms/draft highlights to the active linking Tool. Library Replace
+with an explicit door-role sample keeps its actual source mounting-axis thickness
+and the target front datum; its other axes retain the real target dimensions.
+Ordinary samples and explicit native Scale retain their existing strict policy.
 
 ### IV. Safe model changes and identity
 Reading must not modify source SKP files or selected source DCs. Trial edits use
@@ -95,6 +101,14 @@ shared-definition behavior. Distinguish portable tests, UI smoke tests and nativ
 SketchUp checks. Do not claim native validation unless it actually ran.
 
 ## Technical boundaries
+
+Feature 089 prioritizes continuous user interaction over total update throughput.
+Prepare portable calculations away from the host event thread; retain all native
+API access on that thread. Never yield while a native transaction remains open.
+Discard obsolete work after newer input, Undo, model/context changes or a stale
+selection. Commit dependent thickness/contact changes together only when ready.
+Measure event-loop latency as well as correctness; passing geometry tests alone
+does not establish responsiveness.
 
 Current target: SketchUp 2025 / Ruby 3.2. Developer tools run outside SketchUp.
 Ship only extension runtime files in the RBZ, without gems, Python or Spec Kit.
@@ -115,4 +129,4 @@ Update these principles when the user changes an agreed requirement; explain
 material tradeoffs in the feature plan. TOOLING.md documents the installed tools
 and commands. This constitution describes requirements, not proof of completion.
 
-**Version**: 1.16.0 | **Ratified**: 2026-10-14 | **Last amended**: 2026-10-21
+**Version**: 1.19.0 | **Ratified**: 2026-10-14 | **Last amended**: 2026-10-21

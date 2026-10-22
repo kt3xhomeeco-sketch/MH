@@ -70,6 +70,16 @@ module MH
         Core.rule!(copy)
       end
 
+      def stamp_metadata(rule,target)
+        rule=Core.rule!(Core.copy_data(rule))
+        metadata={'rule'=>rule,'rule_json'=>JSON.generate(rule),'target'=>Core.copy_data(target)}
+        if target.is_a?(Hash)
+          metadata['values_json']=JSON.generate(target)
+          metadata['exposed_json']=JSON.generate(Core.exposed_parameters(rule,target))
+        end
+        metadata
+      end
+
       def category(key, unit = '')
         return 'position' if %w[x y z].include?(key)
         return 'dimension' if %w[lenx leny lenz].include?(key) || unit == 'mm'
@@ -181,6 +191,7 @@ module MH
       # All arithmetic is interpreted by the existing restricted DC parser.
       # References here are own symbols, never imported code or model methods.
       def evaluate_variables(bundle)
+        programs={}.compare_by_identity
         rows = bundle.fetch('parametric_variables', nil) || variables(bundle)
         lookup = {}
         rows.each do |row|
@@ -226,7 +237,7 @@ module MH
           stack << id
           param=parameters[row['binding']]
           result = if param && param['rule_source']=='dc_custom_attribute'
-                     DCCustomAttributes.value(bundle,param) { |key| lookup[key] && resolve.call(lookup[key]) }
+                     DCCustomAttributes.value(bundle,param,programs:programs) { |key| lookup[key] && resolve.call(lookup[key]) }
                    else
                      row['formula'].empty? ? row['value'] : ast_value.call(DCFormulas::Parser.new(row['formula']).parse)
                    end
@@ -276,6 +287,7 @@ module MH
       end
 
       def part_formula_values(bundle, parts, targets, envelope)
+        return {} if bundle.fetch('part_formulas',{}).empty?
         rows = Marshal.load(Marshal.dump(variables(bundle)))
         rows.each do |row|
           next unless row['binding'] && targets.key?(row['binding'])

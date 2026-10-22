@@ -1,0 +1,5 @@
+- [x] Record user intent and native baseline for narrow-front picks/Replace.
+- [x] Implement real-front triangle acquisition band and shared click/hover path.
+- [x] Keep source definition private and cache only bounded portable calculations.
+- [x] Verify native unit/rotated/mirrored/scaled picks and repeated/varied Replace.
+- [x] Final scoped gate, package, docs and safe existing-session reload.

@@ -47,6 +47,20 @@ module MH
         template['door_face'].split(':').map(&:to_i)
       end
 
+      # Logical viewport pixels; triangle input preserves holes in real faces.
+      def screen_distance2(point,polygon)
+        return Float::INFINITY if polygon.length<3
+        x,y=point;inside=false;minimum=Float::INFINITY
+        polygon.each_with_index do |a,index|
+          b=polygon[(index+1)%polygon.length]
+          inside=!inside if (a[1]>y)!=(b[1]>y) && x<(b[0]-a[0])*(y-a[1])/(b[1]-a[1])+a[0]
+          dx=b[0]-a[0];dy=b[1]-a[1];length=dx*dx+dy*dy
+          ratio=length.zero? ? 0 : [[((x-a[0])*dx+(y-a[1])*dy)/length.to_f,0].max,1].min
+          minimum=[minimum,(x-a[0]-ratio*dx)**2+(y-a[1]-ratio*dy)**2].min
+        end
+        inside ? 0.0 : minimum
+      end
+
       def door_thickness(rule,values,bounds)
         rows=Parametric.variables(rule)
         physical=rows.select { |row| row['binding'] && row['unit']=='mm' && ThicknessSymbols.thickness?(rule,row['binding']) }
@@ -116,6 +130,23 @@ module MH
         end
         raise Core::Error,'Khoảng hở không tạo được kích thước module dương.' unless Core.dimensions(box).all? { |size| size>0.01 }
         {'bounds'=>box,'matches'=>matches,'kind'=>mode,'template'=>template}
+      end
+
+      # Replace keeps the two face dimensions of the target, but a door's
+      # thickness is the actual source span, independent of template enablement.
+      def replace_bounds(data,placement)
+        return placement unless placement && placement['mode']=='replace'
+        template=data['import_template'] || data.dig('rule','import_template')
+        return placement unless template
+        template=validate(template)
+        return placement unless template['role']=='door'
+        axis,side=mounting_face(template)
+        result=Core.copy_data(placement)
+        scale=Frames.scale_frame(result['frame'])[[0,5,10][axis]]
+        depth=Core.dimensions(Core.bounds!(data['snapshot']['envelope']))[axis]/scale
+        raise Core::Error,'Chiều dày cánh không hợp lệ.' unless depth>0.01 && depth.finite?
+        result['bounds'][side][axis]=result['bounds'][1-side][axis]+(side==1 ? depth : -depth)
+        result
       end
 
       def thickness_values(rule,values={})

@@ -38,14 +38,35 @@ module MH
 
       # Only portable calculation data is reused. Every replacement still reads
       # its actual geometry and verifies the applied result with fresh bindings.
-      def resize_plan(rule,current,saved)
+      def resize_plan(rule,current,saved,validated: false)
         stable=current.reject { |key,_value| %w[id label source captured_at].include?(key) }
         key='resize:'+Digest::SHA256.hexdigest(JSON.generate([rule,stable,saved]))
         stored=cached(key)
         return JSON.parse(stored) if stored
-        result=ScalePlan.plan(rule,current,saved)
+        result=validated ? ScalePlan.plan(rule,current,saved,validated:true) : ScalePlan.plan(rule,current,saved)
         remember(key,JSON.generate(result))
         result
+      end
+
+      def normalization_plan(rule,current)
+        stable=current.reject { |key,_value| %w[id label source captured_at].include?(key) }
+        key='normalize:'+Digest::SHA256.hexdigest(JSON.generate([rule,stable]))
+        calculation(key) { Core.plan(rule,current,{}) }
+      end
+
+      # Prepared metadata is immutable JSON in the bounded calculation cache.
+      # Native IDs and child bindings are always assigned afresh by Runtime.
+      def stamp_metadata(rule,target)
+        key='stamp:'+Digest::SHA256.hexdigest(JSON.generate([rule,target]))
+        result=calculation(key) { Parametric.stamp_metadata(rule,target) }
+        encoded=result.fetch('rule_json')
+        remember('rule:'+Digest::SHA256.hexdigest(encoded),encoded) unless cached('rule:'+Digest::SHA256.hexdigest(encoded))
+        result
+      end
+
+      def validated_rule(raw)
+        raise Core::Error,'Bộ quy tắc không hợp lệ.' unless raw.is_a?(String) && raw.bytesize<=LibraryCatalog::MAX_BYTES
+        calculation('rule:'+Digest::SHA256.hexdigest(raw)) { Core.rule!(JSON.parse(raw)) }
       end
 
       # Only portable JSON/rule calculations run here. Never pass native objects
@@ -81,6 +102,21 @@ module MH
         end
       end
 
+      def calculation(key)
+        stored=cached(key)
+        return JSON.parse(stored) if stored
+        @foreground_waiting=true if Thread.current==Thread.main
+        @work_lock.synchronize do
+          stored=cached(key)
+          return JSON.parse(stored) if stored
+          result=yield
+          remember(key,JSON.generate(result))
+          result
+        end
+      ensure
+        @foreground_waiting=false if Thread.current==Thread.main
+      end
+
       def cached(key)
         @cache_lock.synchronize do
           stored = @validated.delete(key)
@@ -99,7 +135,7 @@ module MH
         end
       end
 
-      private :cached, :remember
+      private :cached, :remember, :calculation
 
       def preview(raw)
         unless raw.is_a?(String) && !raw.empty? && raw.bytesize<=LibraryCatalog::MAX_BYTES

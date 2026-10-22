@@ -16,7 +16,7 @@ module MH
           @window = window
         end
         %i[onSelectionBulkChange onSelectionAdded onSelectionRemoved onSelectionCleared].each do |event|
-          define_method(event) { |*_args| @window.schedule_refresh }
+          define_method(event) { |*_args| @window.schedule_refresh unless UpdateWork.active? }
         end
       end
       class OptionsModelObserver < Sketchup::ModelObserver
@@ -25,7 +25,7 @@ module MH
           @window = window
         end
         %i[onTransactionUndo onTransactionRedo onTransactionCommit onActivePathChanged].each do |event|
-          define_method(event) { |*_args| @window.schedule_refresh }
+          define_method(event) { |*_args| @window.schedule_refresh unless UpdateWork.active? }
         end
       end
       class OptionsAppObserver < Sketchup::AppObserver
@@ -107,9 +107,10 @@ module MH
         @dialog.add_action_callback('request') do |_context, raw|
           begin
             raise Core::Error, 'Yêu cầu quá lớn.' if raw.to_s.bytesize > 16384
-            request(JSON.parse(raw.to_s))
+            data=JSON.parse(raw.to_s)
+            request(data)
           rescue StandardError => error
-            refresh(error: error.message)
+            refresh(error:error.message,request_revision:data.is_a?(Hash) ? data['request_revision'] : nil)
           end
         end
         current = @dialog
@@ -182,8 +183,11 @@ module MH
           unless !roots.empty? && roots.all? { |root| root.model.equal?(@model) } && selection_key(roots)==data['root_pid'] && data['root_pid']==(@selection_key || @root&.persistent_id&.to_s) && data['token'] == @token
             raise Core::Error, 'Module đang chọn đã đổi. Nhập lại thông số trên module hiện tại.'
           end
-          data['action']=='changes' ? apply_changes(data.fetch('changes')) : apply_change(data)
-          refresh
+          changes=data['action']=='changes' ? data.fetch('changes') : [data]
+          model=@model;selection=data['root_pid']
+          done=lambda { |status,error| refresh(error:error&.message,request_revision:data['request_revision']) unless status==:superseded }
+          guard=lambda { @dialog && @model.equal?(model) && selection_key(self.class.selected_options_roots)==selection }
+          UpdateWork.submit(model,key: :options,guard:guard,complete:done) { apply_changes(changes) }
         when 'save_skp'
           root = self.class.selected_options_root
           raise Core::Error,'Chọn lại module cần lưu.' unless root && root.equal?(@root) && (!data['root_pid'] || data['root_pid']==root.persistent_id.to_s)
@@ -194,8 +198,7 @@ module MH
           unless root && root.equal?(@root) && root.model.equal?(@model) && root.persistent_id.to_s==data['root_pid'] && data['token']==@token
             raise Core::Error,'Module đang chọn đã đổi. Chọn lại module để Redraw.'
           end
-          Assembly.redraw(root)
-          refresh
+          UpdateWork.submit(@model,key: :redraw,complete:lambda { |_status,error| refresh(error:error&.message,request_revision:data['request_revision']) }) { Assembly.redraw(root) }
         else
           raise Core::Error, 'Thao tác không hỗ trợ.'
         end
@@ -219,6 +222,10 @@ module MH
           entity = Assembly.root(@model,member['anchor'])
           unless entity.get_attribute(Reader::DICT,'rule_json')==member['raw'] && entity.get_attribute(Reader::DICT,'parameter_values_json')==member['values_raw']
             raise Core::Error,'Quy tắc hoặc thông số đã đổi. Bảng được đọc lại.'
+          end
+          if UpdateWork.active?
+            edited,targets=UpdateWork.calculate(:options_edit,member['rule'],requested)
+            next [Core.copy_data(member['anchor']),edited,targets]
           end
           rows = Parametric.variables(member['rule'])
           changed = false
@@ -257,7 +264,7 @@ module MH
         File.delete(path) if path && File.file?(path)
       end
 
-      def refresh(error: nil)
+      def refresh(error: nil,request_revision: nil)
         return unless @dialog
         @refresh_scheduled = nil
         attach
@@ -303,10 +310,11 @@ module MH
           payload = { 'token' => @token, 'name' => 'Chọn module', 'rows' => [], 'empty' => true,
                       'error' => error, 'message' => 'Chọn một module đã tạo để sửa thông số.' }
         end
+        payload['request_revision']=request_revision if request_revision
         send_state(payload)
       rescue StandardError => detail
         @root = nil
-        send_state('token' => @token, 'name' => 'Thông số module', 'rows' => [], 'error' => detail.message)
+        send_state('token' => @token, 'name' => 'Thông số module', 'rows' => [], 'error' => detail.message,'request_revision'=>request_revision)
       end
 
       def send_state(payload)
@@ -327,9 +335,12 @@ module MH
     end
 
     def self.redraw_selected
-      Assembly.redraw(Runtime.selected_root)
-      Sketchup.status_text='MH: Đã Redraw module.'
-      @module_options&.schedule_refresh
+      root=Runtime.selected_root
+      done=lambda do |_status,error|
+        error ? UI.messagebox(error.message) : Sketchup.status_text='MH: Đã Redraw module.'
+        @module_options&.schedule_refresh
+      end
+      UpdateWork.submit(root.model,key: :redraw,complete:done) { Assembly.redraw(root) }
     rescue StandardError=>error
       UI.messagebox(error.message)
     end

@@ -27,7 +27,10 @@ class ModuleStudioMultiOptionsTest < Minitest::Test
         request={'action'=>'change','root_pid'=>states.last['root_pid'],'token'=>states.last['token'],'variable_id'=>'common:T1','value'=>22}
         S::Assembly.stub(:root,->(_model,anchor) { roots.find { |r| r.persistent_id.to_s==anchor['root'] } }) do
           S::Assembly.stub(:records,[]) do
-            S::Assembly.stub(:transact,->(_model,_rows,updates:) { calls << updates }) { window.request(request) }
+            S::Assembly.stub(:transact,->(_model,_rows,updates:) { calls << updates }) do
+              submit=lambda { |_model,**opts,&action| action.call;opts[:complete]&.call(:done,nil) }
+              S::UpdateWork.stub(:submit,submit) { window.request(request) }
+            end
           end
         end
         assert_equal 1,calls.length;assert_equal 2,calls.first.length

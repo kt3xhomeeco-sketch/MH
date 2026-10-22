@@ -250,7 +250,7 @@ module MH
             raise Core::Error,"Chưa tính lại được sau Scale: #{error.message}"
           end
           Runtime.private_tree(root)
-          Runtime.apply_plan(bindings,canonical_plan)
+          Runtime.apply_plan(bindings,canonical_plan,rule:rule)
           Runtime.stamp(root, rule, bindings, values)
           Runtime.verify_result(root,canonical_plan)
           root.set_attribute(Reader::DICT, 'generated', true)

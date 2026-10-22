@@ -35,7 +35,7 @@ module MH
 
       def probe_seed(group,entity)
         return unless entity.get_attribute(Reader::DICT,'trial',false) && group.all? { |record| %w[contact angle].include?(record['mode']) }
-        rule = Core.rule!(JSON.parse(entity.get_attribute(Reader::DICT,'rule_json')))
+        rule = UpdateWork.rule(entity.get_attribute(Reader::DICT,'rule_json'))
         saved = JSON.parse(entity.get_attribute(Reader::DICT,'parameter_values_json','{}'))
         current,bindings = Reader.live(entity,label:'Thăm dò liên kết',parameter:Runtime.read_parameter(rule,saved))
         surfaces = group.reject { |record| record['mode']=='angle' }.map do |record|
@@ -63,7 +63,7 @@ module MH
         axes = [frame.xaxis,frame.yaxis,frame.zaxis]
         axis = axes.each_index.max_by { |index| AssemblyMath.dot(axes[index].normalize.to_a,normal).abs }
         factors = [1.0,1.0,1.0]; factors[axis] = factor
-        plan = ScalePlan.plan(rule,ScalePlan.scaled_snapshot(current,factors),saved)
+        plan = ScaleRedraw.plan(rule,ScalePlan.scaled_snapshot(current,factors),saved,validated:true)
         old = current['parts'].to_h { |part| [part['key'],part['bounds']] }
         fresh = plan['parts'].to_h { |part| [part['key'],part['bounds']] }
         surfaces.zip(baseline).map do |(key,dimension,side),row|

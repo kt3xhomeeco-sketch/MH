@@ -8,7 +8,7 @@ module MH
       DOCKS=%w[top bottom left right].freeze
       def normalize(settings)
         boards=settings['hud_boards']
-        unless [1,2].include?(settings['hud_board_version'])
+        unless [1,2,3].include?(settings['hud_board_version'])
           boards=settings.fetch('hud_orders',{}).map.with_index do |(folder,ids),index|
             {'id'=>"legacy-#{index}",'name'=>folder.empty? ? 'Library' : folder,
              'key'=>settings.fetch('folder_keys',{})[folder].to_s,'slots'=>ids.first(128)+Array.new(ids.empty? ? 8 : (8-ids.length%8)%8)}
@@ -28,8 +28,12 @@ module MH
           end
           board['docks']||=DOCKS.to_h { |zone| [zone,[]] }
           board['shortcuts']||={}
+          board['free']||={}
           unless board['docks'].is_a?(Hash) && board['docks'].keys.sort==DOCKS.sort && DOCKS.all? { |zone| valid_slots?(board['docks'][zone],64) } && board['shortcuts'].is_a?(Hash)
             raise Core::Error,'Dải icon hoặc phím số HUD không hợp lệ.'
+          end
+          unless board['free'].is_a?(Hash) && board['free'].length<=128 && board['free'].all? { |id,position| id.is_a?(String) && valid_slots?([id],1) && valid_position?(position) }
+            raise Core::Error,'Vị trí icon tự do không hợp lệ.'
           end
           board['name']=board['name'].strip;board['key']=board['key'].upcase
           ids=all_ids(board)
@@ -42,13 +46,23 @@ module MH
         raise Core::Error,'Tên, ID hoặc phím tắt của bảng HUD bị trùng.' unless boards.map { |b| b['id'] }.uniq.length==boards.length && keys.uniq.length==keys.length && boards.map { |b| b['name'].downcase }.uniq.length==boards.length
         active=settings['hud_board']
         active=boards.first&.fetch('id','') || '' unless boards.any? { |b| b['id']==active }
-        settings.merge('hud_board_version'=>2,'hud_boards'=>boards,'hud_board'=>active)
+        settings.merge('hud_board_version'=>3,'hud_boards'=>boards,'hud_board'=>active)
       end
       def valid_slots?(slots,maximum)
         slots.is_a?(Array) && slots.length<=maximum && slots.all? { |id| id.nil? || id.is_a?(String) && id.length.between?(1,2000) }
       end
       def all_ids(board)
-        (board['slots']+board.fetch('docks',{}).values.flatten).compact
+        (board['slots']+board.fetch('docks',{}).values.flatten).compact+board.fetch('free',{}).keys
+      end
+      def valid_position?(position)
+        return false unless position.is_a?(Hash) && %w[x y].all? { |key| position[key].is_a?(Numeric) && position[key].finite? }
+        valid_coordinates = if position['relative'] == true
+                              %w[x y].all? { |key| position[key].between?(-100_000,100_000) }
+                            else
+                              %w[x y].all? { |key| position[key].between?(0,1) }
+                            end
+        valid_coordinates &&
+          %w[snap_x snap_y].all? { |key| !position.key?(key) || position[key].is_a?(Integer) && position[key].between?(0,7) }
       end
       def slots(board,zone)
         return board['slots'] if zone=='ring'
@@ -76,8 +90,23 @@ module MH
         raise Core::Error,'Ô icon không hợp lệ.' unless index.is_a?(Integer) && index.between?(0,maximum-1)
         source=([board['slots']]+board['docks'].values).find { |list| list.include?(id) }
         source[source.index(id)]=target[index] if source
+        old_free=board['free'].delete(id)
+        board['free'][target[index]]=old_free if old_free && target[index]
         target.fill(nil,target.length...index) if index>target.length
         target[index]=id
+        normalize(result)
+      end
+      def put_free(settings,id,position,board_id,replace:nil)
+        raise Core::Error,'Vị trí icon tự do không hợp lệ.' unless valid_position?(position)
+        result=Core.copy_data(settings);board=current(result,board_id)
+        raise Core::Error,'Tạo và chọn bảng icon trong Edit trước.' unless board
+        raise Core::Error,'Icon đích đã thay đổi.' if replace && !board['free'].key?(replace)
+        source=([board['slots']]+board['docks'].values).find { |list| list.include?(id) }
+        prior=board['free'].delete(id)
+        source[source.index(id)]=replace if source
+        board['free'].delete(replace) if replace
+        board['free'][replace]=prior if replace && prior && replace!=id
+        board['free'][id]=Core.copy_data(position)
         normalize(result)
       end
       def edit(settings,action,data)
@@ -98,6 +127,11 @@ module MH
           raise Core::Error,'Bảng HUD không còn tồn tại.' unless board
           board['slots']+=Array.new(8)
         when 'clear'
+          if data['zone']=='free'
+            raise Core::Error,'Icon tự do không còn tồn tại.' unless board && board['free'].key?(data['slot'])
+            board['free'].delete(data['slot'])
+            return normalize(result)
+          end
           list=board && slots(board,data.fetch('zone','ring'))
           raise Core::Error,'Ô icon không hợp lệ.' unless list && data['slot'].is_a?(Integer) && data['slot'].between?(0,list.length-1)
           list[data['slot']]=nil

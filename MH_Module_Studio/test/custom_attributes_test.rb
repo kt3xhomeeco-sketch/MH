@@ -39,6 +39,28 @@ class ModuleStudioCustomAttributesTest < Minitest::Test
     assert_equal values,S::Parametric.evaluate_variables(restored)
   end
 
+  def test_custom_values_share_one_compiled_program_per_evaluation_and_keep_new_inputs
+    data=source
+    data['dc_inputs'].merge!('derived_two'=>54.0/25.4,'_derived_two_units'=>'MILLIMETERS',
+      '_derived_two_formulaunits'=>'CENTIMETERS','_derived_two_formula'=>'3*t')
+    rule=S::StudioCalculation.build_system([data])
+    original=S::DCFormulas::Program.method(:new);compiled=0
+    factory=lambda { |*args| compiled+=1;original.call(*args) }
+    S::DCFormulas::Program.stub(:new,factory) do
+      first=S::Parametric.evaluate_variables(rule)
+      assert_in_delta 36,first['input:derived'],0.000001
+      assert_in_delta 54,first['input:derived_two'],0.000001
+      assert_equal 1,compiled
+      changed=S::Core.copy_data(rule)
+      changed['parametric_variables']=S::Parametric.variables(changed)
+      changed['parametric_variables'].find { |row| row['binding']=='t' }['value']=20
+      second=S::Parametric.evaluate_variables(changed)
+      assert_in_delta 40,second['input:derived'],0.000001
+      assert_in_delta 60,second['input:derived_two'],0.000001
+      assert_equal 2,compiled
+    end
+  end
+
   def test_old_payload_upgrades_without_changing_its_existing_symbols_or_original_source
     data=source
     old=S::RuleSystem.build(data,S::Core.learn_module([data]))

@@ -1,0 +1,5 @@
+- [x] Specify display lifetime and source-door-thickness Replace policy.
+- [x] Gate overlay drawing/extents; retain saved contacts/session state.
+- [x] Share portable thickness bounds between preview/single/batch Replace.
+- [x] Portable tests and isolated native locked/real sample + overlay checks.
+- [x] Scoped gate, package verification and safe existing-session reload.

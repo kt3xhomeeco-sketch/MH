@@ -26,6 +26,26 @@ module MH
         end
       end
 
+      # Captured ATT frames retain the untouched local coordinates of legacy
+      # guide points; resolving their ancestry never reads native model objects.
+      def guide_reference(snapshot,key)
+        return unless snapshot && snapshot.dig('dc_graph','nodes').is_a?(Array)
+        nodes=snapshot['dc_graph']['nodes'];node=nodes.find { |item| item['part_key']==key }
+        part=snapshot['parts'].find { |item| item['key']==key }
+        return unless node && part && node['local_bounds'].is_a?(Array)
+        lookup=nodes.to_h { |item| [item['id'],item] };chain=[];seen=[];current=node
+        while current
+          return if seen.include?(current['id']) || chain.length>=40
+          seen << current['id'];chain.unshift(current)
+          break if current['parent_id'].to_s.empty?
+          current=lookup[current['parent_id']]
+          return unless current
+        end
+        frame=snapshot['dc_graph']['root_frame'] || Frames::IDENTITY
+        chain.each { |item| frame=Frames.multiply(frame,item['transform']) }
+        {'frame'=>frame,'bounds'=>part['bounds'],'local_bounds'=>node['local_bounds']}
+      end
+
       def matrix(old_bounds, target)
         old = Core.dimensions(old_bounds); sizes = Core.dimensions(target)
         matrix = Frames::IDENTITY.dup

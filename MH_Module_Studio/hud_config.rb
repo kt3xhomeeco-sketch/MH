@@ -120,6 +120,7 @@ module MH
           end
           board['slots'].map! { |id| resolve.call(id) }
           board['docks'].each_value { |ids| ids.map! { |id| resolve.call(id) } }
+          board['free']=board['free'].filter_map { |id,position| found=resolve.call(id);[found,position] if found }.to_h
           board['shortcuts']=board['shortcuts'].filter_map { |id,key| found=resolve.call(id);[found,key] if found }.to_h
         end
         result['hud_orders']=orders

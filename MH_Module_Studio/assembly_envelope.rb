@@ -27,7 +27,7 @@ module MH
           axis = axes.each_index.max_by { |index| AssemblyMath.dot(axes[index].normalize.to_a,normal).abs }
           next false if AssemblyMath.dot(axes[axis].normalize.to_a,normal).abs<0.999999
           if entity.get_attribute(Reader::DICT,'trial',false)
-            rule = Core.rule!(JSON.parse(entity.get_attribute(Reader::DICT,'rule_json')))
+            rule = UpdateWork.rule(entity.get_attribute(Reader::DICT,'rule_json'))
             !Array(rule.dig('formula_engine','envelope_policy','axes')).include?(axis)
           else
             !entity.attribute_dictionary('dynamic_attributes',false) && !entity.definition.attribute_dictionary('dynamic_attributes',false)

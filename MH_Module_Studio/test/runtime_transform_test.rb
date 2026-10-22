@@ -111,6 +111,23 @@ class ModuleStudioRuntimeTransformTest < Minitest::Test
     assert(bindings.values.all? { |binding| binding[:entity].definition.entities.calls.zero? })
   end
 
+  def test_direct_guide_points_follow_the_mesh_once_and_descendants_stay_separate
+    guide=Class.new;Runtime::Sketchup.const_set(:ConstructionPoint,guide)
+    current=StudioFixtures.cabinet(18);plan=Core.plan(StudioFixtures.rule,current,25)
+    bindings=bindings_for(current,Frames::IDENTITY)
+    entities=bindings['left'][:entity].definition.entities
+    entities.points << [9,50,60].map { |v| v/25.4 }
+    entities.define_singleton_method(:to_a) { [MeshFace.new,MeshEdge.new,guide.new,ChildContainer.new] }
+    entities.define_singleton_method(:transform_entities) do |transform,items|
+      raise 'Guide missing or child moved twice' unless items.length==3 && items.any? { |e| e.is_a?(guide) } && items.none? { |e| e.is_a?(ChildContainer) }
+      @calls+=1;@points=points.map { |point| Frames.point(transform.matrix,point) }
+    end
+    Runtime.apply_plan(bindings,plan)
+    actual=entities.points.last.map { |v| v*25.4 }
+    assert_in_delta 12.5,actual[0],0.000001;assert_in_delta 50,actual[1],0.000001;assert_in_delta 60,actual[2],0.000001
+    assert_equal 1,entities.calls
+  end
+
   def test_missing_follower_update_creates_collision_and_is_rejected
     rule = StudioFixtures.rule
     top = rule['parts'].find { |part| part['key'] == 'top' }

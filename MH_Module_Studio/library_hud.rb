@@ -108,7 +108,7 @@ module MH
 
       def texture_items
         board=HUDBoards.current(hud_settings)
-        docked=board ? board['docks'].values.flatten.compact : []
+        docked=board ? board['docks'].values.flatten.compact+board.fetch('free',{}).keys : []
         page_items.compact+@library.catalog['entries'].select { |item| docked.include?(item['id']) }
       end
 
@@ -318,12 +318,21 @@ module MH
       def geometry(view)
         anchor = @library.config['hud_position'] == 'cursor' ? @cursor_anchor : nil
         ring=LibraryCatalog.layout(view.vpwidth.to_f, view.vpheight.to_f, @library.config['hud_size'], center: anchor,spacing:@library.config.fetch('hud_spacing',100))
-        HUDLayout.compose(view.vpwidth.to_f,view.vpheight.to_f,ring,@folders ? nil : HUDBoards.current(hud_settings),editing:@editing && !@folders)
+        board=@folders ? nil : HUDBoards.current(hud_settings)
+        layout=HUDLayout.compose(view.vpwidth.to_f,view.vpheight.to_f,ring,board,editing:@editing && !@folders)
+        if board && (positions=HUDLayout.anchor_legacy_free(board,layout)).any?
+          @library.anchor_legacy_hud_free(board['id'],positions)
+          board=HUDBoards.current(hud_settings)
+          layout=HUDLayout.compose(view.vpwidth.to_f,view.vpheight.to_f,ring,board,editing:@editing && !@folders)
+        end
+        layout
       end
 
       def hit(x, y, view)
         return nil if @pending
         layout = geometry(view)
+        floating=HUDLayout.free_hit(layout,x,y) unless @folders
+        return floating if floating
         dock=HUDLayout.dock_hit(layout,HUDBoards.current(hud_settings),x,y,editing:@editing) unless @folders
         return dock if dock
         cx, cy = layout['center']
@@ -348,19 +357,41 @@ module MH
       def target_item(target)
         return unless target
         return page_items[target[1]] if target[0]==:item
-        return unless target[0]==:dock
-        zone,index=target[1];id=HUDBoards.current(hud_settings)&.dig('docks',zone,index)
+        return unless %i[dock free].include?(target[0])
+        if target[0]==:free
+          id=target[1]
+        else
+          zone,index=target[1];id=HUDBoards.current(hud_settings)&.dig('docks',zone,index)
+        end
         @library.catalog['entries'].find { |entry| entry['id']==id } if id
       end
 
       def target_location(target)
+        return ['free',target[1]] if target[0]==:free
         target[0]==:dock ? target[1] : ['ring',drop_index(target[1])]
       end
 
       def move_to_target(item,target)
-        return unless item && target && %i[item dock].include?(target[0])
+        return unless item && target && %i[item dock free].include?(target[0])
+        if target[0]==:free
+          position=HUDBoards.current(hud_settings)['free'].fetch(target[1])
+          return @library.move_hud_free(item['id'],position,folder:hud_folder,replace:target[1])
+        end
         zone,index=target_location(target)
         @library.move_hud_item(item['id'],index,folder:hud_folder,zone:zone)
+      end
+
+      def free_preview(item,x,y,view)
+        HUDLayout.free_drop(geometry(view),HUDBoards.current(hud_settings),x,y,view.vpwidth.to_f,view.vpheight.to_f,moving:item['id'])
+      end
+
+      def drop_at(item,x,y,view)
+        target=hit(x,y,view)
+        return move_to_target(item,target) if target
+        preview=free_preview(item,x,y,view)
+        snapped=hit(*preview['point'],view)
+        return move_to_target(item,snapped) if snapped
+        @library.move_hud_free(item['id'],preview['position'],folder:hud_folder)
       end
 
       def assign_shortcut(item)
@@ -406,6 +437,7 @@ module MH
           @dragging = true
           @drag_cursor = [x, y]
         end
+        @free_preview=@editing && @dragging && !@hover ? free_preview(@drag_item,x,y,view) : nil
         if @pending && !@hover
           @input.pick(view, x, y)
           previous = @placement_mouse
@@ -428,7 +460,7 @@ module MH
         target = hit(x, y, view)
         if target
           case target[0]
-          when :item, :dock
+          when :item, :dock, :free
             if @editing && !@folders && target_item(target)
               @drag_target = target
               @drag_item = target_item(target)
@@ -472,7 +504,7 @@ module MH
       def onLButtonUp(_flags, x, y, view)
         if @editing && @drag_target
           if @dragging
-            move_to_target(@drag_item,hit(x,y,view))
+            drop_at(@drag_item,x,y,view)
           else
             assign_shortcut(@drag_item)
           end
@@ -485,7 +517,7 @@ module MH
       end
 
       def clear_drag
-        @drag_target = @drag_item = @drag_start = @drag_cursor = @external_drag = nil
+        @drag_target = @drag_item = @drag_start = @drag_cursor = @external_drag = @free_preview = nil
         @dragging = false
       end
 
@@ -540,6 +572,7 @@ module MH
         @external_drag['held'] ||= pointer['left']
         @drag_cursor = pointer['over'] ? [pointer['x'], pointer['y']] : nil
         @hover = @drag_cursor && hit(*@drag_cursor, @model.active_view)
+        @free_preview=@drag_cursor && !@hover ? free_preview(@external_drag,*@drag_cursor,@model.active_view) : nil
         if @external_drag['held'] && !pointer['left']
           end_external_drag
         else
@@ -563,8 +596,7 @@ module MH
         pointer = HUDInput.cursor(@model.active_view)
         drag = @external_drag
         if @active && @editing && pointer && !pointer['left'] && pointer['over'] && drag['root'] == @library.catalog['root']
-          target = hit(pointer['x'], pointer['y'], @model.active_view)
-          move_to_target({'id'=>drag['id']},target)
+          drop_at({'id'=>drag['id']},pointer['x'],pointer['y'],@model.active_view)
         end
       rescue StandardError => detail
         @error = detail.message
@@ -692,8 +724,20 @@ module MH
           text(view,cx,cy+extent+20,"#{@page+1} / #{page_count}",'#47636c',10)
           text(view,cx+nav,cy+extent+15,'›','#008b90',19)
         end
+        layout.fetch('free',{}).each do |id,point|
+          target=[:free,id];item=target_item(target)
+          draw_icon(view,point,item,target,size) if item
+        end
+        if @free_preview
+          view.drawing_color='#269ea5';view.line_width=1;view.line_stipple='-'
+          @free_preview['guides'].each do |axis,value|
+            points=axis=='x' ? [[value,0],[value,view.vpheight]] : [[0,value],[view.vpwidth,value]]
+            view.draw2d(GL_LINES,points.map { |x,y| Geom::Point3d.new(x,y,0) })
+          end
+          view.line_stipple=''
+        end
         if @drag_cursor && (@dragging || @external_drag)
-          x, y = @drag_cursor
+          x, y = @free_preview ? @free_preview['point'] : @drag_cursor
           circle(view, x, y, size * 0.4, '#b8dedc', '#008b90')
           text(view, x, y - 7, '↔', '#00777c', 11)
         end

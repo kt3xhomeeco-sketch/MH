@@ -20,6 +20,11 @@ class ModuleStudioScaleObserverTest < Minitest::Test
       end
       require ARGV.fetch(0)
       s=MH::ModuleStudio
+      # Scheduling/concurrency is covered by update_work_test; retain the
+      # observer baseline assertions here with an immediate dispatcher.
+      s::UpdateWork.define_singleton_method(:submit) do |_model,**options,&action|
+        action.call;options[:complete]&.call(:done,nil)
+      end
       $model=Struct.new(:active_path).new(nil)
       root=Struct.new(:persistent_id,:scales).new(1,[1.0,1.0,1.0])
       s::ScaleRedraw.define_singleton_method(:roots) { |_model| [root] }

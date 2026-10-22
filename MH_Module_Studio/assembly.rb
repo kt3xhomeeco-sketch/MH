@@ -258,10 +258,11 @@ module MH
         end
       end
 
-      def transact(model, proposed, transparent: false, motion: nil, group_record: nil, updates: [], mutable_anchors: [], envelope_requests: {}, replacement: nil, redraw: [])
+      def transact(model, proposed, transparent: false, motion: nil, group_record: nil, updates: [], mutable_anchors: [], envelope_requests: {}, replacement: nil, redraw: [], external_geometry: false, external_envelopes: {}, reservation_targets: {})
+        proposed=Core.copy_data(proposed) if UpdateWork.active?
         Runtime.ensure_assembly_context(model)
         @busy = true
-        model.start_operation('MH Liên Kết Module', true, false, transparent)
+        model.start_operation('MH Liên Kết Module', true, false, transparent && !UpdateWork.probing?)
         operation = true
         previous_links = replacement ? Core.copy_data(proposed) : Assembly.records(model)
         changed = (previous_links+proposed).select { |row| previous_links.include?(row)!=proposed.include?(row) }
@@ -277,7 +278,7 @@ module MH
           AssemblyParameters.set_master(model,grouped,group_record)
         end
         AssemblyExternal.validate!(proposed)
-        envelope_targets = {}
+        envelope_targets = Core.copy_data(external_envelopes)
         replaced = replacement ? (replacement.is_a?(Array) ? replacement : [replacement]).map { |anchor| root(model,anchor) } : []
         scaled = AssemblyContainers.normalize_scales!(model,envelopes:envelope_targets,except:replaced)
         scaled -= replaced
@@ -293,7 +294,7 @@ module MH
         updates.each do |anchor,rule,values,source|
           entity = root(model,anchor)
           before = Core.dimensions(AssemblyEnvelope.bounds(entity))
-          Core.rule!(rule)
+          UpdateWork.rule(rule)
           Runtime.apply_trial_update(entity,rule,values,source:source)
           if anchor['scope']
             growth[anchor['scope']] = Array(growth[anchor['scope']]) | AssemblyEnvelope.changing_axes(entity,rule,before)
@@ -301,7 +302,7 @@ module MH
         end
         yield proposed if block_given?
         AssemblyParameters.synchronize(model).each { |scope,axes| growth[scope]=Array(growth[scope]) | axes }
-        ImportLinks.apply_reservations(model,proposed)
+        ImportLinks.apply_reservations(model,proposed,external_geometry:external_geometry,targets:reservation_targets)
         repaired=ImportLinks.normalize_front_datums(model,proposed)
         edited_scopes |= repaired.flat_map { |row| AssemblyContainers.references(row).filter_map { |ref| ref['scope'] } }
         ordered = AssemblyMath.ordered(proposed)
@@ -316,14 +317,17 @@ module MH
           next unless component && component.valid? && AssemblyContainers.managed?(component)
           AssemblyEnvelope.remember(component,AssemblyEnvelope.bounds(component))
         end
-        model.commit_operation
+        UpdateWork.commit(model)
         operation = false
         @last_error = nil
         model.active_view.invalidate
         proposed
+      rescue UpdateWork::Deferred,UpdateWork::Prepared
+        model.abort_operation if operation
+        raise
       rescue StandardError
         if operation
-          if transparent
+          if transparent && !UpdateWork.probing?
             model.commit_operation
             Sketchup.undo
           else
@@ -333,7 +337,7 @@ module MH
         raise
       ensure
         @busy = false
-        @observers&.fetch(model, nil)&.reset
+        @observers&.fetch(model, nil)&.reset unless UpdateWork.probing?
       end
 
       def solve_ordered(model,ordered)
@@ -574,31 +578,85 @@ module MH
 
           def reset
             @generation += 1
+            @pending = false
+            @active_path = @model.active_path&.map(&:persistent_id)
             @fingerprint = Assembly.fingerprint(@model)
+            @shapes = AssemblyContainers.containers(@model).to_h { |owner| [owner.persistent_id.to_s, member_shapes(owner)] }
+            @frames = ImportLinks.root_frames(@model)
+            @pending_reservation_targets = {}
           rescue StandardError
             @fingerprint = nil
           end
 
           def onTransactionCommit(_model)
-            return if Assembly.instance_variable_get(:@busy)
+            return if Assembly.instance_variable_get(:@busy) || UpdateWork.active?
+            @pending = true
+            records = Assembly.records(@model)
+            @pending_reservation_targets = ImportLinks.scaled_reservation_targets(@model,records,@frames || {})
             generation = @generation += 1
-            UI.start_timer(0.15, false) do
-              next unless generation == @generation && Sketchup.active_model.equal?(@model)
+            schedule_external_sync(generation)
+          end
+
+          def schedule_external_sync(generation,delay=0.15)
+            UI.start_timer(delay,false) do
+              next unless generation==@generation && Sketchup.active_model.equal?(@model)
+              if ScaleRedraw.pending?(@model)
+                schedule_external_sync(generation,0.1)
+                next
+              end
               begin
-                current = Assembly.fingerprint(@model)
-                next if current == @fingerprint || Assembly.records(@model).empty? && ImportLinks.reservation_fingerprint(@model).empty?
-                Assembly.transact(@model, Assembly.records(@model), transparent: true)
+                done=lambda do |status,error|
+                  Assembly.instance_variable_set(:@last_error,error.message) if error
+                  Sketchup.status_text="MH Liên kết: #{error.message}" if error
+                  reset if %i[done error].include?(status)
+                end
+                UpdateWork.submit(@model,key: :assembly,complete:done) { synchronize_external }
               rescue StandardError => detail
-                Assembly.instance_variable_set(:@last_error, detail.message)
-                Sketchup.status_text = "MH Liên kết: #{detail.message}"
+                Assembly.instance_variable_set(:@last_error,detail.message)
+                Sketchup.status_text="MH Liên kết: #{detail.message}"
               ensure
-                reset
+                reset unless UpdateWork.pending?(@model)
               end
             end
           end
 
-          %i[onTransactionUndo onTransactionRedo onTransactionAbort onActivePathChanged].each do |event|
-            define_method(event) { |_model| reset unless Assembly.instance_variable_get(:@busy) }
+          # Thickness recovery and contact solving must commit together. Otherwise
+          # the viewport sees repaired T with stale contacts before the link timer.
+          def repair_scaled(candidates)
+            anchors=ImportLinks.roots(@model).filter_map { |root,anchor| anchor if candidates.include?(root) }
+            raise Core::Error,'Module sau Scale đã thay đổi cấu trúc.' unless anchors.length==candidates.length
+            synchronize_external(redraw:anchors)
+          end
+
+          def synchronize_external(redraw: [])
+            current=Assembly.fingerprint(@model)
+            return if redraw.empty? && (current==@fingerprint || Assembly.records(@model).empty? && ImportLinks.reservation_fingerprint(@model).empty?)
+            envelopes=AssemblyContainers.containers(@model).filter_map do |owner|
+              scope=owner.persistent_id.to_s
+              [scope,AssemblyEnvelope.bounds(owner)] if @shapes&.key?(scope) && @shapes[scope]!=member_shapes(owner)
+            end.to_h
+            Assembly.transact(@model,Assembly.records(@model),transparent:true,external_geometry:true,external_envelopes:envelopes,
+              reservation_targets:@pending_reservation_targets || {},redraw:redraw,mutable_anchors:redraw)
+          end
+
+          def member_shapes(owner)
+            AssemblyContainers.members(owner).map { |member| [ScaleRedraw.signature(member),ScaleRedraw.geometry_signature(member)] }
+          end
+
+          %i[onTransactionUndo onTransactionAbort].each do |event|
+            define_method(event) do |model|
+              next if Assembly.instance_variable_get(:@busy) || UpdateWork.active?
+              @pending ? onTransactionCommit(model) : reset
+            end
+          end
+
+          def onTransactionRedo(model)
+            onTransactionCommit(model)
+          end
+
+          def onActivePathChanged(model)
+            return if Assembly.instance_variable_get(:@busy) || UpdateWork.active?
+            @pending && model.active_path&.map(&:persistent_id)==@active_path ? onTransactionCommit(model) : reset
           end
         end
 

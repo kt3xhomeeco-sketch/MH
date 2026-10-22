@@ -2,6 +2,8 @@
 require_relative 'reader'
 require_relative 'copy_runtime'
 require_relative 'component_metadata'
+require_relative 'guide_geometry'
+require_relative 'update_work'
 
 module MH
   module ModuleStudio
@@ -47,7 +49,7 @@ module MH
 
       def preview(root, rule, target)
         snapshot, = Reader.live(root, label: 'Module đang chọn', parameter: read_parameter(rule, target))
-        Core.plan(rule, snapshot, target)
+        UpdateWork.calculate(:plan,rule,UpdateWork.snapshot(snapshot),target)
       end
 
       def read_parameter(rule, target)
@@ -74,7 +76,7 @@ module MH
         end
         snapshot, bindings = Reader.live(copy, label: 'Bản thử', parameter: read_parameter(rule, target))
         plan = Core.plan(rule, snapshot, target)
-        apply_plan(bindings, plan)
+        apply_plan(bindings, plan,rule:rule)
         # Put the trial beside the source along its own X axis, in current editing coordinates.
         width = Core.dimensions(snapshot['envelope'])[0] / 25.4
         axis = root.transformation.xaxis
@@ -105,10 +107,13 @@ module MH
         model.start_operation('MH Đổi Độ Dày', true)
         operation = true
         plan = apply_trial_update(root,rule,target,source:source)
-        model.commit_operation
+        UpdateWork.commit(model)
         operation = false
         model.active_view.invalidate
         plan
+      rescue UpdateWork::Deferred,UpdateWork::Prepared
+        model.abort_operation if operation
+        raise
       rescue StandardError
         model.abort_operation if operation
         raise
@@ -119,8 +124,8 @@ module MH
         raise Core::Error,'Module chưa có bộ quy tắc riêng.' unless root.get_attribute(Reader::DICT,'trial',false)
         private_tree(root)
         snapshot, bindings = Reader.live(root, label: 'Bản thử', parameter: read_parameter(rule, target))
-        plan = Core.plan(rule, snapshot, target)
-        apply_plan(bindings, plan)
+        plan = UpdateWork.calculate(:plan,rule,UpdateWork.snapshot(snapshot),target)
+        apply_plan(bindings, plan,rule:rule)
         stamp(root, rule, bindings, plan['target'])
         verify_result(root, plan)
         if source
@@ -188,8 +193,9 @@ module MH
         end
       end
 
-      def apply_plan(bindings, plan)
+      def apply_plan(bindings, plan, rule: nil)
         CopyRuntime.prepare(bindings,plan)
+        GuideGeometry.recover(bindings,rule,plan)
         plan['parts'].select { |part| part['changed'] }.each do |part|
           binding = bindings.fetch(part['key'])
           old = part['old_bounds']
@@ -200,7 +206,7 @@ module MH
           entities = binding[:entity].definition.entities
           # A part is its direct mesh. Descendant parts have their own absolute
           # plans; transforming their instances here would apply the move twice.
-          mesh = entities.to_a.select { |entity| entity.is_a?(Sketchup::Face) || entity.is_a?(Sketchup::Edge) }
+          mesh = entities.to_a.select { |entity| entity.is_a?(Sketchup::Face) || entity.is_a?(Sketchup::Edge) || defined?(Sketchup::ConstructionPoint) && entity.is_a?(Sketchup::ConstructionPoint) }
           entities.transform_entities(local_delta, mesh)
           binding[:entity].definition.invalidate_bounds
         end
@@ -221,7 +227,12 @@ module MH
       end
 
       def stamp(root, rule, bindings, target)
-        rule = Core.rule!(Core.copy_data(rule))
+        stamp_prepared(root,bindings,UpdateWork.calculate(:stamp,rule,target))
+      end
+
+      # Internal recipe from stamp_metadata; no cached native object or identity.
+      def stamp_prepared(root,bindings,metadata)
+        rule=metadata.fetch('rule');target=metadata.fetch('target')
         root.name = rule['module_name'] if rule['module_name']
         # A manually copied instance inherits attributes: PID mismatch starts a fresh instance identity.
         saved_pid = root.get_attribute(Reader::DICT, 'root_pid').to_s
@@ -231,10 +242,10 @@ module MH
         root.set_attribute(Reader::DICT, 'instance_id', instance_id)
         root.set_attribute(Reader::DICT, 'root_pid', root.persistent_id.to_s)
         root.set_attribute(Reader::DICT, 'rule_id', rule['id'])
-        root.set_attribute(Reader::DICT, 'rule_json', JSON.generate(rule))
+        root.set_attribute(Reader::DICT, 'rule_json', metadata.fetch('rule_json'))
         if target.is_a?(Hash)
-          root.set_attribute(Reader::DICT, 'parameter_values_json', JSON.generate(target))
-          root.set_attribute(Reader::DICT, 'exposed_parameters_json', JSON.generate(Core.exposed_parameters(rule, target)))
+          root.set_attribute(Reader::DICT, 'parameter_values_json', metadata.fetch('values_json'))
+          root.set_attribute(Reader::DICT, 'exposed_parameters_json', metadata.fetch('exposed_json'))
           root.delete_attribute(Reader::DICT, 'thickness_mm')
         else
           root.set_attribute(Reader::DICT, 'thickness_mm', target.to_f)
@@ -244,7 +255,8 @@ module MH
           binding[:entity].set_attribute(Reader::DICT, 'part_key', key)
           binding[:entity].set_attribute(Reader::DICT, 'instance_id', instance_id)
         end
-        ComponentMetadata.store(root)
+        ComponentMetadata.store(root,seed_json:metadata['seed_json'])
+        ScaleRedraw.acknowledge(root) if defined?(ScaleRedraw)
       end
 
       # ScaleRedraw.prepare has validated this rule and plan. Geometry-only
@@ -252,11 +264,13 @@ module MH
       # or part identities must still pass the ordinary full stamp path.
       def stamp_redraw(root, rule, bindings, target)
         id = root.get_attribute(Reader::DICT,'instance_id').to_s
+        rule_json=UpdateWork.canonical_rule(rule) || JSON.generate(rule)
+        values_json=target.is_a?(Hash) ? JSON.generate(target) : nil
         unchanged = !id.empty? && root.get_attribute(Reader::DICT,'trial',false) &&
           root.get_attribute(Reader::DICT,'root_pid').to_s == root.persistent_id.to_s &&
           root.get_attribute(Reader::DICT,'rule_id') == rule['id'] &&
-          root.get_attribute(Reader::DICT,'rule_json') == JSON.generate(rule) &&
-          target.is_a?(Hash) && root.get_attribute(Reader::DICT,'parameter_values_json') == JSON.generate(target) &&
+          root.get_attribute(Reader::DICT,'rule_json') == rule_json &&
+          target.is_a?(Hash) && root.get_attribute(Reader::DICT,'parameter_values_json') == values_json &&
           root.get_attribute(Reader::DICT,'exposed_parameters_json').is_a?(String) &&
           (!rule['module_name'] || root.name == rule['module_name']) && bindings.all? do |key,binding|
             entity = binding[:entity]
@@ -264,7 +278,10 @@ module MH
               (!rule.dig('part_names',key) || entity.name == rule['part_names'][key])
           end
         stamp(root,rule,bindings,target) unless unchanged
-        ComponentMetadata.store(root) if unchanged
+        ComponentMetadata.store(root,seed_json:UpdateWork.seed_json(
+          'rule_json'=>rule_json,'parameter_values_json'=>values_json,
+          'formula_envelope_json'=>root.get_attribute(Reader::DICT,'formula_envelope_json')
+        )) if unchanged
       end
 
       def verify_result(root, plan)

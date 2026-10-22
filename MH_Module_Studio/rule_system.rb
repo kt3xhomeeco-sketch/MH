@@ -219,10 +219,11 @@ module MH
         validate!(copy)
       end
 
-      def plan(bundle, current, requested, previous_values: nil)
+      # validated is an internal call-site proof, never a serialized rule flag.
+      def plan(bundle, current, requested, previous_values: nil, validated: false)
         bundle = Core.copy_data(bundle)
         current = Core.copy_data(current)
-        validate!(bundle)
+        validate!(bundle) unless validated
         return DCCopies.plan(bundle,current,requested) if DCCopies.needed?(bundle,current,requested)
         Core.snapshot!(current)
         raise Core::Error, 'Cần nhập bộ tham số.' unless requested.is_a?(Hash)
@@ -258,7 +259,7 @@ module MH
           working['own_cell_parts'] = bundle.fetch('part_formula_parts', []) | bundle.fetch('part_formulas', {}).keys
           working['exposed_parameter_keys'] = bundle['exposed_parameter_keys']
           working['defer_geometry_validation'] = !working['own_override_parts'].empty?
-          engine_plan = Core.plan_parameters(working, current, requested)
+          engine_plan = Core.plan_parameters(working, current, requested,validated:true)
           candidate = engine_plan['parts']
           expected_envelope = engine_plan['envelope']
           visibility_updates = engine_plan.fetch('visibility_updates',[])

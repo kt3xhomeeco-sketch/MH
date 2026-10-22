@@ -1004,3 +1004,50 @@ vẫn dùng để thoát/cài đặt; chỉ hiện chuyển trang khi bảng có
   Ô trống giữ nguyên; kéo nội bộ vào ô đang có icon sẽ đổi chỗ hai icon.
 - Số đã gán đi theo icon khi đổi chỗ, đổi tên file và Import/Export config, dùng
   được với icon ở dải hoặc trang khác. Các bố cục cũ không bị tự gán thêm số.
+
+
+## Icon tự do và đường gióng (083)
+
+Trong **Cài đặt HUD → Edit**, giữ kéo icon ra vị trí tùy ý trong viewport.
+Khi gần thẳng hàng với icon trên vòng hoặc icon khác, đường gióng ngang/dọc
+xuất hiện và bắt thẳng hàng. Căn theo vòng sẽ đi theo vị trí/tâm vòng khi mở lại.
+Có thể kéo từ Library trực tiếp vào vị trí tự do, kéo trở lại vòng hoặc dải mép.
+Phím số đi theo icon; vị trí được lưu trong config và giữ khi Import/Export.
+Click rồi thả vẫn dùng để gán phím số.
+
+Bảng **Thông số module** không còn dòng “Đang cập nhật… Có thể nhập tiếp”.
+Bảng vẫn tự áp dụng, giữ các giá trị đang nhập và hiện lỗi khi cần.
+
+
+## Bắt cạnh trước thùng khi đặt cánh (084)
+
+Với cánh đặt ở chế độ **Tự động**, rê vào cạnh trước tấm hoặc sát cạnh đó
+(trong 12 pixel màn hình) để bắt **Đối mặt**. Giữa khoang vẫn là **Lọt trong**.
+Vùng bắt dựa trên mặt thật phía trước thùng, chỉ highlight các mặt của thùng;
+không dùng mặt sau hoặc mặt đang ẩn. Chế độ Lọt trong được đặt riêng vẫn giữ nguyên.
+
+Replace từng khối dùng lại kết quả tính của mẫu đã kiểm tra và giữ bản định nghĩa
+nguồn riêng, tránh phải sửa lại nguồn sau khi một bản đã thay đổi T. Mỗi khối vẫn
+được đọc kích thước thực, dựng riêng và kiểm tra hình học. Mẫu mới và kích thước
+đích mới vẫn cần lần tính đầu tiên; tốc độ phụ thuộc độ phức tạp của bộ công thức.
+
+
+## Hiện liên kết và Replace bằng cánh (085)
+
+Dim, khối khoảng cách và highlight liên kết chỉ hiện khi đang dùng **Liên kết
+module**. Chuyển sang Select/Move/Scale hoặc thoát HUD sẽ ẩn chúng; liên kết đã
+lưu vẫn hoạt động. Mở lại lệnh liên kết để xem và chỉnh dim.
+
+Replace bằng mẫu có tính chất **Cánh** sẽ lấy rộng/cao theo box đích, giữ chiều
+dày thật của mẫu cánh và giữ mặt trước của box. Ví dụ box 600 × 500 × 800 mm
+thay bằng cánh dày 18,6 mm sẽ thành 600 × 18,6 × 800 mm. Áp dụng cho click Replace
+liên tục và Replace vùng chọn; không cần kéo dãn cánh theo chiều sâu box.
+
+
+## Guide point đi theo Redraw (086)
+
+Khi Scale hoặc đổi tham số, guide point trực tiếp trong chi tiết đi cùng phép
+biến đổi của mặt/cạnh. Guide point bị bỏ sót từ bản cũ được khôi phục theo dữ
+liệu khung ATT gốc khi đủ cơ sở đối chiếu; không xóa hoặc ép tất cả điểm về mép.
+Redraw xử lý cả trường hợp mặt tấm đã đúng T nhưng guide còn làm khung bao phình.
+Các guide đã được xử lý giữ lại chỉnh sửa vị trí thủ công ở những lần sau.

@@ -60,6 +60,44 @@ module MH
         end
       end
 
+      def reservation_identity(host,anchor,key)
+        [anchor['scope'],anchor['scope'] ? host.get_attribute(Reader::DICT,AssemblyContainers::MEMBER) : anchor['root'],key]
+      end
+
+      def root_frames(model)
+        roots(model).to_h { |_root,anchor| [AssemblyContainers.identity(anchor),Assembly.world_transform(model,anchor).to_a] }
+      end
+
+      def frame_axes(frame)
+        matrix=frame.respond_to?(:to_a) ? frame.to_a : frame
+        [0,4,8].map { |offset| Geom::Vector3d.new(matrix[offset,3]) }
+      end
+
+      # Scaling a host and its opposed door together supplies the total depth,
+      # including T and the gap. Restoring T must shorten the host accordingly.
+      def scaled_reservation_targets(model,records,before)
+        records.select { |row| row.dig('import_link','door_mount') }.group_by do |row|
+          [AssemblyContainers.identity(row['a']),row['import_link']['host_face'].join(':')]
+        end.filter_map do |(identity,key),rows|
+          anchor=rows.first['a'];host=Assembly.root(model,anchor);prior=states(host)[key]
+          old=before[identity];next unless prior && old
+          axis=key.split(':').first.to_i;old_axes=frame_axes(old);old_axis=old_axes[axis]
+          current=Assembly.world_transform(model,anchor)
+          factor=frame_axes(current)[axis].length/old_axis.length
+          next if (factor-1).abs<0.000001
+          paired=rows.all? do |row|
+            previous=before[AssemblyContainers.identity(row['b'])];next false unless previous
+            axes=frame_axes(previous)
+            index=axes.each_index.max_by { |i| axes[i].normalize.dot(old_axis.normalize).abs }
+            next false unless axes[index].normalize.dot(old_axis.normalize).abs>0.999999
+            fresh=Assembly.world_transform(model,row['b'])
+            ratio=frame_axes(fresh)[index].length/axes[index].length
+            (ratio-factor).abs<0.000001
+          end
+          [reservation_identity(host,anchor,key),prior['target']*factor] if paired
+        end.to_h
+      end
+
       def face_geometry(root,anchor)
         faces=[];boxes=[]
         walk=lambda do |item,frame,path,depth|
@@ -104,17 +142,9 @@ module MH
       def capture(view,x,y,cache=nil)
         picked=LibraryPlacement.pick(view,x,y,visible_only:true);return unless picked
         anchor,face,face_frame=picked;return unless face
-        root=Assembly.root(view.model,anchor)
-        frame=Assembly.world_transform(view.model,anchor)
-        Frames.scale_frame(frame.to_a)
-        signature=[anchor,revision(view.model),root.definition.object_id,root.get_attribute(Reader::DICT,'parameter_values_json'),
-          root.definition.bounds.min.to_a,root.definition.bounds.max.to_a]
-        if cache && cache['signature']==signature
-          faces,boxes=cache.values_at('faces','boxes')
-        else
-          faces,boxes=face_geometry(root,anchor)
-          cache&.replace('signature'=>signature,'faces'=>faces,'boxes'=>boxes)
-        end
+        host=host_geometry(view.model,anchor,cache)
+        frame=Geom::Transformation.new(host['frame'])
+        boxes=host['boxes']
         polygon=face.vertices.map { |vertex| vertex.position.transform(face_frame) }
         normal=face.normal.transform(face_frame).normalize
         hit=Geom.intersect_line_plane(view.pickray(x,y),[polygon.first,normal]);return unless hit
@@ -122,21 +152,88 @@ module MH
         vector=normal.clone;vector.length=2.0/25.4
         seed=(hit+vector).transform(frame.inverse).to_a.map { |value| value*25.4 }
         point=hit.transform(frame.inverse).to_a.map { |value| value*25.4 }
-        envelope=AssemblyEnvelope.bounds(root)
+        envelope=host['envelope']
         local=normal.transform(frame.inverse).normalize.to_a
         axis=local.each_index.max_by { |index| local[index].abs }
         side=(point[axis]-envelope[0][axis]).abs<(point[axis]-envelope[1][axis]).abs ? 0 : 1
         cavity=PlacementMath.cavity(envelope,boxes,seed,minimum_hits:1)
-        {'anchor'=>anchor,'frame'=>frame.to_a,'faces'=>faces,'envelope'=>envelope,'cavity'=>cavity,'seed'=>seed,'mount'=>[axis,side],'name'=>root.name}
+        host.merge('cavity'=>cavity,'seed'=>seed,'mount'=>[axis,side])
+      end
+
+      def host_geometry(model,anchor,cache)
+        root=Assembly.root(model,anchor);frame=Assembly.world_transform(model,anchor)
+        Frames.scale_frame(frame.to_a)
+        signature=[anchor,revision(model),root.definition.object_id,root.get_attribute(Reader::DICT,'parameter_values_json'),
+          root.definition.bounds.min.to_a,root.definition.bounds.max.to_a]
+        if cache && cache['signature']==signature
+          faces,boxes=cache.values_at('faces','boxes')
+        else
+          faces,boxes=face_geometry(root,anchor)
+          cache&.replace('signature'=>signature,'faces'=>faces,'boxes'=>boxes)
+        end
+        {'anchor'=>anchor,'frame'=>frame.to_a,'faces'=>faces,'boxes'=>boxes,'envelope'=>AssemblyEnvelope.bounds(root),'name'=>root.name}
+      end
+
+      def mounting_point(template,envelope,frame,view,x,y)
+        axis,source_side=ImportTemplate.mounting_face(template);side=1-source_side
+        plane=ImportTemplate.envelope_faces({},envelope).find { |face| face['axis']==axis && face['side']==side }
+        world=plane['points'].map { |point| Geom::Point3d.new(point.map { |v| v/25.4 }).transform(frame) }
+        normal=Geom::Vector3d.new(3.times.map { |i| i==axis ? (side.zero? ? -1 : 1) : 0 }).transform(frame).normalize
+        ray=view.pickray(x,y)
+        return unless normal.dot(ray[1]) < -0.000001
+        projected=world.map { |point| view.screen_coords(point).to_a.first(2) }
+        return if ImportTemplate.screen_distance2([x,y],projected)>144
+        hit=Geom.intersect_line_plane(ray,[world.first,normal])
+        return unless hit && (hit-ray[0]).dot(ray[1])>=0
+        hit.transform(frame.inverse).to_a.map { |v| v*25.4 }
+      end
+
+      def front_mount(host,template,view,x,y)
+        axis,source_side=ImportTemplate.mounting_face(template);side=1-source_side
+        return unless template['faces'].any? { |slot| slot['enabled'] && slot['axis']==axis && slot['side']==source_side }
+        frame=Geom::Transformation.new(host['frame'])
+        point=mounting_point(template,host['envelope'],frame,view,x,y);return unless point
+        near=host['faces'].any? do |face|
+          next false unless face['axis']==axis && face['side']==side && (face['coordinate']-host['envelope'][side][axis]).abs<0.02
+          polygons=face['triangles'] ? face['triangles'].each_slice(3) : [face['points']]
+          polygons.any? do |polygon|
+            screen=polygon.map { |p| view.screen_coords(Geom::Point3d.new(p.map { |v| v/25.4 }).transform(frame)).to_a.first(2) }
+            ImportTemplate.screen_distance2([x,y],screen)<=144
+          end
+        end
+        host.merge('mount'=>[axis,side],'seed'=>point,'front_mount'=>true) if near
+      end
+
+      def front_fallback(template,view,x,y,cache)
+        candidates=roots(view.model).filter_map do |root,anchor|
+          next if root.hidden? || !root.layer.visible? || root.locked?
+          owner=view.model.find_entity_by_persistent_id(anchor['scope'].to_i) if anchor['scope']
+          next if owner && (owner.hidden? || !owner.layer.visible? || owner.locked?)
+          envelope=AssemblyEnvelope.bounds(root)
+          next unless Core.dimensions(envelope).all? { |size| size>0.01 }
+          frame=Assembly.world_transform(view.model,anchor)
+          point=mounting_point(template,envelope,frame,view,x,y);next unless point
+          distance=Geom::Point3d.new(point.map { |v| v/25.4 }).transform(frame).distance(view.camera.eye)
+          [distance,anchor]
+        end
+        candidates.sort_by(&:first).each do |_distance,anchor|
+          host=front_mount(host_geometry(view.model,anchor,cache),template,view,x,y)
+          return host if host
+        end
+        nil
       end
 
       def detect(data,view,x,y,cache:nil)
         template=ImportTemplate.validate(data['import_template'] || data.dig('rule','import_template'))
-        host=capture(view,x,y,cache);return unless host
+        host=capture(view,x,y,cache)
+        if template['enabled'] && template['role']=='door' && template['mode']!='inside'
+          host=host ? front_mount(host,template,view,x,y) || host : front_fallback(template,view,x,y,cache)
+        end
+        return unless host
         frame=Geom::Transformation.new(host['frame'])
         scales=Frames.scale_frame(frame.to_a).values_at(0,5,10)
         source=data['snapshot']['envelope'].map { |point| point.each_with_index.map { |value,axis| value/scales[axis] } }
-        inside=template['mode']=='inside' || template['mode']=='auto' && host['cavity']
+        inside=template['mode']=='inside' || template['mode']=='auto' && host['cavity'] && !host['front_mount']
         return unless !inside || host['cavity']
         mode=inside ? 'inside' : 'outside'
         region=Core.copy_data(inside ? host['cavity'] : host['envelope'])
@@ -243,7 +340,7 @@ module MH
         view.line_stipple=''
       end
 
-      def apply_reservations(model,records)
+      def apply_reservations(model,records,external_geometry: false,targets: {})
         groups=records.select { |row| row['mode']=='contact' && row.dig('import_link','door_mount') }.group_by do |row|
           [AssemblyContainers.identity(row['a']),row['import_link']['host_face'].join(':')]
         end
@@ -258,7 +355,12 @@ module MH
             low,high=Assembly.projection(host,normal);span=high-low
             prior=saved[key]
             target=prior ? prior['target'] : span
-            target=span+prior['reserved'] if prior && (scale-prior['scale']).abs>0.000001
+            # Definition edits from Stretch supply a new explicit host span,
+            # just as a root Scale does. Parameter edits keep the saved target.
+            if prior && ((scale-prior['scale']).abs>0.000001 || external_geometry && (span-prior['applied']).abs>0.001)
+              target=span+prior['reserved']
+            end
+            target=targets.fetch(reservation_identity(host,anchor,key),target)
             reserve=rows.map do |row|
               child=Assembly.root(model,row['b'])
               child_frame=AssemblyContainers.frame(model,row['b']);host_frame=AssemblyContainers.frame(model,anchor)

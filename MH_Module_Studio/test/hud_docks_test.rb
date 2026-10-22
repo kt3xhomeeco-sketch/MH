@@ -9,7 +9,7 @@ class ModuleStudioHUDDocksTest < Minitest::Test
   end
   def test_old_board_migrates_without_implicit_digits_and_moves_swap_across_zones
     state=config;board=S::HUDBoards.current(state)
-    assert_equal 2,state['hud_board_version'];assert_empty board['shortcuts']
+    assert_equal 3,state['hud_board_version'];assert_empty board['shortcuts']
     assert_equal ['A','B']+Array.new(6),board['slots']
     state=S::HUDBoards.put(state,'A',5,'one',zone:'left')
     assert_nil S::HUDBoards.current(state)['slots'][0]

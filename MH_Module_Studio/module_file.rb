@@ -121,7 +121,7 @@ module MH
         keys = current['parts'].map { |part| part['key'] }.sort
         raise Core::Error, 'Chi tiết của file không khớp module đang sửa; chưa ghi đè.' unless DCCopies.enabled?(rule) || keys == rule['parts'].map { |part| part['key'] }.sort
         plan = Core.plan(rule,current,values)
-        Runtime.apply_plan(bindings,plan)
+        Runtime.apply_plan(bindings,plan,rule:rule)
         Runtime.stamp(root,rule,bindings,plan['target'])
         Runtime.verify_result(root,plan)
         result, = Reader.live(root,label:current['label'],parameter:Runtime.read_parameter(rule,values))

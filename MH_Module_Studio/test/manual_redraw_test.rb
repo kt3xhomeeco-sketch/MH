@@ -14,14 +14,15 @@ class ModuleStudioManualRedrawTest < Minitest::Test
     model=Model.new(nil);root=Entity.new(1,model,true)
     options=S::ModuleOptions.allocate
     options.instance_variable_set(:@root,root);options.instance_variable_set(:@model,model);options.instance_variable_set(:@token,'current')
-    refreshed=[];options.define_singleton_method(:refresh) { refreshed << true }
+    refreshed=[];options.define_singleton_method(:refresh) { |**| refreshed << true }
     calls=[]
     S::ModuleOptions.stub(:selected_options_root,root) do
       S::Assembly.stub(:redraw,->(entity) { calls << entity }) do
         assert_raises(S::Core::Error) { options.request('action'=>'redraw','root_pid'=>'1','token'=>'stale') }
         assert_raises(S::Core::Error) { options.request('action'=>'redraw','root_pid'=>'2','token'=>'current') }
         assert_empty calls
-        options.request('action'=>'redraw','root_pid'=>'1','token'=>'current')
+        submit=lambda { |_model,**opts,&action| action.call;opts[:complete]&.call(:done,nil) }
+        S::UpdateWork.stub(:submit,submit) { options.request('action'=>'redraw','root_pid'=>'1','token'=>'current') }
       end
     end
     assert_equal [root],calls

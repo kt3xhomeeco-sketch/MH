@@ -16,7 +16,7 @@ module MH
 
       def data(entity)
         return unless entity.get_attribute(Reader::DICT,'trial',false)
-        [Core.rule!(JSON.parse(entity.get_attribute(Reader::DICT,'rule_json'))),JSON.parse(entity.get_attribute(Reader::DICT,'parameter_values_json','{}'))]
+        [UpdateWork.rule(entity.get_attribute(Reader::DICT,'rule_json')),JSON.parse(entity.get_attribute(Reader::DICT,'parameter_values_json','{}'))]
       end
 
       def synchronize(model)

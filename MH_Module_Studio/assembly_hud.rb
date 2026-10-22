@@ -18,12 +18,12 @@ module MH
         end
 
         def getExtents
-          @hud.contacts.extents
+          @hud.visible? ? @hud.contacts.extents : Geom::BoundingBox.new
         end
       end
     end
 
-    # Session persists when SketchUp replaces the picking Tool with Move/Scale.
+    # Retain session data across Tool changes; draw only while linking is active.
     class AssemblyHUD
       attr_reader :tool, :tree, :inspector, :contacts
 
@@ -48,7 +48,7 @@ module MH
       end
 
       def visible?
-        !@closed && Sketchup.active_model.equal?(@model) && !MH::ModuleStudio.instance_variable_get(:@library)&.tool&.active
+        !@closed && @tool.active && Sketchup.active_model.equal?(@model) && !MH::ModuleStudio.instance_variable_get(:@library)&.tool&.active
       end
 
       def publish(error = nil)
@@ -90,7 +90,6 @@ module MH
       def draw(view)
         return unless visible?
         @contacts.draw(view)
-        @tool.draw_geometry(view) unless @tool.active
       rescue StandardError => detail
         @draw_error = detail.message
       end

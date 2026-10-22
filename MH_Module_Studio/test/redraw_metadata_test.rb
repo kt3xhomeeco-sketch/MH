@@ -57,4 +57,9 @@ class ModuleStudioRedrawMetadataTest < Minitest::Test
     @root.delete_attribute(S::Reader::DICT,'exposed_parameters_json')
     assert_equal 1,full_stamps.length
   end
+
+  def test_changed_rule_takes_full_redraw_stamp_path
+    changed=S::Parametric.rename_display(@rule,'Different')
+    assert_equal 1,full_stamps(changed).length
+  end
 end

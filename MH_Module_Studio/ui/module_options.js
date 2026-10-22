@@ -1,14 +1,18 @@
 'use strict';
 let state={rows:[]},pending=null,redrawing=false,queue=new Map(),drafts=new Map(),timer=null,rendering=false,structure=null,nodes=new Map();
+let requestRevision=0,pendingRevision=null;
 const byId=id=>document.getElementById(id),textTypes=['material','information','behavior','text'];
 function send(action,extra={}){if(window.sketchup?.request)window.sketchup.request(JSON.stringify({action,...extra}));}
 const editableRows=rows=>rows.flatMap(row=>row.manual_input?[row,row.manual_input]:[row]);
-function progress(){const busy=Boolean(pending||queue.size||redrawing);byId('updating').hidden=!busy;byId('save-skp').disabled=busy;byId('redraw').disabled=busy;}
+function progress(){const busy=Boolean(pending||queue.size||redrawing);byId('save-skp').disabled=busy;byId('redraw').disabled=busy;}
 function flush(){
   clearTimeout(timer);timer=null;
-  if(pending||redrawing||!state.root_pid||!queue.size)return;
-  pending=[...queue].map(([id,value])=>({id,value,text:drafts.get(id)}));queue.clear();progress();
-  const base={root_pid:state.root_pid,token:state.token};
+  if(redrawing||!state.root_pid||!queue.size)return;
+  const changes=new Map((pending||[]).map(row=>[row.id,row.value]));
+  for(const [id,value] of queue)changes.set(id,value);
+  pending=[...changes].map(([id,value])=>({id,value,text:drafts.get(id)}));queue.clear();progress();
+  pendingRevision=++requestRevision;
+  const base={root_pid:state.root_pid,token:state.token,request_revision:pendingRevision};
   if(pending.length===1)send('change',{...base,variable_id:pending[0].id,value:pending[0].value});
   else send('changes',{...base,changes:pending.map(row=>({variable_id:row.id,value:row.value}))});
 }
@@ -50,9 +54,9 @@ function bindInput(row,input){
 window.receive=next=>{
   rendering=true;
   const switched=state.root_pid!==next.root_pid||state.session!==next.session,previous=state,active=document.activeElement,focusId=active?.dataset.variableId,start=active?.selectionStart,end=active?.selectionEnd;
-  if(switched){queue.clear();drafts.clear();clearTimeout(timer);timer=null;pending=null;structure=null;}
-  else if(pending){for(const ack of pending)if(!next.error&&!queue.has(ack.id)&&drafts.get(ack.id)===ack.text)drafts.delete(ack.id);pending=null;}
-  redrawing=false;state=next;byId('module-name').textContent=next.name||'Chọn module';
+  if(switched){queue.clear();drafts.clear();clearTimeout(timer);timer=null;pending=null;pendingRevision=null;redrawing=false;structure=null;}
+  else if(next.request_revision===pendingRevision){if(pending){for(const ack of pending)if(!next.error&&!queue.has(ack.id)&&drafts.get(ack.id)===ack.text)drafts.delete(ack.id);pending=null;}pendingRevision=null;redrawing=false;}
+  state=next;byId('module-name').textContent=next.name||'Chọn module';
   const signature=JSON.stringify(next.rows.map(row=>[row.id,row.section_id,row.section,Boolean(row.options?.length),row.options,row.manual_input?.id]));
   const rebuilt=signature!==structure;
   if(rebuilt){build(next.rows);structure=signature;}
@@ -77,6 +81,6 @@ window.receive=next=>{
   if(!next.error&&queue.size&&!switched)flush();
 };
 byId('save-skp').addEventListener('click',()=>send('save_skp',{root_pid:state.root_pid}));
-byId('redraw').addEventListener('click',()=>{if(pending||queue.size||redrawing||!state.root_pid)return;redrawing=true;progress();send('redraw',{root_pid:state.root_pid,token:state.token});});
+byId('redraw').addEventListener('click',()=>{if(pending||queue.size||redrawing||!state.root_pid)return;redrawing=true;pendingRevision=++requestRevision;progress();send('redraw',{root_pid:state.root_pid,token:state.token,request_revision:pendingRevision});});
 document.addEventListener('keydown',event=>{if(state.hud_active&&(event.key==='Escape'||event.code==='Space')){event.preventDefault();event.stopPropagation();send('close_hud');}},true);
 send('ready');

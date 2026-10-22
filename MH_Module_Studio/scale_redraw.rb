@@ -1,6 +1,7 @@
 # encoding: UTF-8
 require_relative 'runtime'
 require_relative 'core'
+require_relative 'library_import'
 
 module MH
   module ModuleStudio
@@ -9,13 +10,53 @@ module MH
     module ScaleRedraw
       extend self
 
-      def plan(rule, current, saved)
-        ScalePlan.plan(rule, current, saved)
+      def plan(rule, current, saved,validated: false)
+        return UpdateWork.calculate(:scale,rule,UpdateWork.snapshot(current),saved) if UpdateWork.active? && validated
+        if @calculations
+          @calculations.resize_plan(rule,current,saved,validated:validated)
+        else
+          validated ? ScalePlan.plan(rule,current,saved,validated:true) : ScalePlan.plan(rule,current,saved)
+        end
+      end
+
+      # Reuse only portable plans with the exact same rule, fresh geometry and
+      # values during one repair. Native bindings are always captured again.
+      def with_calculations
+        previous=@calculations
+        @calculations ||= LibraryImport.new
+        yield
+      ensure
+        @calculations=previous
       end
 
       def signature(root)
         frame = Frames.scale_frame(root.transformation.to_a)
         [frame[0], frame[5], frame[10]]
+      end
+
+      # Stretch edits definitions/child frames without changing the root Scale.
+      # Native cached bounds avoid traversing every vertex on every commit.
+      def geometry_signature(root, depth=0, cache={})
+        return nil unless root.respond_to?(:definition)
+        raise Core::Error,'Cấu trúc module quá sâu.' if depth>30
+        definition=root.definition
+        cache[definition] ||= begin
+          box=definition.bounds
+          children=definition.entities.select { |child| child.respond_to?(:definition) }.map do |child|
+            [child.transformation.to_a.map { |value| value.round(8) },geometry_signature(child,depth+1,cache)]
+          end
+          [box.min.to_a.map { |value| value.round(8) },box.max.to_a.map { |value| value.round(8) },children]
+        end
+      end
+
+      def acknowledge(root)
+        return if UpdateWork.probing?
+        @observers&.fetch(root.model,nil)&.accept_applied(root)
+      end
+
+      def pending?(model)
+        observer=@observers&.fetch(model,nil)
+        observer && observer.pending?
       end
 
       def roots(model)
@@ -35,10 +76,11 @@ module MH
 
       def prepare(root)
         raise Core::Error, 'Module đang bị khóa.' if root.locked?
-        rule = Core.rule!(JSON.parse(root.get_attribute(Reader::DICT, 'rule_json')))
+        raw=root.get_attribute(Reader::DICT,'rule_json')
+        rule = UpdateWork.active? ? UpdateWork.rule(raw) : @calculations ? @calculations.validated_rule(raw) : Core.rule!(JSON.parse(raw))
         saved = JSON.parse(root.get_attribute(Reader::DICT, 'parameter_values_json', '{}'))
         current, = Reader.live(root, label: 'Sau Scale', parameter: Runtime.read_parameter(rule, saved))
-        [root, rule, plan(rule, current, saved)]
+        [root, rule, plan(rule, current, saved,validated:true)]
       end
 
       def apply(model, jobs)
@@ -47,12 +89,12 @@ module MH
         jobs.each do |root, rule, calculation|
           Runtime.private_tree(root)
           _snapshot, bindings = Reader.live(root, label: 'Tính lại sau Scale', parameter: Runtime.read_parameter(rule, calculation['target']))
-          Runtime.apply_plan(bindings, calculation)
+          Runtime.apply_plan(bindings, calculation,rule:rule)
           Runtime.stamp_redraw(root, rule, bindings, calculation['target'])
           Runtime.verify_result(root, calculation)
           # This instance is already repaired inside its caller's transaction.
           # Acknowledge only this root; unrelated pending Scale edits still run.
-          @observers&.fetch(model,nil)&.accept_applied(root)
+          acknowledge(root)
         end
         model.active_view.invalidate
       end
@@ -82,6 +124,10 @@ module MH
         class ScaleModelObserver < Sketchup::ModelObserver
           attr_reader :last_error
 
+          def pending?
+            !Array(@pending).empty?
+          end
+
           def initialize(model)
             super()
             @model = model
@@ -93,7 +139,9 @@ module MH
             @generation += 1
             @pending = []
             @active_path = @model.active_path&.map(&:persistent_id)
+            @geometry = {}
             @scales = ScaleRedraw.roots(@model).to_h do |root|
+              @geometry[root.persistent_id] = ScaleRedraw.geometry_signature(root)
               [root.persistent_id, ScaleRedraw.signature(root)]
             rescue Core::Error
               [root.persistent_id, nil]
@@ -101,7 +149,7 @@ module MH
           end
 
           def onTransactionCommit(_model)
-            return if @applying
+            return if @applying || UpdateWork.active?
             generation = @generation += 1
             candidates = ScaleRedraw.roots(@model).select do |root|
               after = begin
@@ -109,50 +157,79 @@ module MH
               rescue Core::Error
                 nil
               end
-              ScaleRedraw.changed?(@scales[root.persistent_id], after)
+              ScaleRedraw.changed?(@scales[root.persistent_id], after) ||
+                @geometry.key?(root.persistent_id) && @geometry[root.persistent_id]!=ScaleRedraw.geometry_signature(root)
             end
             return reset if candidates.empty?
             @pending = candidates
             # Never mutate geometry from a transaction observer callback.
-            UI.start_timer(0, false) { redraw(candidates, generation) }
+            # MH_stretch may commit Scale, synchronize DC dimensions, then
+            # redraw DCs in follow-up operations. Wait for that burst to settle
+            # before reconstructing ATT from intermediate geometry.
+            UI.start_timer(0.12, false) { redraw(candidates, generation) }
           end
 
           def accept_applied(root)
             @scales[root.persistent_id] = ScaleRedraw.signature(root)
+            @geometry[root.persistent_id] = ScaleRedraw.geometry_signature(root)
           end
 
           def redraw(candidates, generation)
             return if generation != @generation || !Sketchup.active_model.equal?(@model)
-            perform(candidates)
+            return unless UpdateWork.valid_context?(candidates)
+            done=lambda do |status,error|
+              @last_error=error&.message if status==:error
+              Sketchup.status_text="MH: #{error.message}" if error
+              reset if %i[done error].include?(status)
+              MH::ModuleStudio.instance_variable_get(:@module_options)&.schedule_refresh
+            end
+            UpdateWork.submit(@model,key: :scale,complete:done) { perform(candidates) }
           end
 
           def perform(candidates)
+            ScaleRedraw.with_calculations { perform_update(candidates) }
+          end
+
+          def perform_update(candidates)
             @applying = true
             Runtime.ensure_assembly_context(@model)
             jobs = candidates.map { |root| ScaleRedraw.prepare(root) }
             @last_error = nil
             # A successful Redo already contains the repair. Do not add another
             # operation or destroy the remaining Redo history in that case.
-            return if jobs.all? { |_root, _rule, calculation| calculation['changed_count'].zero? }
-            @model.start_operation('MH Tính Lại Sau Scale', true, false, true)
+            return if jobs.all? { |root, _rule, calculation| calculation['changed_count'].zero? && !GuideGeometry.pending?(root,calculation) }
+            if defined?(Assembly) && (!Assembly.records(@model).empty? || !ImportLinks.reservation_fingerprint(@model).empty?)
+              coordinated=true
+              Assembly.watch(@model).repair_scaled(candidates)
+              @last_error=nil
+              return
+            end
+            @model.start_operation('MH Tính Lại Sau Scale', true, false, !UpdateWork.probing?)
             operation = true
             ScaleRedraw.apply(@model, jobs)
-            @model.commit_operation
+            UpdateWork.commit(@model)
             operation = false
             @last_error = nil
             Sketchup.status_text = 'MH: Đã tính lại module sau Scale.'
+          rescue UpdateWork::Deferred,UpdateWork::Prepared
+            @model.abort_operation if operation
+            raise
           rescue StandardError => error
+            if UpdateWork.probing?
+              @model.abort_operation if operation
+              raise
+            end
             # Aborting a transparent operation can corrupt its chain. Commit,
             # then undo the combined Scale + redraw, restoring all originals.
             @model.commit_operation if operation
-            Sketchup.undo
+            Sketchup.undo unless coordinated
             @last_error = "Không tính lại được sau Scale; đã hoàn tác Scale. #{error.message}"
             Sketchup.status_text = @last_error
             UI.messagebox(@last_error)
           ensure
             @applying = false
-            reset
-            MH::ModuleStudio.instance_variable_get(:@module_options)&.schedule_refresh
+            reset unless UpdateWork.active?
+            MH::ModuleStudio.instance_variable_get(:@module_options)&.schedule_refresh unless UpdateWork.active?
           end
 
           def onTransactionRedo(model)
@@ -163,12 +240,12 @@ module MH
             # A cancelled temporary operation can follow an already committed
             # Scale before its timer runs. Only acknowledge restored transforms;
             # keep the earlier Scale pending against the previous baseline.
-            return if @applying
+            return if @applying || UpdateWork.active?
             Array(@pending).empty? ? reset : onTransactionCommit(model)
           end
 
           def onTransactionUndo(model)
-            return if @applying
+            return if @applying || UpdateWork.active?
             # abort_operation also reports Undo in SketchUp. Recheck only if a
             # committed Scale was already waiting; completed Undo keeps its
             # original geometry and Redo chain untouched.
@@ -176,7 +253,7 @@ module MH
           end
 
           def onActivePathChanged(model)
-            return if @applying
+            return if @applying || UpdateWork.active?
             # SketchUp also emits this while aborting a temporary operation,
             # even if the edit context did not change at all.
             if !Array(@pending).empty? && model.active_path&.map(&:persistent_id) == @active_path
