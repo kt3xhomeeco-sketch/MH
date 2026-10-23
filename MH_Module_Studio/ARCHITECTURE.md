@@ -1,5 +1,7 @@
-> Bug-investigation reading order: [FEATURE_MAP.md](FEATURE_MAP.md) →
-> [FLOW_MAP.md](FLOW_MAP.md) → only the **Ownership** rows needed here.
+> Bug-investigation reading order: [ERROR_MAP.md](ERROR_MAP.md) when an error
+> message or concrete symptom is available (exact message → owning file) →
+> [FEATURE_MAP.md](FEATURE_MAP.md) → [FLOW_MAP.md](FLOW_MAP.md) → only the
+> **Ownership** rows needed here.
 > The remaining sections below contain current boundary/data/change rules.
 > Feature history was moved verbatim to [CHANGELOG.md](CHANGELOG.md) on 2026-10-22;
 > it is not part of default investigation context. Development workflow:

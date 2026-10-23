@@ -2,7 +2,11 @@
 
 Last checked: 2026-10-22.
 
-Read the relevant behavior in [FEATURE_MAP.md](FEATURE_MAP.md) first, then use
+Update note (2026-10-23): `UpdateWork.compute` no longer uses `TracePoint`, `sleep(0)`, or `Thread.pass`; workers yield naturally and cancellation is checked at phase boundaries via `UpdateWork.checkpoint` (long pure phases are not interrupted inside, but stale jobs cannot commit). Standalone RuleSystem options edits are a closed two-step combined path: `:options_update` portable work runs in a main-thread cooperative Fiber, yielding only at existing checkpoints after at least 10 ms of phase work and resuming through `UI.start_timer(0.001)`; other calculation kinds keep the background Thread worker. One worker computes edit + plan + compact stamp metadata, then `UpdateWork.prepared!` verifies the live job and flips it out of probe after the cached options result returns; native apply/stamp/verify/commit run exactly once inside the abort-on-error operation. Assembly and grouped edits keep the existing path. The worker omits the duplicated rule hash and seed JSON, and the main thread rehydrates them from `rule_json` before native work. After a successful commit only, the options window warms its member cache from the committed metadata; mismatches leave it cold so refresh reloads. Structural validation runs once per combined phase with a call-local proof; cache hits return owned copies without re-parsing.
+
+When an error message or concrete symptom is available, map it in
+[ERROR_MAP.md](ERROR_MAP.md) first (exact message → owning file). Otherwise read
+the relevant behavior in [FEATURE_MAP.md](FEATURE_MAP.md), then use
 this structural map: file path → Ruby module/class → role and entry functions.
 Open only the relevant **Ownership** rows in [ARCHITECTURE.md](ARCHITECTURE.md)
 when responsibility is unclear. Investigation limits are in [AGENTS.md](AGENTS.md);

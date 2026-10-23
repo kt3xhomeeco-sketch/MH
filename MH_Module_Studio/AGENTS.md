@@ -6,16 +6,39 @@ and the parent `.rubocop.yml` are separate projects. User instructions prevail.
 ## Reading order
 
 Start with the reported symptom, expected result and reproduction steps.
-1. [FEATURE_MAP.md](FEATURE_MAP.md): find the behavior and its owning file(s).
-2. [FLOW_MAP.md](FLOW_MAP.md): read only the relevant call path.
-3. [ARCHITECTURE.md](ARCHITECTURE.md): only relevant **Ownership** rows when
+1. [ERROR_MAP.md](ERROR_MAP.md): map the exact error message or symptom to the owning file.
+2. [FEATURE_MAP.md](FEATURE_MAP.md): find the behavior and its owning file(s).
+3. [FLOW_MAP.md](FLOW_MAP.md): read only the relevant call path.
+4. [ARCHITECTURE.md](ARCHITECTURE.md): only relevant **Ownership** rows when
    responsibility is unclear; boundary rules only when that boundary is implicated.
-4. [BUG_REPORT.md](BUG_REPORT.md): use the template for missing evidence;
+5. [BUG_REPORT.md](BUG_REPORT.md): use the template for missing evidence;
    do not demand a completed template when the supplied report is sufficient.
 
 Do not preload CHANGELOG.md, full README/specs, development skills, Spec Kit or
 build/branch workflows for a read-only investigation. Open history only for an
 explicit regression/migration question and only the implicated feature entry.
+
+## Map maintenance (mandatory)
+
+A fix is incomplete until the maps it touched match the code. Update in the same
+change, before reporting done:
+
+| Change | Update |
+|---|---|
+| new, removed or renamed file | [FEATURE_MAP.md](FEATURE_MAP.md), [ARCHITECTURE.md](ARCHITECTURE.md), [FLOW_MAP.md](FLOW_MAP.md) |
+| changed call path or callback | [FLOW_MAP.md](FLOW_MAP.md) |
+| new or changed error message / code | [ERROR_MAP.md](ERROR_MAP.md) — verbatim message + owning file |
+| changed ownership, boundary or data ownership | [ARCHITECTURE.md](ARCHITECTURE.md) |
+| new screen, command or shortcut | [FEATURE_MAP.md](FEATURE_MAP.md) |
+| changed run or evidence procedure | [BUG_REPORT.md](BUG_REPORT.md), this file |
+
+Rules:
+
+- Maps describe the **current** code, not intended code.
+- Every path in a map must exist; verify with a command, do not assume.
+- Line numbers are hints only — re-grep the verbatim text before relying on them.
+- Do not duplicate a fact across maps; state it once and link.
+- Report which map files changed. A fix with stale maps counts as not done.
 
 ## Scope and evidence
 
@@ -56,10 +79,14 @@ explicit regression/migration question and only the implicated feature entry.
   Do not claim a test passed unless it was actually run and its result checked.
   If SketchUp or another required environment is unavailable, say which behavior
   remains unverified; never substitute reasoning or a code read for a runtime
-  test. Give the user one final report; do not pause for
-  approval between diagnosis, follow-up investigation, plan, implementation and
-  verification. A request to fix an issue authorizes this full cycle within the
-  described scope.
+  test. Give the user one final report.
+- Approval boundary. A request to **fix a bug inside an already described
+  scope** authorizes the full cycle without an approval pause: diagnosis →
+  follow-up investigation → plan → implementation → verification. A **new
+  feature, a scope change, or a decision that changes user-visible behavior**
+  still follows the global interview-first rule: present options with trade-offs
+  and wait for the user's choice before writing code. Routine inside-scope
+  implementation choices need no approval.
 - Keep review-only requests read-only. For a fix request, use judgment on routine
   implementation choices without asking. Ask only when a material ambiguity
   blocks a safe decision or required evidence/action is available only from the
