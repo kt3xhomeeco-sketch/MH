@@ -596,11 +596,14 @@ module MH
         @parametric_ready = false
         @parametric_dialog.set_file(File.join(__dir__.dup.force_encoding(Encoding::UTF_8), 'ui', 'parametric.html'))
         @parametric_dialog.add_action_callback('request') do |_context, raw|
+          payload=nil
           begin
             raise Core::Error, 'Yêu cầu quá lớn.' if raw.to_s.bytesize > 1024 * 1024
-            request(JSON.parse(raw.to_s))
+            payload=JSON.parse(raw.to_s)
+            request(payload)
           rescue StandardError => error
-            @message = error.message
+            action=payload['action'] if payload.is_a?(Hash)
+            @message=ErrorCodes.for_action(action,error.message)
             publish(error: true)
           end
         end
