@@ -76,6 +76,7 @@ build tooling share this explicit manifest; adding a component must update it.
 | `reader.rb`, `dc_function_capture.rb` | Native/SDK inputs and installed DC function discovery |
 | `runtime.rb`, `scale_redraw.rb` | Apply validated plans, own model transactions and Scale observers |
 | `main.rb`, `module_options.rb`, `library*.rb`, `hud_input.rb`, `ui/` | Controllers, dialogs, persistence, library, HUD, rendering and input |
+| `error_codes.rb` | Stable area prefix (`MH-UPD`/`MH-PAR`/…) for user-visible errors at the dialog boundary; pure mapping, no state, no host access |
 
 New/Open notifications explicitly invalidate Studio's native capture/read session
 and rebind Scale/Assembly/Options observers: Windows may reuse the same Ruby

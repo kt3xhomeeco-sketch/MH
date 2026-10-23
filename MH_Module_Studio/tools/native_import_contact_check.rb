@@ -20,7 +20,7 @@ module MH
 
       def update_watcher_open?(model)
         watcher=UpdateWork.instance_variable_get(:@watchers)&.fetch(model,nil)
-        raise 'No UpdateWork watcher; observation unavailable' unless watcher&.respond_to?(:open?)
+        raise 'No UpdateWork watcher; observation unavailable' unless watcher.respond_to?(:open?)
         !!watcher.open?
       end
 

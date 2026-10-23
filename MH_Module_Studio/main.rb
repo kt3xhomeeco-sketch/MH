@@ -3,6 +3,7 @@ require 'sketchup.rb'
 require 'json'
 require 'fileutils'
 require_relative 'core'
+require_relative 'error_codes'
 require_relative 'reader'
 require_relative 'runtime'
 require_relative 'parametric'
@@ -48,11 +49,14 @@ module MH
         directory.force_encoding(Encoding::UTF_8)
         @dialog.set_file(File.join(directory, 'ui', 'index.html'))
         @dialog.add_action_callback('request') do |_context, raw|
+          payload=nil
           begin
             raise Core::Error, 'Yêu cầu quá lớn.' if raw.to_s.bytesize > 1024 * 1024
-            request(JSON.parse(raw.to_s))
+            payload=JSON.parse(raw.to_s)
+            request(payload)
           rescue StandardError => error
-            @message = error.message
+            action=payload['action'] if payload.is_a?(Hash)
+            @message=ErrorCodes.for_action(action,error.message)
             publish(error: true)
           end
         end

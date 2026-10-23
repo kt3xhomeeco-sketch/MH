@@ -23,7 +23,10 @@ Plugins/MH_Module_Studio.rb
 ```
 
 The loader registers the extension. `main.rb` owns the SketchUp menu, dialogs,
-request dispatch, model/session observers and UI callbacks. `ui/` contains the
+request dispatch, model/session observers and UI callbacks. A failed `request`
+callback is tagged by `error_codes.rb` (`ErrorCodes.for_action(action, message)`)
+before it is published to the dialog, so the panel shows `[MH-XXX] …` and
+`ERROR_MAP.md` maps it without a stack trace. `ui/` contains the
 dialog-side HTML/CSS/JavaScript; browser tests are under `test/`.
 
 ## Runtime modules

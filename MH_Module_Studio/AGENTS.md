@@ -18,6 +18,27 @@ Do not preload CHANGELOG.md, full README/specs, development skills, Spec Kit or
 build/branch workflows for a read-only investigation. Open history only for an
 explicit regression/migration question and only the implicated feature entry.
 
+## Verify before reporting
+
+The canonical gate is:
+
+```text
+bundle exec ruby tools/check.rb
+```
+
+It runs RuboCop over staged shipped sources plus all `test/*_test.rb`. A report
+may not claim "passing" without this command's actual tail (counts + failures).
+If the gate is red for a reason that predates the task, name the exact test and
+show that your change did not add failures.
+
+Native SketchUp behavior still needs a real session; if it was not run, say so.
+
+## Current work state
+
+Read [WORK_IN_PROGRESS.md](WORK_IN_PROGRESS.md) before touching files: it lists
+the branch, HEAD, files already being edited and by whom, and the next step.
+If it is missing or stale, ask instead of guessing file ownership.
+
 ## Map maintenance (mandatory)
 
 A fix is incomplete until the maps it touched match the code. Update in the same

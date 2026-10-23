@@ -7,7 +7,7 @@
     "rule_system.rb", "scale_plan.rb", "studio_calculation.rb", "assembly_math.rb", "assembly_inference.rb", "assembly_presentation.rb", "contact_display.rb", "drawer_variants.rb", "hud_boards.rb", "hud_layout.rb", "placement_math.rb", "dc_copies.rb", "dc_options.rb", "import_recovery.rb", "static_geometry.rb", "axis_rebase.rb", "import_template.rb"
   ],
   "adapters": [
-    "reader.rb", "dc_function_capture.rb", "runtime.rb", "copy_runtime.rb", "component_metadata.rb", "library_adoption.rb", "scale_redraw.rb", "update_work.rb",
+    "error_codes.rb", "reader.rb", "dc_function_capture.rb", "runtime.rb", "copy_runtime.rb", "component_metadata.rb", "library_adoption.rb", "scale_redraw.rb", "update_work.rb",
     "main.rb", "module_options.rb", "parametric_model.rb", "assembly_file.rb", "library_catalog.rb", "hud_config.rb", "library_monitor.rb", "library_thumbnails.rb", "library_import.rb", "library.rb", "dc_library_conversion.rb", "library_conversion.rb",
     "library_hud.rb", "hud_input.rb", "hud_thumbnail.rb", "assembly.rb", "assembly_tool.rb", "assembly_face_picker.rb", "assembly_auto_links.rb", "assembly_external.rb", "assembly_inspector.rb", "assembly_hud.rb", "assembly_tree.rb", "assembly_hud_input.rb", "module_file.rb", "assembly_containers.rb", "assembly_contacts.rb", "assembly_envelope.rb", "assembly_parameters.rb", "library_placement.rb", "import_links.rb", "contact_view.rb", "guide_geometry.rb"
   ],

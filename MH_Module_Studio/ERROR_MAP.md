@@ -128,24 +128,33 @@ $!.backtrace.first(15) # 15 dòng đầu
 
 Sao chép **nguyên văn** thông báo + backtrace. Ảnh chụp màn hình chỉ dùng khi không mở được console.
 
-## Quy ước mã lỗi (đề xuất — chưa gắn trong code)
+## Mã lỗi runtime (đã gắn ở cửa UI)
 
-Khi được phép sửa code, mỗi lỗi người dùng thấy nên có mã hiển thị:
+Mọi lỗi hiện lên panel đi qua `main.rb` (`add_action_callback('request')`) và được gắn tiền tố khu vực bởi `error_codes.rb`:
 
 ```text
-Không cập nhật được mô hình. Mã lỗi MH-UPD-03.
+[MH-LIB] Không đọc được thư viện.
 ```
 
-| Tiền tố | Khu vực |
-|---|---|
-| `MH-UPD` | cập nhật / redraw / apply |
-| `MH-PAR` | tham số / công thức / biến |
-| `MH-RUN` | runtime / hình học |
-| `MH-ASM` | liên kết / cụm module |
-| `MH-LIB` | thư viện / HUD / import |
-| `MH-SCL` | scale |
+Mã suy ra từ `action` của request, nên **không phải sửa từng chỗ `raise`**:
 
-Nhờ mã, ảnh chụp màn hình cũng đủ khoanh vùng. Hiện **chưa có mã trong code** — bảng B là cách tra tạm.
+| Tiền tố | `action` chứa | Khu vực |
+|---|---|---|
+| `MH-UPD` | `update`, `redraw`, `options`, `import` | cập nhật / redraw / apply |
+| `MH-PAR` | `parametric`, `rule` | tham số / công thức / biến |
+| `MH-ASM` | `assembly` | liên kết / cụm module |
+| `MH-LIB` | `library` | thư viện / HUD / import |
+| `MH-SCL` | `scale` | scale |
+| `MH-RUN` | còn lại | runtime / hình học |
+
+Quy tắc:
+
+- Mã đã có ở đầu thông báo thì không gắn lại (idempotent).
+- `action` lạ hoặc không đọc được → `MH-RUN`.
+- Cần mã chi tiết hơn (`MH-UPD-03`): gọi `ErrorCodes.tag('MH-UPD-03', '...')` tại chỗ `raise`, rồi thêm **một dòng** vào bảng B.
+- Test: `test/error_codes_test.rb`.
+
+Nhờ mã, ảnh chụp màn hình cũng đủ khoanh vùng.
 
 ## Giới hạn tra cứu
 
