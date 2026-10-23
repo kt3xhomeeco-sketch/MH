@@ -120,8 +120,8 @@ Thứ tự theo mức lợi:
 | `profile_light_1.json` | profile phiên trước (764 sleep / 11,2 s) |
 | `DIAGNOSIS_2026-10-23.md` | bản báo cáo gốc (trùng nội dung file này) |
 
-Script đo: `diag_stages.rb`, `diag_throttle.rb`, `diag_timer.rb`…`diag_timer3.rb`, `diag_job.rb`,
-`diag_power.rb` (đều là artifact đo, không phải code sản phẩm).
+Script đo: `diag_stages.rb` (chứa probe timer), `diag_timer2.rb`, `diag_timer3.rb`,
+`diag_throttle.rb`, `diag_job.rb`, `diag_power.rb` (đều là artifact đo, không phải code sản phẩm).
 
 ## 4. Trạng thái sau đo
 

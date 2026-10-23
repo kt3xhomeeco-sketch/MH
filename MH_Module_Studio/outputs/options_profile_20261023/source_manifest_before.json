@@ -1,0 +1,38 @@
+﻿[
+    {
+        "file":  "module_options.rb",
+        "sha256":  "FA30F8858E6F5CD3ACF7CD29CB7375C57CFAD067752F23D4D5B6E15DE14E0CD1"
+    },
+    {
+        "file":  "update_work.rb",
+        "sha256":  "CFCAAB6C3DD6BF6E0EA8C32CBDDA35830B15238A710F653C6B11FE167821B1E1"
+    },
+    {
+        "file":  "runtime.rb",
+        "sha256":  "3D557E84744E80BA58DEF9A5F9B9BB17E9CCC39D315AED9B0529522C4B65B920"
+    },
+    {
+        "file":  "reader.rb",
+        "sha256":  "71D4B638A4E80C3E31519A7D01A1666AF38322E1E9A5355663ADDDF47D9E88E7"
+    },
+    {
+        "file":  "domain.rb",
+        "sha256":  "3F235F5CB158DAD219C7441FB892686088675D61620E3DF445C2D8396DAC0E61"
+    },
+    {
+        "file":  "rule_system.rb",
+        "sha256":  "2A42C6E5F3AE9101EDB9F353665CB721C4375A6450CE3E8B421A9B580E30595B"
+    },
+    {
+        "file":  "parametric.rb",
+        "sha256":  "02643CC1D9C09E5B32AFAE85D8C4B1644F5D76B47D218A7AD62B00455F733A6D"
+    },
+    {
+        "file":  "parameters.rb",
+        "sha256":  "C2C938C56F7AD240A35B3C9F132F92DE17C3D439A6AD72E64ED032BC84D4D68E"
+    },
+    {
+        "file":  "assembly.rb",
+        "sha256":  "FE3966C9AE6397D6D5DBFB53C28D1954AF23E6FF43CC30BC0C9320E690E58A65"
+    }
+]

@@ -1,0 +1,362 @@
+{
+  "version": "2026-10-23.3",
+  "pid": 16624,
+  "path": "",
+  "setup": {
+    "ok": true,
+    "pid": 16624,
+    "path": "",
+    "root": 1271,
+    "defs": 0,
+    "preview_ms": 77.255,
+    "build_ms": 1130.503,
+    "asset": 80098,
+    "cold": true
+  },
+  "cases": [
+    {
+      "profiled": true,
+      "target": 20.0,
+      "t0": 250054198.15690002,
+      "done": true,
+      "status": "done",
+      "error": null,
+      "wall": 16183.698,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 200.17050000024028,
+        "bytes": 2577255,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 16183.427999989362
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+        {
+          "label": "MH::ModuleStudio::UpdateWork.compute",
+          "thread": "worker",
+          "n": 3,
+          "total_ms": 14848.261,
+          "self_ms": 431.163,
+          "max_ms": 6598.959
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.validate!",
+          "thread": "worker",
+          "n": 5,
+          "total_ms": 11916.42,
+          "self_ms": 2141.73,
+          "max_ms": 2550.219
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.sleep",
+          "thread": "worker",
+          "n": 764,
+          "total_ms": 11206.781,
+          "self_ms": 11206.781,
+          "max_ms": 30.943
+        },
+        {
+          "label": "MH::ModuleStudio::Core.rule!",
+          "thread": "worker",
+          "n": 139,
+          "total_ms": 10392.479,
+          "self_ms": 181.553,
+          "max_ms": 2550.257
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[options_edit]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6253.259,
+          "self_ms": 0.812,
+          "max_ms": 6253.259
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.edit_variables",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6107.258,
+          "self_ms": 216.899,
+          "max_ms": 6107.258
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[stamp]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 5060.066,
+          "self_ms": 19.574,
+          "max_ms": 5060.066
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.stamp_metadata",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 5040.492,
+          "self_ms": 64.554,
+          "max_ms": 5040.492
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[plan]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3103.773,
+          "self_ms": 0.028,
+          "max_ms": 3103.773
+        },
+        {
+          "label": "MH::ModuleStudio::Core.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3103.745,
+          "self_ms": 0.051,
+          "max_ms": 3103.745
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3078.595,
+          "self_ms": 19.09,
+          "max_ms": 3078.595
+        },
+        {
+          "label": "MH::ModuleStudio::Core.copy_data",
+          "thread": "worker",
+          "n": 6561,
+          "total_ms": 773.481,
+          "self_ms": 466.213,
+          "max_ms": 30.403
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.advance",
+          "thread": "main",
+          "n": 794,
+          "total_ms": 767.35,
+          "self_ms": 133.733,
+          "max_ms": 200.189
+        },
+        {
+          "label": "MH::ModuleStudio::Core.plan_parameters",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 467.466,
+          "self_ms": 74.408,
+          "max_ms": 467.466
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[options_edit]",
+          "thread": "main",
+          "n": 5,
+          "total_ms": 282.886,
+          "self_ms": 159.069,
+          "max_ms": 87.031
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.apply_trial_update",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 264.204,
+          "self_ms": 0.324,
+          "max_ms": 115.821
+        },
+        {
+          "label": "MH::ModuleStudio::Core.copy_data",
+          "thread": "main",
+          "n": 19,
+          "total_ms": 208.012,
+          "self_ms": 208.012,
+          "max_ms": 32.201
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.stamp",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 198.58,
+          "self_ms": 0.128,
+          "max_ms": 92.287
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[stamp]",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 174.804,
+          "self_ms": 93.359,
+          "max_ms": 80.444
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.targets",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 145.176,
+          "self_ms": 24.906,
+          "max_ms": 145.176
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[plan]",
+          "thread": "main",
+          "n": 7,
+          "total_ms": 109.914,
+          "self_ms": 107.276,
+          "max_ms": 33.691
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.preview",
+          "thread": "main",
+          "n": 4,
+          "total_ms": 86.416,
+          "self_ms": 0.377,
+          "max_ms": 37.931
+        },
+        {
+          "label": "MH::ModuleStudio::Reader.live",
+          "thread": "main",
+          "n": 9,
+          "total_ms": 30.973,
+          "self_ms": 30.973,
+          "max_ms": 4.033
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.stamp_prepared",
+          "thread": "main",
+          "n": 2,
+          "total_ms": 23.648,
+          "self_ms": 23.648,
+          "max_ms": 11.865
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.verify_result",
+          "thread": "main",
+          "n": 2,
+          "total_ms": 13.814,
+          "self_ms": 7.156,
+          "max_ms": 7.196
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.apply_plan",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 2.37,
+          "self_ms": 2.37,
+          "max_ms": 0.862
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.private_tree",
+          "thread": "main",
+          "n": 27,
+          "total_ms": 1.681,
+          "self_ms": 0.925,
+          "max_ms": 0.315
+        },
+        {
+          "label": "MH::ModuleStudio::Core.validate_geometry_plan!",
+          "thread": "worker",
+          "n": 2,
+          "total_ms": 0.499,
+          "self_ms": 0.499,
+          "max_ms": 0.263
+        }
+      ],
+      "sleep": {
+        "n": 764,
+        "act": 11206.781199663877,
+        "req": 764.0,
+        "max": 30.942699998617172
+      },
+      "hb": {
+        "n": 140,
+        "max": 364.75319999456406
+      }
+    }
+  ],
+  "errors": [
+
+  ],
+  "geometry": {
+    "ok": true,
+    "parts": [
+      {
+        "key": "part:0001",
+        "name": "Nóc",
+        "dims": [
+          560.0,
+          174.0,
+          20.0
+        ]
+      },
+      {
+        "key": "part:0002",
+        "name": "Hông Phải",
+        "dims": [
+          20.0,
+          200.0,
+          500.0
+        ]
+      },
+      {
+        "key": "part:0003",
+        "name": "Hông Trái",
+        "dims": [
+          20.0,
+          200.0,
+          500.0
+        ]
+      },
+      {
+        "key": "part:0004",
+        "name": "Đáy",
+        "dims": [
+          560.0,
+          174.0,
+          20.0
+        ]
+      },
+      {
+        "key": "part:0005",
+        "name": "Len Chân Trước",
+        "dims": [
+          564.8,
+          0.358,
+          0.673
+        ]
+      },
+      {
+        "key": "part:0006",
+        "name": "Len Nóc Trước",
+        "dims": [
+          1.207,
+          0.358,
+          0.673
+        ]
+      },
+      {
+        "key": "part:0007",
+        "name": "Hậu",
+        "dims": [
+          576.0,
+          8.0,
+          500.0
+        ]
+      }
+    ],
+    "main_n": 4,
+    "main_t1_ok": true,
+    "back": [
+      {
+        "key": "part:0007",
+        "name": "Hậu",
+        "dims": [
+          576.0,
+          8.0,
+          500.0
+        ]
+      }
+    ]
+  },
+  "stack_clear": true
+}

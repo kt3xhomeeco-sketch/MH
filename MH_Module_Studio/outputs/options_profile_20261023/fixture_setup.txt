@@ -1,0 +1,8 @@
+﻿status: ok
+result: nil
+output:
+{"ok":true,"pid":16624,"path":"","root":1271,"defs":0,"preview_ms":77.255,"build_ms":1130.503,"asset":80098,"cold":true}
+
+duration: 1329ms
+background_errors (1):
+[{"time":"2026-10-23T18:37:03.737+07:00","class":"ArgumentError","message":"wrong number of arguments (given 1, expected 0)","file":"C:/Users/mhngu/AppData/Roaming/SketchUp/SketchUp 2025/SketchUp/Plugins/MH_Module_Studio/outputs/options_profile_20261023/native_profile.rb","line":13,"source":"tracepoint"}]

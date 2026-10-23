@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"sleep_0.001":{"requested_ms":1.0,"min":10.456,"median":15.8,"mean":14.776,"max":16.224},"sleep_0.002":{"requested_ms":2.0,"min":12.535,"median":14.793,"mean":14.572,"max":16.686},"sleep_0.004":{"requested_ms":4.0,"min":10.746,"median":14.084,"mean":14.405,"max":17.528},"sleep_0.008":{"requested_ms":8.0,"min":11.606,"median":15.82,"mean":14.524,"max":16.871},"sleep_0.016":{"requested_ms":16.0,"min":16.408,"median":28.088,"mean":26.565,"max":29.86},"sleep_0.02":{"requested_ms":20.0,"min":25.631,"median":32.297,"mean":31.304,"max":34.451},"sleep_0.032":{"requested_ms":32.0,"min":32.178,"median":43.315,"mean":41.662,"max":44.991}}
+
+duration: 1599ms

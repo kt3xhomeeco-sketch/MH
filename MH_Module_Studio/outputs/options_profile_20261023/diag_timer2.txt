@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"ruby_sleep_main_default":{"n":25,"min_ms":11.875,"median_ms":13.89,"mean_ms":14.159,"max_ms":16.605},"ruby_sleep_thread_default":{"n":25,"min_ms":11.279,"median_ms":13.895,"mean_ms":14.15,"max_ms":16.899},"ruby_sleep_thread_prio_minus2":{"n":25,"min_ms":7.994,"median_ms":14.534,"mean_ms":14.345,"max_ms":18.595},"win32_Sleep1_default":{"n":25,"min_ms":12.561,"median_ms":15.156,"mean_ms":14.813,"max_ms":16.829},"win32_priority_class":32,"timeBeginPeriod_rc":0,"win32_Sleep1_timer1ms":{"n":25,"min_ms":11.875,"median_ms":14.447,"mean_ms":14.29,"max_ms":17.29},"ruby_sleep_main_timer1ms":{"n":25,"min_ms":11.979,"median_ms":15.582,"mean_ms":14.701,"max_ms":16.555},"ruby_sleep_thread_timer1ms":{"n":25,"min_ms":12.089,"median_ms":13.724,"mean_ms":14.064,"max_ms":16.712}}
+
+duration: 2539ms

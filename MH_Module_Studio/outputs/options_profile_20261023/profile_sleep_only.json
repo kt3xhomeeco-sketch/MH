@@ -1,0 +1,648 @@
+{
+  "version": "2026-10-23.3",
+  "pid": 16624,
+  "path": "",
+  "setup": {
+    "ok": true,
+    "pid": 16624,
+    "path": "",
+    "root": 1271,
+    "defs": 0,
+    "preview_ms": 77.255,
+    "build_ms": 1130.503,
+    "asset": 80098,
+    "cold": true
+  },
+  "cases": [
+    {
+      "profiled": true,
+      "target": 20.0,
+      "t0": 250054198.15690002,
+      "done": true,
+      "status": "done",
+      "error": null,
+      "wall": 16183.698,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 200.17050000024028,
+        "bytes": 2577255,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 16183.427999989362
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+        {
+          "label": "MH::ModuleStudio::UpdateWork.compute",
+          "thread": "worker",
+          "n": 3,
+          "total_ms": 14848.261,
+          "self_ms": 431.163,
+          "max_ms": 6598.959
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.validate!",
+          "thread": "worker",
+          "n": 5,
+          "total_ms": 11916.42,
+          "self_ms": 2141.73,
+          "max_ms": 2550.219
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.sleep",
+          "thread": "worker",
+          "n": 764,
+          "total_ms": 11206.781,
+          "self_ms": 11206.781,
+          "max_ms": 30.943
+        },
+        {
+          "label": "MH::ModuleStudio::Core.rule!",
+          "thread": "worker",
+          "n": 139,
+          "total_ms": 10392.479,
+          "self_ms": 181.553,
+          "max_ms": 2550.257
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[options_edit]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6253.259,
+          "self_ms": 0.812,
+          "max_ms": 6253.259
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.edit_variables",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6107.258,
+          "self_ms": 216.899,
+          "max_ms": 6107.258
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[stamp]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 5060.066,
+          "self_ms": 19.574,
+          "max_ms": 5060.066
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.stamp_metadata",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 5040.492,
+          "self_ms": 64.554,
+          "max_ms": 5040.492
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[plan]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3103.773,
+          "self_ms": 0.028,
+          "max_ms": 3103.773
+        },
+        {
+          "label": "MH::ModuleStudio::Core.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3103.745,
+          "self_ms": 0.051,
+          "max_ms": 3103.745
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3078.595,
+          "self_ms": 19.09,
+          "max_ms": 3078.595
+        },
+        {
+          "label": "MH::ModuleStudio::Core.copy_data",
+          "thread": "worker",
+          "n": 6561,
+          "total_ms": 773.481,
+          "self_ms": 466.213,
+          "max_ms": 30.403
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.advance",
+          "thread": "main",
+          "n": 794,
+          "total_ms": 767.35,
+          "self_ms": 133.733,
+          "max_ms": 200.189
+        },
+        {
+          "label": "MH::ModuleStudio::Core.plan_parameters",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 467.466,
+          "self_ms": 74.408,
+          "max_ms": 467.466
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[options_edit]",
+          "thread": "main",
+          "n": 5,
+          "total_ms": 282.886,
+          "self_ms": 159.069,
+          "max_ms": 87.031
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.apply_trial_update",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 264.204,
+          "self_ms": 0.324,
+          "max_ms": 115.821
+        },
+        {
+          "label": "MH::ModuleStudio::Core.copy_data",
+          "thread": "main",
+          "n": 19,
+          "total_ms": 208.012,
+          "self_ms": 208.012,
+          "max_ms": 32.201
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.stamp",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 198.58,
+          "self_ms": 0.128,
+          "max_ms": 92.287
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[stamp]",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 174.804,
+          "self_ms": 93.359,
+          "max_ms": 80.444
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.targets",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 145.176,
+          "self_ms": 24.906,
+          "max_ms": 145.176
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.calculate[plan]",
+          "thread": "main",
+          "n": 7,
+          "total_ms": 109.914,
+          "self_ms": 107.276,
+          "max_ms": 33.691
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.preview",
+          "thread": "main",
+          "n": 4,
+          "total_ms": 86.416,
+          "self_ms": 0.377,
+          "max_ms": 37.931
+        },
+        {
+          "label": "MH::ModuleStudio::Reader.live",
+          "thread": "main",
+          "n": 9,
+          "total_ms": 30.973,
+          "self_ms": 30.973,
+          "max_ms": 4.033
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.stamp_prepared",
+          "thread": "main",
+          "n": 2,
+          "total_ms": 23.648,
+          "self_ms": 23.648,
+          "max_ms": 11.865
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.verify_result",
+          "thread": "main",
+          "n": 2,
+          "total_ms": 13.814,
+          "self_ms": 7.156,
+          "max_ms": 7.196
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.apply_plan",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 2.37,
+          "self_ms": 2.37,
+          "max_ms": 0.862
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.private_tree",
+          "thread": "main",
+          "n": 27,
+          "total_ms": 1.681,
+          "self_ms": 0.925,
+          "max_ms": 0.315
+        },
+        {
+          "label": "MH::ModuleStudio::Core.validate_geometry_plan!",
+          "thread": "worker",
+          "n": 2,
+          "total_ms": 0.499,
+          "self_ms": 0.499,
+          "max_ms": 0.263
+        }
+      ],
+      "sleep": {
+        "n": 764,
+        "act": 11206.781199663877,
+        "req": 764.0,
+        "max": 30.942699998617172
+      },
+      "hb": {
+        "n": 140,
+        "max": 364.75319999456406
+      }
+    },
+    {
+      "profiled": true,
+      "target": 21.0,
+      "t0": 250126781.19430003,
+      "done": true,
+      "status": "done",
+      "error": null,
+      "wall": 15517.655,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 186.86829999205656,
+        "bytes": 2577275,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 15517.483500007074
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+        {
+          "label": "MH::ModuleStudio::UpdateWork.compute",
+          "thread": "worker",
+          "n": 3,
+          "total_ms": 14095.165,
+          "self_ms": 334.869,
+          "max_ms": 6455.059
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.sleep",
+          "thread": "worker",
+          "n": 738,
+          "total_ms": 10969.444,
+          "self_ms": 10969.444,
+          "max_ms": 41.84
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.validate!",
+          "thread": "worker",
+          "n": 5,
+          "total_ms": 10924.434,
+          "self_ms": 2066.6,
+          "max_ms": 2321.49
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[options_edit]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6204.756,
+          "self_ms": 27.855,
+          "max_ms": 6204.756
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.edit_variables",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6093.58,
+          "self_ms": 319.205,
+          "max_ms": 6093.58
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[stamp]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 4506.101,
+          "self_ms": 19.138,
+          "max_ms": 4506.101
+        },
+        {
+          "label": "MH::ModuleStudio::Parametric.stamp_metadata",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 4486.963,
+          "self_ms": 97.867,
+          "max_ms": 4486.963
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[plan]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3049.439,
+          "self_ms": 0.051,
+          "max_ms": 3049.439
+        },
+        {
+          "label": "MH::ModuleStudio::Core.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3049.388,
+          "self_ms": 28.352,
+          "max_ms": 3049.388
+        },
+        {
+          "label": "MH::ModuleStudio::RuleSystem.plan",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 3021.036,
+          "self_ms": 231.785,
+          "max_ms": 3021.036
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.advance",
+          "thread": "main",
+          "n": 743,
+          "total_ms": 735.064,
+          "self_ms": 703.105,
+          "max_ms": 186.881
+        },
+        {
+          "label": "MH::ModuleStudio::Reader.live",
+          "thread": "main",
+          "n": 9,
+          "total_ms": 29.726,
+          "self_ms": 29.726,
+          "max_ms": 3.456
+        },
+        {
+          "label": "MH::ModuleStudio::Runtime.apply_plan",
+          "thread": "main",
+          "n": 3,
+          "total_ms": 2.233,
+          "self_ms": 2.233,
+          "max_ms": 0.767
+        }
+      ],
+      "sleep": {
+        "n": 738,
+        "act": 10969.443900913,
+        "req": 738.0,
+        "max": 41.840399980545044
+      },
+      "hb": {
+        "n": 134,
+        "max": 413.94259998202324
+      }
+    },
+    {
+      "profiled": false,
+      "target": 22.0,
+      "t0": 250240249.8007,
+      "done": true,
+      "status": "done",
+      "error": null,
+      "wall": 13625.067,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 244.54649997642264,
+        "bytes": 2577304,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 13625.040200015064
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+
+      ],
+      "sleep": {
+        "n": 0,
+        "act": 0.0,
+        "req": 0.0,
+        "max": 0.0
+      },
+      "hb": {
+        "n": 117,
+        "max": 410.9657000005245
+      }
+    },
+    {
+      "profiled": true,
+      "target": 23.0,
+      "t0": 250300359.58290002,
+      "done": true,
+      "status": "error",
+      "error": "NameError: uninitialized constant MH::ModuleStudio::NativeOptionsProfile::UpdateWork",
+      "wall": 0.099,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 244.54649997642264,
+        "bytes": 2577304,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 13625.040200015064
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+
+      ],
+      "sleep": {
+        "n": 0,
+        "act": 0.0,
+        "req": 0.0,
+        "max": 0.0
+      },
+      "hb": {
+        "n": 0,
+        "max": 0.0
+      }
+    },
+    {
+      "profiled": true,
+      "target": 23.0,
+      "t0": 250311634.26610002,
+      "done": true,
+      "status": "done",
+      "error": null,
+      "wall": 16267.886,
+      "steps": 0,
+      "probe": false,
+      "metrics": {
+        "key": "qa_profile_options",
+        "steps": 5,
+        "max_step_ms": 269.7982000245247,
+        "bytes": 2577294,
+        "status": "done",
+        "calculations": 3,
+        "elapsed_ms": 16267.783299990697
+      },
+      "stacks": [
+
+      ],
+      "agg": [
+        {
+          "label": "MH::ModuleStudio::UpdateWork.compute",
+          "thread": "worker",
+          "n": 3,
+          "total_ms": 15016.509,
+          "self_ms": 168.77,
+          "max_ms": 6836.801
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.sleep",
+          "thread": "worker",
+          "n": 805,
+          "total_ms": 11476.075,
+          "self_ms": 11476.075,
+          "max_ms": 35.933
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[options_edit]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 6759.381,
+          "self_ms": 1406.822,
+          "max_ms": 6759.381
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[stamp]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 5096.809,
+          "self_ms": 1226.573,
+          "max_ms": 5096.809
+        },
+        {
+          "label": "MH::ModuleStudio::UpdateWork.dispatch[plan]",
+          "thread": "worker",
+          "n": 1,
+          "total_ms": 2991.549,
+          "self_ms": 738.268,
+          "max_ms": 2991.549
+        }
+      ],
+      "sleep": {
+        "n": 805,
+        "act": 11476.075299799442,
+        "req": 805.0,
+        "max": 35.93330001831055
+      },
+      "hb": {
+        "n": 140,
+        "max": 377.2680000066757
+      }
+    }
+  ],
+  "errors": [
+
+  ],
+  "geometry": {
+    "ok": true,
+    "parts": [
+      {
+        "key": "part:0001",
+        "name": "Nóc",
+        "dims": [
+          554.0,
+          174.0,
+          23.0
+        ]
+      },
+      {
+        "key": "part:0002",
+        "name": "Hông Phải",
+        "dims": [
+          23.0,
+          200.0,
+          500.0
+        ]
+      },
+      {
+        "key": "part:0003",
+        "name": "Hông Trái",
+        "dims": [
+          23.0,
+          200.0,
+          500.0
+        ]
+      },
+      {
+        "key": "part:0004",
+        "name": "Đáy",
+        "dims": [
+          554.0,
+          174.0,
+          23.0
+        ]
+      },
+      {
+        "key": "part:0005",
+        "name": "Len Chân Trước",
+        "dims": [
+          564.8,
+          0.358,
+          0.673
+        ]
+      },
+      {
+        "key": "part:0006",
+        "name": "Len Nóc Trước",
+        "dims": [
+          1.207,
+          0.358,
+          0.673
+        ]
+      },
+      {
+        "key": "part:0007",
+        "name": "Hậu",
+        "dims": [
+          570.0,
+          8.0,
+          500.0
+        ]
+      }
+    ],
+    "main_n": 4,
+    "main_t1_ok": true,
+    "back": [
+      {
+        "key": "part:0007",
+        "name": "Hậu",
+        "dims": [
+          570.0,
+          8.0,
+          500.0
+        ]
+      }
+    ]
+  },
+  "stack_clear": true
+}

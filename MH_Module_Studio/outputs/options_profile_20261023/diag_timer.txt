@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"sleep_0.001_default":{"n":20,"min_ms":11.86,"median_ms":13.798,"mean_ms":14.134,"max_ms":17.151},"sleep_0_default":{"n":20,"min_ms":1.909,"median_ms":3.55,"mean_ms":3.375,"max_ms":4.331},"thread_pass":{"n":20,"min_ms":1.065,"median_ms":1.462,"mean_ms":1.487,"max_ms":2.221},"sleep_0.005_default":{"n":10,"min_ms":7.68,"median_ms":14.862,"mean_ms":13.8,"max_ms":16.751},"timeBeginPeriod_rc":0,"sleep_0.001_timer1ms":{"n":20,"min_ms":12.583,"median_ms":15.352,"mean_ms":15.213,"max_ms":17.191},"sleep_0_timer1ms":{"n":20,"min_ms":2.947,"median_ms":3.478,"mean_ms":3.511,"max_ms":4.615},"sleep_0.001_after_restore":{"n":10,"min_ms":4.141,"median_ms":15.344,"mean_ms":13.753,"max_ms":16.612}}
+
+duration: 1045ms

@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"unthrottled_unit_ms":311.819,"results":[{"mode":"none","rounds":3,"wall_ms":1107.83,"yields":0,"yield_total_ms":0.0,"events":0,"per_round_ms":369.277,"slowdown_vs_noop":0.82},{"mode":"noop","rounds":3,"wall_ms":1357.157,"yields":366,"yield_total_ms":0.491,"events":632593,"per_round_ms":452.386,"slowdown_vs_noop":1.0},{"mode":"sleep1ms","rounds":3,"wall_ms":13836.249,"yields":933,"yield_total_ms":10513.374,"events":632593,"per_round_ms":4612.083,"slowdown_vs_noop":10.2},{"mode":"sleep0","rounds":3,"wall_ms":1179.896,"yields":335,"yield_total_ms":4.928,"events":632593,"per_round_ms":393.299,"slowdown_vs_noop":0.87},{"mode":"pass","rounds":3,"wall_ms":1179.57,"yields":329,"yield_total_ms":5.817,"events":632593,"per_round_ms":393.19,"slowdown_vs_noop":0.87},{"mode":"sleep1ms","rounds":3,"wall_ms":10314.6,"yields":699,"yield_total_ms":7860.748,"events":632593,"per_round_ms":3438.2,"slowdown_vs_noop":7.6}]}
+
+duration: 31523ms

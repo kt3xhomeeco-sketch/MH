@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"done":true,"status":"done","error":null,"wall_s":13.120549000013852,"metrics":{"key":"qa_profile_options","steps":5,"max_step_ms":221.90249999403022,"bytes":2577283,"status":"done","calculations":3,"elapsed_ms":13120.43770001037},"heartbeat_count":113,"max_gap_s":0.4073602999851573,"parts":[{"key":"part:0001","name":"Nóc","dims_mm":[562.8,174.0,18.59999999999991]},{"key":"part:0002","name":"Hông Phải","dims_mm":[18.600000000000023,199.99999999999997,499.99999999999926]},{"key":"part:0003","name":"Hông Trái","dims_mm":[18.6,199.99999999999997,499.99999999999926]},{"key":"part:0004","name":"Đáy","dims_mm":[562.8,174.0,18.600000000000005]},{"key":"part:0005","name":"Len Chân Trước","dims_mm":[564.7999999999997,0.3582000000000003,0.6733000000000001]},{"key":"part:0006","name":"Len Nóc Trước","dims_mm":[1.206700000000005,0.35819999999999996,0.6733000000000402]},{"key":"part:0007","name":"Hậu","dims_mm":[578.7999999999998,8.0,499.9999999999994]}]}
+
+duration: 16ms

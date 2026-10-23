@@ -1,0 +1,6 @@
+﻿status: ok
+result: nil
+output:
+{"status":"done","error":null,"wall_ms":22377.436,"cpu_user_ms":1688.0,"cpu_sys_ms":94.0,"cpu_total_ms":1782.0,"hb":{"n":106,"max_ms":649.489},"metrics":{"key":"qa_profile_options","steps":5,"max_step_ms":252.48840000131167,"bytes":2577347,"status":"done","calculations":3,"elapsed_ms":12586.57710000989}}
+
+duration: 9ms
