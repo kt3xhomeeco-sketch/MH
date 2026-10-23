@@ -29,37 +29,43 @@ module MH
       def draw(view)
         data = MaterialHUD.data || {}
         rows = Array(data[:rows])
-        width = [660, view.vpwidth.to_i].min
+        width = [1000, view.vpwidth.to_i].min
+        column_scale = [[(width - 110) / 890.0, 0.0].max, 1.0].min
         row_height = 25
         capacity = [[(view.vpheight.to_i - 70) / row_height, 1].max, 12].min
         offset = MaterialHUD.scroll_offset(rows.size, capacity)
         shown = rows.drop(offset).first(capacity)
         height = 40 + [shown.size, 1].max * row_height
         x, y = OverlayEngine.panel_origin(view, width, height, anchor: :bottom_right)
+        product_x = x + 16
+        material_x = product_x + 240 * column_scale
+        specification_x = material_x + 320 * column_scale
+        status_x = specification_x + 330 * column_scale - 2
+        product_limit = [(35 * column_scale).floor, 1].max
+        material_limit = [(55 * column_scale).floor, 1].max
+        specification_limit = [(60 * column_scale).floor, 1].max
         MaterialHUD.panel_rect = [x, y, width, height]
         rect(view, x, y, width, height, :panel)
         rect(view, x + 10, y + 10, width - 20, 20, :header)
-        text(view, x + 16, y + 14, 'TÊN SẢN PHẨM', color: :white, bold: true, size: 7)
-        text(view, x + 150, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true, size: 7)
-        text(view, x + 310, y + 14, 'QUY CÁCH VẬT LIỆU', color: :white, size: 6)
-        text(view, x + 572, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
+        text(view, product_x, y + 14, 'TÊN SẢN PHẨM', color: :white, bold: true, size: 7)
+        text(view, material_x, y + 14, 'MÃ VẬT LIỆU', color: :white, bold: true, size: 7)
+        text(view, specification_x, y + 14, 'QUY CÁCH VẬT LIỆU', color: :white, size: 6)
+        text(view, status_x + 2, y + 14, 'TRẠNG THÁI', color: :white, size: 7)
         row_y = y + 30
         if shown.empty?
           text(view, x + 16, row_y + 6, truncate(data[:message], 60))
         else
           shown.each do |row|
             rect(view, x + 10, row_y, width - 20, row_height, row[:type] == :product ? :product : :row)
-            text(view, x + 16, row_y + 5, truncate(row[:product_name], 19), bold: row[:type] == :product, size: 7)
-            # The material-code column is 160 px wide. Its previous 19-character
-            # limit was left over from the old 140 px column and hid valid codes.
-            text(view, x + 150, row_y + 5, truncate(row[:name], 27), bold: row[:type] == :product, size: 7)
+            text(view, product_x, row_y + 5, truncate(row[:product_name], product_limit), bold: row[:type] == :product, size: 7)
+            text(view, material_x, row_y + 5, truncate(row[:name], material_limit), bold: row[:type] == :product, size: 7)
             unless row[:type] == :product
-              lines = wrap(row[:note], 48, 2)
-              text(view, x + 310, row_y + 2, lines[0], size: 6)
-              text(view, x + 310, row_y + 11, lines[1], size: 6) if lines[1]
+              lines = wrap(row[:note], specification_limit, 2)
+              text(view, specification_x, row_y + 2, lines[0], size: 6)
+              text(view, specification_x, row_y + 11, lines[1], size: 6) if lines[1]
               status = row[:status].to_s
-              rect(view, x + 570, row_y + 4, 74, 17, @colors.key?(status) ? status : :header)
-              text(view, x + 576, row_y + 7, status, color: :white, size: 7, bold: true)
+              rect(view, status_x, row_y + 4, 74, 17, @colors.key?(status) ? status : :header)
+              text(view, status_x + 6, row_y + 7, status, color: :white, size: 7, bold: true)
             end
             row_y += row_height
           end
@@ -143,8 +149,11 @@ module MH
         picker.do_pick(x, y)
         entity = picker.best_picked
         pick_path = picker.path_at(0) rescue []
+        control = (flags & COPY_MODIFIER_MASK) != 0
+        shift = (flags & CONSTRAIN_MODIFIER_MASK) != 0
+        entity = MaterialHUD.deepest_material_instance_from_path(pick_path, entity) if control
         selection = Sketchup.active_model.selection
-        if (flags & CONSTRAIN_MODIFIER_MASK) != 0
+        if shift
           if entity && entity.valid?
             selection.contains?(entity) ? selection.remove(entity) : selection.add(entity)
           end
@@ -152,7 +161,12 @@ module MH
           selection.clear
           selection.add(entity) if entity && entity.valid?
         end
-        MaterialHUD.remember_pick_path(pick_path, entity) if (flags & CONSTRAIN_MODIFIER_MASK) == 0
+        MaterialHUD.remember_pick_path(
+          pick_path,
+          entity,
+          selected_entities: selection.to_a,
+          additive: shift
+        )
         MaterialHUD.schedule_refresh
       end
 

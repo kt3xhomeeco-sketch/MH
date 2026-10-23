@@ -339,6 +339,9 @@ def overlapping_modules(modules):
         for b in modules[i+1:]:
             if all(min(a['origin'][axis]+a['size'][axis], b['origin'][axis]+b['size'][axis]) -
                    max(a['origin'][axis], b['origin'][axis]) > .1 for axis in range(3)):
+                if any(p.get('plan_profile') for p in (a,b)) and all(not p.get('plan_profile') or all(s['type']=='line' for s in p['plan_profile']['segments']) for p in (a,b)):
+                    from directional_layout import overlap,polygon,convex
+                    if all(convex(polygon(p)) for p in (a,b)) and not overlap(a,b):continue
                 pairs.append(f"{a['id']}/{b['id']}")
     return pairs
 

@@ -32,6 +32,7 @@ module MH
         end
 
         def thickness_profile_entries_for_context(context = nil)
+          ensure_thickness_library_current if respond_to?(:ensure_thickness_library_current)
           product = context_value(context || {}, :product_code, 'product_code').to_s.strip
           return [] if product.empty?
 
@@ -120,6 +121,9 @@ module MH
         def cycle_thickness_material_row(context, step = 1)
           return cycle_manual_material_row(context, step) if manual_mode?(context)
 
+          hud_groups = hud_entry_groups_for_context(context)
+          return cycle_hud_material_row(context, hud_groups, step) unless hud_groups.empty?
+
           groups = thickness_entry_groups_for_context(context)
           return cycle_material_profile(context) if groups.empty?
           if groups.length <= 1
@@ -139,6 +143,9 @@ module MH
         def cycle_thickness_option_in_row(context, step = 1)
           return cycle_manual_option_in_row(context, step) if manual_mode?(context)
 
+          hud_groups = hud_entry_groups_for_context(context)
+          return cycle_hud_option_in_row(context, hud_groups, step) unless hud_groups.empty?
+
           groups = thickness_entry_groups_for_context(context)
           return cycle_thickness_option(context) if groups.empty?
 
@@ -146,6 +153,129 @@ module MH
           group = groups[current['group_index']]
           next_option_index = (current['option_index'] + step.to_i) % group['entries'].length
           select_thickness_entry(context, group['entries'][next_option_index])
+        end
+
+        # Các group nguồn Excel là các dòng HUD thật. Không gom chúng theo mã
+        # vật liệu, vì một mã có thể lặp ở nhiều nhóm Tên SP + Excel_F/G.
+        def hud_entry_groups_for_context(context)
+          product = context_value(context || {}, :product_code, 'product_code').to_s.strip
+          return [] if product.empty? || !respond_to?(:hud_source_groups_for_product)
+
+          codes = Array(material_row_codes_for_context(product, context)).map(&:to_s).map(&:strip).reject(&:empty?)
+          Array(hud_source_groups_for_product(product, codes)).filter_map do |group|
+            code = group['material_code'].to_s.strip
+            row_key = group['hud_row_key'].to_s.strip
+            next if code.empty? || row_key.empty?
+
+            entries = thickness_profile_entries_for_context(context).each_with_index.filter_map do |entry, index|
+              next unless material_code_key(entry['material_code']) == material_code_key(code)
+
+              entry.merge('_flat_index' => index)
+            end
+            # Một số SP lấy mã trực tiếp từ Excel nhưng chưa được đưa vào danh
+            # sách profile phẳng. HUD vẫn có options theo mã, nên tạo profile
+            # tạm cho từng option để Tab/Alt hoạt động trên đúng dòng đó.
+            if entries.empty?
+              entries = thickness_options_for_material_code_or_context(code, context).each_with_index.map do |option, index|
+                profile = thickness_profile_from_option(option)
+                profile['material_code'] = code
+                profile['profile_id'] = [material_code_key(code).gsub(/[^A-Za-z0-9]+/, '_'), profile['profile_id']].join('_')
+                profile['profile_name'] = "#{material_code_key(code)} | #{profile['profile_name']}"
+                profile.merge('_flat_index' => index)
+              end
+            end
+            # Giữ cả dòng không có profile/option riêng: Tab cần duyệt theo
+            # đúng thứ tự các dòng nguồn HUD, không chỉ các dòng có độ dày.
+            group.merge('material_code' => code, 'hud_row_key' => row_key, 'entries' => entries)
+          end
+        rescue
+          []
+        end
+
+        def selected_hud_row_key(context)
+          (@selected_hud_row_key ||= {})[context_key(context)].to_s
+        end
+
+        def select_hud_row_key(context, row_key)
+          (@selected_hud_row_key ||= {})[context_key(context)] = row_key.to_s
+        end
+
+        def selected_hud_group_position(context, groups)
+          row_key = selected_hud_row_key(context)
+          index = groups.index { |group| group['hud_row_key'].to_s == row_key }
+          return index unless index.nil?
+
+          selection = selected_hud_thickness_selection(context)
+          selected_key = material_code_key(selection['material_code'])
+          index = groups.index { |group| material_code_key(group['material_code']) == selected_key }
+          index || 0
+        end
+
+        def select_hud_thickness_entry(context, group, option_index)
+          entries = Array(group['entries'])
+          if entries.empty?
+            select_hud_row_key(context, group['hud_row_key'])
+            return {
+              'ok' => true,
+              'hud_only' => true,
+              'material_code' => group['material_code'].to_s,
+              'hud_row_key' => group['hud_row_key'].to_s,
+              'label' => "#{group['material_code']} | khong co option do day"
+            }
+          end
+
+          option_index = 0 if option_index.to_i < 0 || option_index.to_i >= entries.length
+          entry = entries[option_index.to_i]
+          return { 'ok' => false, 'error' => 'Khong co option do day cho dong nay' } unless entry
+
+          (@selected_thickness_index ||= {})[context_key(context)] = entry['_flat_index'].to_i
+          select_hud_row_key(context, group['hud_row_key'])
+          profile = entry.dup
+          profile.delete('_flat_index')
+          profile['hud_row_key'] = group['hud_row_key'].to_s
+          profile.merge('ok' => true, 'label' => profile_label(profile))
+        end
+
+        def cycle_hud_material_row(context, groups, step)
+          if groups.length == 1
+            current = selected_hud_thickness_selection(context)
+            return select_hud_thickness_entry(context, groups.first, current['option_index'].to_i).merge(
+              'label' => 'Chi co 1 dong VL - bam Alt doi do day'
+            )
+          end
+
+          current_index = selected_hud_group_position(context, groups)
+          current = groups[current_index]
+          selected = selected_hud_thickness_selection(context)
+          option_index = if material_code_key(selected['material_code']) == material_code_key(current['material_code'])
+            selected['option_index'].to_i
+          else
+            0
+          end
+          next_group = groups[(current_index + step.to_i) % groups.length]
+          next_option_index = if Array(next_group['entries']).empty?
+            0
+          else
+            [option_index, next_group['entries'].length - 1].min
+          end
+          select_hud_thickness_entry(context, next_group, next_option_index)
+        end
+
+        def cycle_hud_option_in_row(context, groups, step)
+          current_index = selected_hud_group_position(context, groups)
+          group = groups[current_index]
+          if Array(group['entries']).empty?
+            return { 'ok' => false, 'error' => 'Dong VL nay khong co option do day' }
+          end
+
+          selected = selected_hud_thickness_selection(context)
+          option_index = if material_code_key(selected['material_code']) == material_code_key(group['material_code'])
+            selected['option_index'].to_i
+          else
+            -1
+          end
+          next_index = (option_index + step.to_i) % group['entries'].length
+          select_hud_thickness_entry(context, group, next_index)
         end
 
         def cycle_manual_material_row(context, step = 1)
@@ -386,6 +516,9 @@ module MH
         end
 
         def product_profiles(product_code, context = nil)
+          # Reload nóng có thể xóa cache trong khi Registry vẫn đang hoạt
+          # động. Khởi tạo tại chỗ để chọn profile không bị lỗi nil.
+          @product_profiles_cache ||= {}
           cache_key = [
             product_code.to_s.strip.upcase,
             preferred_material_code_for_context(product_code, context).to_s.strip.upcase,
@@ -410,7 +543,10 @@ module MH
         end
 
         def ordered_material_codes_for_context(product_code, context = nil)
-          codes = Array(ordered_material_codes(product_code)).map(&:to_s).map(&:strip).reject(&:empty?)
+          codes = Array(ordered_material_codes(product_code))
+            .map { |code| normalize_logical_material_code(code) }
+            .select { |code| meaningful_material_code?(code) }
+            .uniq
           preferred = preferred_material_code_for_context(product_code, context).to_s.strip
           return codes if preferred.empty?
 
@@ -426,11 +562,30 @@ module MH
         # Auto chi hien ma lay tu Excel theo san pham.
         # Manual chi hien danh sach VL thu cong khi context da bat manual_mode?.
         def material_row_codes_for_context(product_code, context = nil)
+          product = product_code.to_s.strip
+          return [] if product.empty?
+
+          mode = manual_mode?(context) ? 'manual' : 'auto'
+          detail = mode == 'manual' ? '' : material_detail_for_context(context || {}, nil)
+          cache_key = [mode, product.upcase, detail.upcase].join("\u0001")
+          @hud_material_row_codes_cache ||= {}
+          cached = @hud_material_row_codes_cache[cache_key]
+          return cached.dup if cached
+
           if manual_mode?(context)
-            return Array(@manual_material_codes).map { |row| normalize_logical_material_code(row['material_code']) }.reject(&:empty?)
+            codes = Array(@manual_material_codes)
+              .map { |row| normalize_logical_material_code(row['material_code']) }
+              .select { |code| meaningful_material_code?(code) }
+              .uniq
+            @hud_material_row_codes_cache[cache_key] = codes.dup
+            return codes
           end
 
-          Array(ordered_material_codes_for_context(product_code, context)).map { |code| normalize_logical_material_code(code) }.reject(&:empty?).uniq
+          codes = Array(ordered_material_codes_for_context(product, context))
+            .select { |code| meaningful_material_code?(code) }
+            .uniq
+          @hud_material_row_codes_cache[cache_key] = codes.dup
+          codes
         end
 
         def ordered_material_codes(product_code)
@@ -549,12 +704,15 @@ module MH
         end
 
         def thickness_options_for_material_code(material_code)
+          ensure_thickness_library_current if respond_to?(:ensure_thickness_library_current)
           code = material_code.to_s.strip
           return [] if code.empty?
 
-          keys = [material_code_key(code)]
+          # Khóa nhóm cha được tạo hoàn toàn từ sheet
+          # dc_thickness_group_layers.  Thư viện độ dày và mã vật liệu dự án
+          # đi qua cùng một cấu trúc lớp nên không còn suy luận theo E1/AC/TL.
+          keys = [thickness_material_code_key(code)]
           keys.concat(global_parent_material_keys(code))
-          keys << type_key(code)
           keys = keys.reject(&:empty?)
           keys.uniq.each do |key|
             list = thickness_options(key)
@@ -564,7 +722,7 @@ module MH
         end
 
         def global_parent_material_keys(material_code)
-          key = material_code_key(material_code)
+          key = thickness_material_code_key(material_code)
           return [] if key.empty?
 
           # The thickness library itself declares the valid groups.  Do not
@@ -585,27 +743,89 @@ module MH
           []
         end
 
-        def thickness_options_for_material_code_or_context(material_code, context = nil)
-          list = thickness_options_for_material_code(material_code)
-          return list unless list.empty?
+        # Tạo khóa cha theo cấu trúc lớp trong Excel. Giá trị mỗi lớp được
+        # lấy trước từ material_code_rules.mappings (nguồn cấu hình): vì vậy
+        # E1 luôn là tieu_chuan, TL là nha_cung_cap, VERSOI là be_mat và SON
+        # là finish_code. Không có mã/lớp nào được hard-code ở đây; thứ tự
+        # nhóm cha hoàn toàn do dc_thickness_group_layers quyết định.
+        def thickness_material_code_key(material_code)
+          configured_layers = Array(@thickness_group_layers)
+            .select { |row| row['include_in_thickness_parent'] || row[:include_in_thickness_parent] }
+          return material_code_key(material_code) if configured_layers.empty?
 
-          product = context_value(context || {}, :product_code, 'product_code').to_s.strip
-          return [] if product.empty?
+          parsed = MH::MaterialCode.parse(material_code)
+          parsed_layers = parsed[:layers] || parsed['layers'] || {}
+          layers = thickness_group_layer_values(material_code, parsed_layers)
+          configured_layers.sort_by { |row| [row['parent_order'].to_i, row['layer_key'].to_s] }
+            .filter_map do |row|
+              key = (row['layer_key'] || row[:layer_key]).to_s
+              value = layers[key] || layers[key.to_sym]
+              value = value.to_s.strip.upcase
+              value unless value.empty?
+            end.join('.')
+        rescue
+          material_code_key(material_code)
+        end
 
-          current_key = material_code_key(material_code)
-          ordered_material_codes_for_context(product, context).each do |code|
-            next if material_code_key(code) == current_key
-
-            fallback = thickness_options_for_material_code(code)
-            return fallback unless fallback.empty?
+        # MaterialCode's generic parser must support older codes as well as
+        # the full six-layer structure. For thickness grouping we can remove
+        # that ambiguity with the mapping table: a code token that is mapped
+        # to a declared layer always wins over a positional parser guess.
+        def thickness_group_layer_values(material_code, parsed_layers = {})
+          layers = {}
+          Array(parsed_layers).each do |key, value|
+            text = value.to_s.strip
+            layers[key.to_s] = text unless text.empty?
           end
 
-          []
+          tokens = material_code.to_s.split('.').map { |value| value.to_s.strip.upcase }.reject(&:empty?)
+          return layers if tokens.empty?
+
+          rules = MH::MaterialCode.rules rescue {}
+          mapped_layers = {}
+          mapped_token_layers = {}
+          Array(rules['mappings'] || rules[:mappings]).each do |row|
+            row = row.is_a?(Hash) ? row : {}
+            layer = (row['nhom'] || row[:nhom] || row['layer'] || row[:layer]).to_s.strip
+            mapped = (row['gia_tri_map'] || row[:gia_tri_map] || row['mapped'] || row[:mapped]).to_s.strip
+            next if layer.empty? || mapped.empty?
+
+            mapped_key = mapped.upcase
+            next unless tokens.include?(mapped_key)
+
+            mapped_layers[layer] = mapped_key
+            mapped_token_layers[mapped_key] ||= []
+            mapped_token_layers[mapped_key] << layer unless mapped_token_layers[mapped_key].include?(layer)
+          end
+          # Generic parsing is positional and can temporarily place E1/AC or
+          # VERSOI/SON in the wrong layer. A token declared by mapping is the
+          # source of truth: remove a positional value when that token belongs
+          # to another configured layer, then apply the mapped values.
+          layers.delete_if do |layer, value|
+            declared_layers = mapped_token_layers[value.to_s.strip.upcase]
+            declared_layers && !declared_layers.include?(layer.to_s)
+          end
+          mapped_layers.each { |layer, value| layers[layer] = value }
+          layers
+        rescue
+          parsed_layers || {}
+        end
+
+        def thickness_options_for_material_code_or_context(material_code, _context = nil)
+          # A missing library row must remain missing.  Borrowing options from
+          # a different material in the same product can silently change the
+          # physical thickness of the wrong material. The resolver only walks
+          # parent keys created from the configured layer structure.
+          thickness_options_for_material_code(material_code)
         end
 
 
         def thickness_options(type_key_value)
           key = type_key_value.to_s.strip.upcase
+          # Chi tra dung khoa dang tim. Viec lui nhom cha do
+          # global_parent_material_keys quyet dinh va chi co the di theo:
+          # WPB.MEL -> WPB. Khong duoc quet cac khoa cung cap nhu WPB.LK,
+          # vi chung la anh em, khong phai to tien cua WPB.MEL.
           (@thickness_options_by_type || {})[key] || []
         end
 

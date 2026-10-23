@@ -1,0 +1,9 @@
+# Direct scanned L plan recovery — 0.16.1
+
+Reproduce the user's2026-10-20 08:27 direct scan,2016 edges,3920x2420 mm. Existing plan entry rejects perpendicular branches as disconnected and falls back to one whole-product box. Fix actual partitioning, not just preview text; preserve user geometry/history and stage isolation.
+
+Group side plates by measured carcass depth endpoints; a short front return must not make otherwise matching sides incompatible. Require an actual rear closure (including recessed6/9 mm backs within72 mm) so a shared front rail does not merge the gap between cabinets. A short perpendicular trim cannot extend the full frontage of a bay. Prefer outer carcasses to contained appliance detail frames across the two panel-local directions.
+
+Keep transformed auxiliary solid proxies, settings toggle and source-relative positions. Check coverage along entire straight stock boundaries rather than three sample points. A continuous measured rail bridging a supported gap is an auxiliary strip, never a deep cabinet box filling that gap. Uncovered exterior construction still requires review; do not invent module dimensions or erase the existing fallback target. Maintain exact feedback and curved/stepped behavior. No AI, C/Rust or all-later parallel comparisons.
+
+Actual regression: seven modules (three leg spans490/800/1050 at598 mm depth; main spans350/900/600/836 at598 mm depth), two18 mm end trims extended from50 to598 mm per existing user rule, an18 mm base strip and the measured600x18 mm rail across the unclosed gap. Preserve empty interior of the L and the600 mm unclosed gap. Provisional height remains1600 mm. Test rotation/translation and source placement; run full scoped gates and aborted native solids/toggle checks. Do not rebuild or remove the user's existing result/model.

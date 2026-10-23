@@ -484,18 +484,28 @@ module MH
           return row unless row.is_a?(Hash)
 
           normalized = row.dup
+          # ProjectData dùng key chuẩn lowercase (ma_sp) sau khi đọc JSON;
+          # còn file Excel cũ có thể dùng nhiều biến thể tiêu đề. MaterialApp
+          # chỉ match theo Ma_SP, vì vậy bắt buộc gom tất cả về key này trước
+          # khi đưa vào excel_data.
           normalized['Ma_SP'] = first_present_value(normalized, [
-            'Ma_SP', 'Mã SP', 'MÃ SP', 'Ma SP', 'MASP'
+            'Ma_SP', 'ma_sp', 'Mã SP', 'MÃ SP', 'Ma SP', 'MASP',
+            'Mã sản phẩm', 'MÃ SẢN PHẨM', 'Ma san pham',
+            'product', 'product_code', 'actual_product', 'Product Code', 'SP'
           ]) if normalized['Ma_SP'].to_s.strip.empty?
           normalized['Ten_SP'] = first_present_value(normalized, [
-            'Ten_SP', 'Tên SP', 'TÊN SP', 'Ten SP'
+            'Ten_SP', 'ten_sp', 'Tên SP', 'TÊN SP', 'Ten SP',
+            'Tên sản phẩm', 'Ten san pham', 'product_name', 'Product Name'
           ]) if normalized['Ten_SP'].to_s.strip.empty?
           normalized['Ma_vat_lieu'] = first_present_value(normalized, [
-            'Ma_vat_lieu', 'Mã vật liệu', 'MÃ VẬT LIỆU', 'Ma vat lieu', 'Material'
+            'Ma_vat_lieu', 'ma_vat_lieu', 'ma_vl', 'Mã vật liệu', 'MÃ VẬT LIỆU',
+            'Ma vat lieu', 'Mã VL', 'Ma VL', 'MaVL', 'material_code',
+            'Material Code', 'Material', 'VL'
           ]) if normalized['Ma_vat_lieu'].to_s.strip.empty?
           normalized['Ten_chi_tiet'] = first_present_value(normalized, [
-            'Ten_chi_tiet', 'Tên chi tiết', 'TÊN CHI TIẾT',
-            'Quy cách vật liệu', 'QUY CÁCH VẬT LIỆU', 'Quy cach vat lieu'
+            'Ten_chi_tiet', 'ten_chi_tiet', 'Tên chi tiết', 'TÊN CHI TIẾT',
+            'Quy cách vật liệu', 'QUY CÁCH VẬT LIỆU', 'Quy cach vat lieu',
+            'detail', 'detail_name', 'hw_name', 'excel_col6', 'Detail Name', 'Detail'
           ]) if normalized['Ten_chi_tiet'].to_s.strip.empty?
           normalized
         end
@@ -558,6 +568,8 @@ module MH
         def self.mark_loaded_data(source_path = nil)
           @loaded_data_model_key = current_model_key
           @loaded_data_source_path = source_path.to_s
+          MH::MaterialApp.remember_data_path(source_path) if
+            !source_path.to_s.strip.empty? && MH::MaterialApp.respond_to?(:remember_data_path)
           true
         rescue
           false
@@ -589,6 +601,10 @@ module MH
           return true unless MH::MaterialApp.excel_data.empty?
           return false if data_load_throttled?
 
+          # JSON đã lưu trong metadata dự án là nguồn ưu tiên. Không phụ
+          # thuộc XLSX nguồn còn tồn tại hay không (file Excel có thể đã đổi tên).
+          return true if load_remembered_project_json
+
           if MH::RegistryApp.respond_to?(:last_mvl_input_path)
             remembered_path = MH::RegistryApp.last_mvl_input_path.to_s.strip
             if !remembered_path.empty? && File.exist?(remembered_path)
@@ -612,6 +628,8 @@ module MH
           return unless MH::MaterialApp.excel_data.empty?
           return if data_load_throttled?
 
+          return if load_remembered_project_json
+
           if MH::RegistryApp.respond_to?(:last_mvl_input_path)
             remembered_path = MH::RegistryApp.last_mvl_input_path.to_s.strip
             result = load_data(remembered_path) if !remembered_path.empty? && File.exist?(remembered_path)
@@ -629,6 +647,8 @@ module MH
         end
 
         def self.load_latest_project_json
+          return true if load_remembered_project_json
+
           spec_data = MH::RegistryApp.spec_data_dir rescue nil
           return false unless spec_data && Dir.exist?(spec_data)
 
@@ -651,6 +671,39 @@ module MH
           !MH::MaterialApp.excel_data.empty?
         rescue => e
           MH::RegistryApp.dbg("[MaterialAssign Connector] load_latest_project_json error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
+          false
+        end
+
+        # Lấy đúng JSON Registry ghi nhớ cho dự án hiện tại. Fallback
+        # `load_latest_project_json` chỉ còn dùng cho dữ liệu cũ chưa có metadata.
+        def self.load_remembered_project_json
+          return false unless MH::RegistryApp.respond_to?(:last_mvl_json_path)
+          json_path = MH::RegistryApp.last_mvl_json_path.to_s.strip
+
+          # Registry Reload reads every usable JSON in SPEC/Data. Keep startup
+          # behavior consistent so Material Assign does not silently fall back
+          # to only the last remembered file after SketchUp restarts.
+          if MH::RegistryApp.respond_to?(:load_runtime_project_data)
+            extra_paths = File.file?(json_path) ? [json_path] : []
+            source, snapshot = MH::RegistryApp.load_runtime_project_data(extra_paths, reason: 'material_assign_startup')
+            if source && source['ok'] && snapshot && snapshot[:ok]
+              load_from_rows(snapshot[:rows])
+              primary_path = snapshot[:json_path].to_s
+              mark_loaded_data(primary_path) unless primary_path.empty?
+              clear_material_names_cache
+              return !MH::MaterialApp.excel_data.empty?
+            end
+          end
+
+          return false if json_path.empty? || !File.exist?(json_path)
+
+          load_from_json(json_path)
+          mark_loaded_data(json_path)
+          clear_material_names_cache
+          MH::RegistryApp.dbg("[MaterialAssign Connector] Loaded remembered project JSON: #{File.basename(json_path)}") if MH::RegistryApp.respond_to?(:dbg)
+          !MH::MaterialApp.excel_data.empty?
+        rescue => e
+          MH::RegistryApp.dbg("[MaterialAssign Connector] load_remembered_project_json error: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           false
         end
 

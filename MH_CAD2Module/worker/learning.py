@@ -394,6 +394,7 @@ class ExperienceLibrary:
                     event = json.loads(path.read_text(encoding='utf-8'))
                     if (event.get('status') == 'accepted' and event.get('parser_version') == VERSION
                             and event.get('analysis',{}).get('build_stages',{}).get('elevation') is not False
+                            and not event.get('analysis',{}).get('elevation_pending')
                             and event.get('signature') == path.parent.name and event.get('id')
                             and valid_state(event.get('after'))):
                         if event['signature'] in active_signatures:

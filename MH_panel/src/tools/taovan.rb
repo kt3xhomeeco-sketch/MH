@@ -318,6 +318,9 @@ class MH::Panel::TaoVan
     end
   end
   def start_create_box
+    # The preview can have been calculated before a live reload or a setting
+    # change. Rebuild it here so the created board always uses current geometry.
+    calc_all_box_points if @locked
     return unless @all_box_points && !@all_box_points.empty?
     create_box
     reset_state
@@ -444,9 +447,33 @@ class MH::Panel::TaoVan
     points
   end
   def snap_offset_arc_points(offset_points, source_points, distance)
-    return offset_points unless @last_face && @last_face.valid? && @last_tr
-
     snapped = offset_points.map(&:clone)
+    unless @last_face && @last_face.valid? && @last_tr
+      arc_runs = MH::Geo::Offset.detect_arc_like_runs(source_points, @normal)
+      arc_runs.each do |start_index, edge_count|
+        arc = edge_count >= source_points.length ?
+                MH::Geo::Offset.fit_circle_from_points(source_points, @normal) :
+                MH::Geo::Offset.fit_arc_from_points(source_points, start_index, edge_count, @normal)
+        next unless arc
+
+        target_radius = MH::Geo::Offset.offset_arc_radius(
+          arc[:center], arc[:radius], source_points, @normal, start_index, edge_count, distance
+        )
+        next if target_radius <= 0.001.mm
+
+        offsets = edge_count >= source_points.length ? (0...edge_count) : (0..edge_count)
+        offsets.each do |offset|
+          index = (start_index + offset) % source_points.length
+          radial = arc[:center].vector_to(source_points[index])
+          next if radial.length <= 0.001.mm
+
+          radial.normalize!
+          snapped[index] = arc[:center].offset(radial, target_radius)
+        end
+      end
+      return snap_detected_arc_endpoints_to_offset_lines(snapped, source_points, distance, arc_runs)
+    end
+
     transform = @last_tr || IDENTITY
     loop_vertices = @last_face.outer_loop.vertices
     loop_points = loop_vertices.map { |vertex| vertex.position.transform(transform) }
@@ -456,16 +483,25 @@ class MH::Panel::TaoVan
       world_vertices = curve.vertices.map { |vertex| vertex.position.transform(transform) }
       reference = world_vertices.first
       source_radius = center.distance(reference)
-      target_radius = source_radius + distance
-      next if target_radius <= 0.001.mm
-
-      world_vertices.each do |point|
+      indices = world_vertices.map do |point|
         index = if source_points.length == loop_vertices.length
                   loop_vertices.index { |vertex| vertex.position.transform(transform).distance(point) <= 0.001.mm }
                 end
         matched_loop_index = !index.nil?
         index ||= source_points.each_with_index.min_by { |candidate, _| candidate.distance(point) }&.last
-        next unless index && (matched_loop_index || source_points[index].distance(point) <= 0.1.mm)
+        next nil unless index && (matched_loop_index || source_points[index].distance(point) <= 0.1.mm)
+
+        index
+      end
+      next if indices.empty? || indices.any?(&:nil?)
+
+      target_radius = MH::Geo::Offset.offset_arc_radius(
+        center, source_radius, source_points, @normal, indices.first, curve.edges.length, distance
+      )
+      next if target_radius <= 0.001.mm
+
+      world_vertices.each_with_index do |point, curve_index|
+        index = indices[curve_index]
 
         radial = center.vector_to(point)
         next if radial.length <= 0.001.mm
@@ -477,7 +513,8 @@ class MH::Panel::TaoVan
 
     # A source can already contain a chord replacing one segment of an arc.
     # Detect the full circular run from its points so the next panel repairs it.
-    MH::Geo::Offset.detect_arc_like_runs(source_points, @normal).each do |start_index, edge_count|
+    arc_runs = MH::Geo::Offset.detect_arc_like_runs(source_points, @normal)
+    arc_runs.each do |start_index, edge_count|
       arc = if edge_count >= source_points.length
               MH::Geo::Offset.fit_circle_from_points(source_points, @normal)
             else
@@ -485,7 +522,9 @@ class MH::Panel::TaoVan
             end
       next unless arc
 
-      target_radius = arc[:radius] + distance
+      target_radius = MH::Geo::Offset.offset_arc_radius(
+        arc[:center], arc[:radius], source_points, @normal, start_index, edge_count, distance
+      )
       next if target_radius <= 0.001.mm
 
       offsets = edge_count >= source_points.length ? (0...edge_count) : (0..edge_count)
@@ -498,10 +537,109 @@ class MH::Panel::TaoVan
         snapped[index] = arc[:center].offset(radial, target_radius)
       end
     end
+
+    snap_detected_arc_endpoints_to_offset_lines(snapped, source_points, distance, arc_runs)
+
+    # Radial projection alone leaves a diagonal connector when an arc meets
+    # an offset straight edge. Recalculate the two arc endpoints on the
+    # intersection of the target circle and the target straight edge.
+    curves.each do |curve|
+      center = curve.center.transform(transform)
+      reference = curve.vertices.first.position.transform(transform)
+      source_radius = center.distance(reference)
+      curve_vertices = curve.vertices
+      indices = curve_vertices.map do |vertex|
+        point = vertex.position.transform(transform)
+        source_points.each_with_index.min_by { |candidate, index| [candidate.distance(point), index] }&.last
+      end
+      next if indices.empty? || indices.any?(&:nil?)
+
+      target_radius = MH::Geo::Offset.offset_arc_radius(
+        center, source_radius, source_points, @normal, indices.first, curve.edges.length, distance
+      )
+      next if target_radius <= 0.001.mm
+
+      endpoint_edges = []
+      endpoint_edges << [0, (indices.first - 1) % loop_vertices.length] if indices.first
+      endpoint_edges << [indices.length - 1, indices.last % loop_vertices.length] if indices.last
+      endpoint_edges.each do |curve_index, edge_index|
+        edge = @last_face.outer_loop.edges[edge_index]
+        next unless edge && !edge.curve
+
+        edge_start = edge.start.position.transform(transform)
+        edge_end = edge.end.position.transform(transform)
+        edge_vector = edge_start.vector_to(edge_end)
+        next if edge_vector.length <= 0.001.mm
+
+        translation = edge_vector.cross(@normal).normalize
+        translation.length = distance.abs
+        translation.reverse! if distance < 0
+        line_start = edge_start.offset(translation)
+        line_end = edge_end.offset(translation)
+        index = indices[curve_index]
+        target = snapped[index]
+        corrected = if MH::Geo::Offset.respond_to?(:circle_line_intersection_near)
+                      MH::Geo::Offset.circle_line_intersection_near(
+                        center,
+                        target_radius,
+                        line_start,
+                        line_end,
+                        target
+                      )
+                    end
+        snapped[index] = corrected if corrected
+      end
+    end
     snapped
   rescue => e
     MH::Panel.dbg("[MH::Panel::TaoVan] snap offset arc error: #{e.class}: #{e.message}")
     offset_points
+  end
+  def snap_detected_arc_endpoints_to_offset_lines(points, source_points, distance, runs)
+    return points unless points && source_points && source_points.length >= 3 && @normal
+
+    count = source_points.length
+    Array(runs).each do |start_index, edge_count|
+      next if edge_count.to_i >= count
+
+      arc = MH::Geo::Offset.fit_arc_from_points(source_points, start_index, edge_count, @normal)
+      next unless arc
+
+      target_radius = MH::Geo::Offset.offset_arc_radius(
+        arc[:center], arc[:radius], source_points, @normal, start_index, edge_count, distance
+      )
+      next if target_radius <= 0.001.mm
+
+      start_index %= count
+      end_index = (start_index + edge_count) % count
+      [
+        [start_index, (start_index - 1) % count, start_index],
+        [end_index, end_index, (end_index + 1) % count]
+      ].each do |point_index, line_start_index, line_end_index|
+        line_start = source_points[line_start_index]
+        line_end = source_points[line_end_index]
+        line_vector = line_start.vector_to(line_end)
+        next if line_vector.length <= 0.001.mm
+
+        shift = line_vector.cross(@normal).normalize
+        shift.length = distance.abs
+        shift.reverse! if distance < 0
+        offset_start = line_start.offset(shift)
+        offset_end = line_end.offset(shift)
+        corrected = MH::Geo::Offset.circle_line_intersection_near(
+          arc[:center],
+          target_radius,
+          offset_start,
+          offset_end,
+          points[point_index]
+        )
+        points[point_index] = corrected if corrected
+      end
+    end
+    points
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] snap detected arc endpoints error: #{e.class}: #{e.message}")
+    points
   end
   def setback_profile_points(points, distance)
     setback_edge = setback_edge_for_profile(points)
@@ -578,13 +716,14 @@ class MH::Panel::TaoVan
     material = @material
     MH::Panel.start
     boards = []
+    current_profile = adjusted_panel_profile_rect
     @all_box_points.each do |box|
       group = entities.add_group
       group.name = detail_name unless detail_name.empty?
       group.layer = layer if layer
       group.material = material if material
-      bottom = box[:bottom]
-      top = box[:top]
+      bottom = profile_at_box_plane(current_profile, box[:bottom])
+      top = profile_at_box_plane(current_profile, box[:top])
       if !@tinh_theo_khong_gian && @last_face && @last_tr
         face = copy_face_to_entities(@last_face, @last_tr, group.entities, bottom, top)
       else
@@ -621,6 +760,17 @@ class MH::Panel::TaoVan
     end
     MH::Panel.commit
     boards.each { |b| MH::Panel::Group.reset_axes(b, @tu_dong_xoay_van) }
+  end
+  def profile_at_box_plane(profile, cached_points)
+    return cached_points unless profile && cached_points &&
+                                profile.length == cached_points.length &&
+                                @locked_rect && @locked_rect.first && @normal
+
+    plane_shift = (@locked_rect.first.vector_to(cached_points.first)).dot(@normal)
+    profile.map { |point| point.offset(@normal, plane_shift) }
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoVan] refresh profile at create error: #{e.class}: #{e.message}")
+    cached_points
   end
   def current_instance_setting
     preset = active_instance_preset
@@ -850,13 +1000,47 @@ class MH::Panel::TaoVan
     @p2 = Geom.closest_points([hit_point, @normal], @last_ray)[0]
   end
   def cap_nhat_do_day(parent)
-    MH::Panel::Group.fix_scale(parent)
-    do_day = MH::Panel::Board.calc_thickness(parent)
+    do_day = @do_day_tu_dong ? auto_thickness_from_source(parent, @tr) : nil
     if @do_day_tu_dong && parent && do_day
       @do_day_khong_gian = do_day
     else
       @do_day_khong_gian = @do_day
     end
+  end
+  def auto_thickness_from_source(parent, transform = nil)
+    return nil unless parent && parent.respond_to?(:definition)
+    local_thickness = MH::Panel::Board.calc_thickness(parent)
+    return nil unless local_thickness && local_thickness > 0.001.mm
+
+    faces = parent.definition.entities.grep(Sketchup::Face)
+    pair = faces.max_by(2) { |face| face.area }
+    return nil unless pair && pair.size == 2
+
+    tr = transform || parent.transformation
+    plane1 = world_face_plane(pair[0], tr)
+    plane2 = world_face_plane(pair[1], tr)
+    return nil unless plane1 && plane2
+
+    normal1 = Geom::Vector3d.new(plane1[0], plane1[1], plane1[2])
+    normal2 = Geom::Vector3d.new(plane2[0], plane2[1], plane2[2])
+    normal1.normalize!
+    normal2.normalize!
+    return nil unless normal1.dot(normal2).abs > 1.0 - 1e-4
+
+    point1 = pair[0].outer_loop.vertices.first.position.transform(tr)
+    point2 = pair[1].outer_loop.vertices.first.position.transform(tr)
+    distance = (point2 - point1).dot(normal1).abs
+    distance > 0.001.mm ? distance : nil
+  rescue
+    nil
+  end
+  def world_face_plane(face, transform)
+    points = face.outer_loop.vertices.map { |vertex| vertex.position.transform(transform) }
+    return nil unless points.length >= 3
+
+    Geom.fit_plane_to_points(points)
+  rescue
+    nil
   end
   def getExtents
     return unless @all_box_points

@@ -39,12 +39,13 @@ module MH
             end
           end
           profile['_binding'] = binding_for(context, instance)
-          naming = resolve_dc_naming(instance, profile, context)
-          apply_dc_naming(instance, naming) if instance && instance.valid?
+          # Import only applies the chosen material/thickness. Product/module
+          # naming must not stamp SP metadata onto the DC or its child groups.
 
           instance.set_attribute('MH_Registry', 'dc_material_profile_id', profile['profile_id'] || profile[:profile_id]) if instance && instance.valid?
           instance.set_attribute('MH_Registry', 'dc_material_profile_name', profile['profile_name'] || profile[:profile_name] || profile['label'] || profile[:label]) if instance && instance.valid?
-          instance.set_attribute('MH_Registry', 'dc_product_code', profile['product_code']) if instance && instance.valid? && !profile['product_code'].to_s.empty?
+          # SP is transient import context for material/thickness selection.
+          # Import must not stamp product ownership onto the placed DC.
           instance.set_attribute('MH_Registry', 'dc_material_code', profile['material_code']) if instance && instance.valid? && !profile['material_code'].to_s.empty?
 
           apply_profile(instance, profile) if instance && instance.valid?

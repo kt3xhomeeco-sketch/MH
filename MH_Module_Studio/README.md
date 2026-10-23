@@ -4,6 +4,15 @@ Plugin độc lập đọc module tủ/kệ và tạo quy tắc riêng để đ�
 Ưu tiên đúng độ dày, kích thước ATT cố định và liên kết. Phủ bì được thay đổi ở
 các trục đầu ra đã xác minh. Library/HUD riêng hoạt động trong SketchUp.
 
+## Tra cứu và tìm lỗi
+
+Bắt đầu ở [AGENTS.md](AGENTS.md): đọc phần liên quan trong
+[FEATURE_MAP.md](FEATURE_MAP.md) → [FLOW_MAP.md](FLOW_MAP.md), rồi chỉ xem
+**Ownership** trong [ARCHITECTURE.md](ARCHITECTURE.md) khi cần. Dùng
+[BUG_REPORT.md](BUG_REPORT.md) để bổ sung bằng chứng còn thiếu và xác nhận bản
+SketchUp đang nạp. [DEVELOPMENT.md](DEVELOPMENT.md) dành cho công việc triển khai;
+[CHANGELOG.md](CHANGELOG.md) giữ lịch sử feature và không thuộc ngữ cảnh tìm lỗi mặc định.
+
 ## Nhập thông số, đổi tên và lưu cụm (047)
 
 Bảng **Thông số module** giữ nguyên ô nhập khi nhận kết quả; có thể nhập tiếp

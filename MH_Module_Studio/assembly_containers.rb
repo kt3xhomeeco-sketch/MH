@@ -46,6 +46,25 @@ module MH
         result.select { |record| REFS.filter_map { |key| record[key] }.all? { |anchor| reference_present?(model,anchor) } }
       end
 
+      # Transactions hide erased instances from solvers, but a door link can
+      # still carry the host's original envelope target needed for restoration.
+      def dangling_door_links(model)
+        result=read(model).select { |record| record.dig('import_link','door_relation') || record.dig('import_link','door_mount') }
+        containers(model).each do |wrapper|
+          scope=wrapper.persistent_id.to_s
+          read(wrapper).each do |record|
+            next unless record.dig('import_link','door_relation') || record.dig('import_link','door_mount')
+            copy=Core.copy_data(record);copy['id']=scope+':'+local_id(copy['id']);copy['scope']=scope
+            REFS.each { |key| copy[key]['scope']=scope if copy[key] }
+            result << copy
+          end
+        end
+        result.select do |record|
+          host=record['a'];door=record['b']
+          host && door && reference_present?(model,host) && !reference_present?(model,door)
+        end
+      end
+
       def reference_present?(model, anchor)
         return false unless anchor.is_a?(Hash) && anchor['root']
         if anchor['scope']

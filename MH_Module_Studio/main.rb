@@ -66,6 +66,16 @@ module MH
         @dialog.show
       end
 
+      def show_library_tab
+        show
+        dialog = @dialog
+        UI.start_timer(0.2, false) do
+          next unless @dialog.equal?(dialog) && dialog&.visible?
+
+          dialog.execute_script('window.openLibraryTab?.()')
+        end
+      end
+
       def request(data)
         synchronize_model
         action = data['action']
@@ -611,11 +621,52 @@ module MH
       @panel.show
     end
 
+    def self.show_library_tab
+      @panel ||= Panel.new
+      @panel.show_library_tab
+    end
+
+    def self.sync_hud_board_commands
+      return unless defined?(Sketchup) && Sketchup.respond_to?(:active_model) && Sketchup.active_model && UI.respond_to?(:menu) && defined?(UI::Command)
+
+      @hud_board_commands ||= {}
+      @hud_board_menu ||= UI.menu('Extensions').add_submenu('MH Module Studio · Bảng icon')
+      boards = library.config.fetch('hud_boards', [])
+      boards.each do |board|
+        id = board.fetch('id')
+        label = "MH Module Studio · Bảng icon · #{board.fetch('name')}"
+        command = @hud_board_commands[id]
+        if command
+          command.menu_text = label
+          next
+        end
+        command = UI::Command.new(label) { open_hud_board(id) }
+        command.tooltip = "Mở bảng icon #{board.fetch('name')}"
+        command.status_bar_text = "Gán phím tại Preferences → Shortcuts → #{label}"
+        command.set_validation_proc do
+          HUDBoards.current(library.config, id) ? MF_ENABLED : MF_GRAYED
+        end
+        @hud_board_menu.add_item(command)
+        @hud_board_commands[id] = command
+      end
+    end
+
+    def self.open_hud_board(id)
+      board = HUDBoards.current(library.config, id)
+      raise Core::Error, 'Bảng icon không còn tồn tại.' unless board
+
+      library.save_settings('hud_board' => id)
+      library.open_hud
+    rescue StandardError => error
+      UI.messagebox(error.message)
+    end
+
     if defined?(Sketchup::AppObserver)
       class StudioSessionObserver < Sketchup::AppObserver
         %i[onNewModel onOpenModel].each do |event|
           define_method(event) do |model|
             MH::ModuleStudio.instance_variable_get(:@panel)&.model_changed(model,force:true)
+            MH::ModuleStudio.sync_hud_board_commands
             MH::ModuleStudio.instance_variable_get(:@module_options)&.model_changed
             MH::ModuleStudio.instance_variable_get(:@assembly_tool)&.hud&.close
             MH::ModuleStudio.instance_variable_get(:@library)&.tool&.finish
@@ -680,6 +731,7 @@ module MH
       UI.menu('Extensions').add_item(@hud_command)
       @library_commands_registered = true
     end
+    sync_hud_board_commands
     if defined?(Sketchup) && Sketchup.respond_to?(:active_model) && !@assembly_commands_registered
       @assembly_command = UI::Command.new('MH Module Studio · Liên kết module HUD') { open_assembly }
       @assembly_command.tooltip = 'Liên kết mặt, căn giữa, lặp và kéo trực tiếp trên model'

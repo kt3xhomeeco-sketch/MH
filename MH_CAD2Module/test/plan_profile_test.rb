@@ -5,6 +5,17 @@ require 'json'
 require_relative '../manual_boxes'
 
 class PlanProfileTest < Minitest::Test
+  def test_rotated_rectangle_feedback_keeps_its_true_polygon
+    points = [[0, 0], [800, 0], [800, 600], [0, 600]].map do |x, y|
+      [x * Math.cos(0.54) - y * Math.sin(0.54), x * Math.sin(0.54) + y * Math.cos(0.54)]
+    end
+    edges = [0, 1600].flat_map { |z| points.each_index.map { |i| [points[i] + [z], points[(i + 1) % 4] + [z]] } }
+    edges += points.map { |p| [p + [0], p + [1600]] }
+    shape = MH::CAD2Module::PlanProfile.prism(edges)
+    assert_equal 4, shape['plan_profile']['segments'].length
+    assert shape['plan_profile']['segments'].all? { |s| s['type'] == 'line' }
+  end
+
   def edges
     JSON.parse(File.read(File.join(__dir__, 'fixtures', 'sp41_curved_prism.json')))
   end

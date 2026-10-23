@@ -131,6 +131,10 @@
     return false unless e.faces.size == 2
     return false unless f1.normal.samedirection?(f2.normal)
     return false if MH::Panel::Face.duplicate?(f1, f2)
+    # A segmented curved side can share the same approximate plane at the
+    # tangent junction with a straight side. Removing that boundary edge
+    # drops a real profile segment from the board.
+    return false if f1.edges.any?(&:curve) || f2.edges.any?(&:curve)
     return false unless edge_safe_to_merge?(e)
     return false unless faces_coplanar?(f1, f2)
     return false if check_uv && !continuous_uv?(f1, f2, e)

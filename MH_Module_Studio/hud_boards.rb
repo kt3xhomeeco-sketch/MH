@@ -21,11 +21,11 @@ module MH
         boards.each do |board|
           unless board.is_a?(Hash) && board['id'].is_a?(String) && board['id'].match?(/\A[\w-]{1,80}\z/) &&
                  board['name'].is_a?(String) && !board['name'].strip.empty? && board['name'].length<=80 &&
-                 board['key'].is_a?(String) && board['key'].match?(/\A[A-Za-z]?\z/) &&
                  board['slots'].is_a?(Array) && board['slots'].length.between?(8,128) && (board['slots'].length%8).zero? &&
                  board['slots'].all? { |id| id.nil? || id.is_a?(String) && !id.empty? && id.length<=2000 }
-            raise Core::Error,'Bảng HUD cần tên, phím A–Z và các ô icon hợp lệ.'
+            raise Core::Error,'Bảng HUD cần tên, ID và các ô icon hợp lệ.'
           end
+          board.delete('key')
           board['docks']||=DOCKS.to_h { |zone| [zone,[]] }
           board['shortcuts']||={}
           board['free']||={}
@@ -35,15 +35,14 @@ module MH
           unless board['free'].is_a?(Hash) && board['free'].length<=128 && board['free'].all? { |id,position| id.is_a?(String) && valid_slots?([id],1) && valid_position?(position) }
             raise Core::Error,'Vị trí icon tự do không hợp lệ.'
           end
-          board['name']=board['name'].strip;board['key']=board['key'].upcase
+          board['name']=board['name'].strip
           ids=all_ids(board)
           raise Core::Error,'Icon bị lặp trong cùng một bảng.' unless ids.uniq.length==ids.length
           board['shortcuts'].select! { |id,_key| ids.include?(id) }
           digits=board['shortcuts'].values
           raise Core::Error,'Phím icon phải là một số 0–9 và không được trùng trong bảng.' unless digits.all? { |key| key.is_a?(String) && key.match?(/\A[0-9]\z/) } && digits.uniq.length==digits.length
         end
-        keys=boards.map { |b| b['key'] }.reject(&:empty?)
-        raise Core::Error,'Tên, ID hoặc phím tắt của bảng HUD bị trùng.' unless boards.map { |b| b['id'] }.uniq.length==boards.length && keys.uniq.length==keys.length && boards.map { |b| b['name'].downcase }.uniq.length==boards.length
+        raise Core::Error,'Tên hoặc ID bảng HUD bị trùng.' unless boards.map { |b| b['id'] }.uniq.length==boards.length && boards.map { |b| b['name'].downcase }.uniq.length==boards.length
         active=settings['hud_board']
         active=boards.first&.fetch('id','') || '' unless boards.any? { |b| b['id']==active }
         settings.merge('hud_board_version'=>3,'hud_boards'=>boards,'hud_board'=>active)
@@ -111,16 +110,13 @@ module MH
       end
       def edit(settings,action,data)
         result=Core.copy_data(settings);board=current(result,data['id'])
-        if %w[create update].include?(action) && !data['key'].to_s.match?(/\A[A-Za-z]\z/)
-          raise Core::Error,'Nhập một phím A–Z cho bảng icon.'
-        end
         case action
         when 'create'
-          result['hud_boards'] << {'id'=>data.fetch('id'),'name'=>data.fetch('name'),'key'=>data.fetch('key'),'slots'=>Array.new(8)}
+          result['hud_boards'] << {'id'=>data.fetch('id'),'name'=>data.fetch('name'),'slots'=>Array.new(8)}
           result['hud_board']=data['id']
         when 'update'
           raise Core::Error,'Bảng HUD không còn tồn tại.' unless board
-          board['name']=data.fetch('name');board['key']=data.fetch('key')
+          board['name']=data.fetch('name')
         when 'delete'
           result['hud_boards'].delete(board)
         when 'page'

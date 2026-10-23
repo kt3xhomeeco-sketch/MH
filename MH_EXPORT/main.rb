@@ -4,6 +4,8 @@ require 'sketchup.rb'
 require 'json'
 require 'tmpdir'
 require 'open3'
+require_relative '../MH_shared/material_item_names'
+require_relative '../MH_shared/material_code'
 
 begin
   require 'MH_shared'
@@ -22,11 +24,11 @@ module MH
     DEFAULT_TEMPLATE = 'D:/Cong viec/Sample/DMVT-VAN.xlsx'.freeze
     DEFAULT_EXPORTER = File.join(__dir__, 'exporter', 'mh_export_dmvt.py').freeze
     UNKNOWN_MATERIAL = '__UNKNOWN_MATERIAL__'.freeze
-    SURFACE_COVER_PREFIX_REGEX = /\A(?:Melamine|Laminate|Veneer)(?:\s|\z)/i.freeze
-    DEFAULT_ASSUMED_EDGE_THICKNESS_MM = 0.8
+    DEFAULT_ASSUMED_EDGE_THICKNESS_MM = 1.0
     DEFAULT_EDGE_OPTIONS = {
       nep22_multiplier: 2.0,
       nep44_multiplier: 3.0,
+      nep60_multiplier: 1.0,
       min_thickness_mm: 12.0
     }.freeze
     @collect_payload_cache = nil
@@ -168,6 +170,7 @@ module MH
       end
       normalized[:nep22_multiplier] = 0.0 if normalized[:nep22_multiplier].negative?
       normalized[:nep44_multiplier] = 0.0 if normalized[:nep44_multiplier].negative?
+      normalized[:nep60_multiplier] = 0.0 if normalized[:nep60_multiplier].negative?
       normalized[:min_thickness_mm] = 0.0 if normalized[:min_thickness_mm].negative?
       normalized
     end
@@ -224,7 +227,9 @@ module MH
       edge_options = normalize_edge_options(edge_options)
       model = Sketchup.active_model
       cache_key = export_payload_cache_key(model)
-      base_cache_key = [cache_key, assume_full_edging]
+      # The ABF worksheet displays assumed sides, so its cached base must also
+      # change when the minimum thickness for estimate mode changes.
+      base_cache_key = [cache_key, assume_full_edging, edge_options[:min_thickness_mm]]
       if cache_key && @edge_base_cache_key == base_cache_key && @edge_base_cache
         return build_payload_from_edge_base(deep_dup_data(@edge_base_cache), edge_options)
       end
@@ -271,11 +276,12 @@ module MH
         edge_summary[:missing_material_boards] += 1 if material_code == UNKNOWN_MATERIAL
         # Nẹp is reported under the panel material code, not under the edge
         # band's own code (for example, MDFCA.18... / PLY.17...).  In estimate
-        # mode the four assumed sides are added to, never substituted for, the
-        # ABF edge bands that are already present in the model.
+        # mode, only sides without an ABF edge band receive the assumed band.
         actual_edge_sides = record[:actual_edge_sides] ||= edge_band_sides(entity, transform, edge_types)
         assumed_edge_sides = if assume_full_edging
-          record[:assumed_edge_sides] ||= assumed_edge_band_sides(entity, transform, edge_types, material_code)
+          record[:assumed_edge_sides] ||= assumed_edge_band_sides(
+            entity, transform, edge_types, material_code, actual_edge_sides
+          )
         end
         edge_sides = [actual_edge_sides, assumed_edge_sides].compact
         edge_summary[:faces] += edge_sides.sum { |sides| sides[:face_count].to_i }
@@ -283,7 +289,8 @@ module MH
         if edge_sides.all? { |sides| sides[:material_totals].empty? }
           edge_summary[:missing_edge_material_boards] += 1
         end
-        edge_sides.each { |sides| append_edge_totals(material_stat, sides) }
+        append_edge_totals(material_stat, actual_edge_sides, :actual)
+        append_edge_totals(material_stat, assumed_edge_sides, :assumed) if assumed_edge_sides
       end
 
       abf_excel_data = collect_abf_excel_data(
@@ -292,7 +299,7 @@ module MH
         sheet_id_to_material,
         instance_records,
         assume_full_edging,
-        DEFAULT_EDGE_OPTIONS
+        edge_options
       )
       sheet_count = material_stats.values.sum { |s| s[:sheet_ids].size }
       base = {
@@ -363,12 +370,16 @@ module MH
         label = clean_abf_label(entity.name.to_s)
         edge_types = parse_edge_types(abf_attr(entity, 'edge-band-types'))
         next if edge_types.empty? && !assume_full_edging
-        edge_sides = if !edge_band_allowed?(entity, transform, nil, edge_options)
-          blank_edge_sides
-        elsif assume_full_edging
-          record[:assumed_edge_sides] ||= assumed_edge_band_sides(entity, transform, edge_types, material_code)
+        actual_edge_sides = record[:actual_edge_sides] ||= edge_band_sides(entity, transform, edge_types)
+        edge_sides = if assume_full_edging && edge_band_allowed?(entity, transform, nil, edge_options)
+          assumed_edge_sides = record[:assumed_edge_sides] ||= assumed_edge_band_sides(
+            entity, transform, edge_types, material_code, actual_edge_sides
+          )
+          merge_edge_sides(actual_edge_sides, assumed_edge_sides)
         else
-          record[:actual_edge_sides] ||= edge_band_sides(entity, transform, edge_types)
+          # Actual ABF bands are always reported, including on thin panels.
+          # The thickness rule applies only to extra, estimated bands.
+          actual_edge_sides
         end
         dimensions = dimensions_from_edge_sides(dimensions, edge_sides)
         cutting_length = dimensions[:length].to_f -
@@ -511,7 +522,8 @@ module MH
           sheet_size: nil,
           sheet_ids: {},
           products: {},
-          edge_bands: Hash.new(0.0)
+          actual_edge_bands: Hash.new(0.0),
+          assumed_edge_bands: Hash.new(0.0)
         }
       end
 
@@ -620,7 +632,7 @@ module MH
           if sheet_qty.positive?
             rows << {
               name: 'Ván',
-              size: format_mm(stat[:thickness_mm]),
+              size: MH::MaterialCode.export_size(material_code, fallback: format_mm(stat[:thickness_mm])),
               material_code: material_code,
               unit: 'tấm',
               quantity: sheet_qty,
@@ -636,16 +648,24 @@ module MH
       edge_options = normalize_edge_options(edge_options)
       rows = []
       material_stats.values
-        .select { |stat| stat[:edge_bands].any? }
         .sort_by { |stat| stat[:material_code].to_s }
         .each do |stat|
-          next unless material_edge_band_allowed?(stat, edge_options)
+          # Recorded ABF bands are valid regardless of panel thickness. The
+          # minimum-thickness option only controls estimate-only additions.
+          edge_bands = Hash.new(0.0)
+          actual_edge_bands = stat[:actual_edge_bands] || stat[:edge_bands] || {}
+          assumed_edge_bands = stat[:assumed_edge_bands] || {}
+          actual_edge_bands.each { |key, meters| edge_bands[key] += meters.to_f }
+          if material_edge_band_allowed?(stat, edge_options)
+            assumed_edge_bands.each { |key, meters| edge_bands[key] += meters.to_f }
+          end
+          next if edge_bands.empty?
 
           # Multiple ABF labels may share one purchasing name (for example,
           # "Nẹp chém vát" and "Nẹp 36" both become "Nẹp 44"). Nẹp 44 is
           # also purchased as one item, so its 0mm/1mm variants are combined.
           purchase_bands = Hash.new(0.0)
-          stat[:edge_bands].each do |(name, thickness), meters|
+          edge_bands.each do |(name, thickness), meters|
             purchase_name = edge_row_name(name)
             purchase_thickness = purchase_name == 'Nẹp 44' ? nil : thickness
             purchase_bands[[purchase_name, purchase_thickness]] += meters.to_f * edge_multiplier_for(purchase_name, edge_options)
@@ -668,12 +688,16 @@ module MH
       rows
     end
 
-    def append_edge_totals(material_stat, edge_sides)
+    def append_edge_totals(material_stat, edge_sides, source = :actual)
+      return unless material_stat && edge_sides
+
+      bucket_key = source == :assumed ? :assumed_edge_bands : :actual_edge_bands
+      material_stat[bucket_key] ||= Hash.new(0.0)
       edge_sides[:material_totals].each do |(_edge_code, edge_name, thickness), length_m|
         name = edge_name.to_s.strip
         next if name.empty? || length_m.to_f <= 0
 
-        material_stat[:edge_bands][[name, thickness.to_f]] += length_m.to_f
+        material_stat[bucket_key][[name, thickness.to_f]] += length_m.to_f
       end
     end
 
@@ -681,6 +705,7 @@ module MH
       case edge_row_name(edge_name)
       when 'Nẹp 22' then edge_options[:nep22_multiplier].to_f
       when 'Nẹp 44' then edge_options[:nep44_multiplier].to_f
+      when 'Nẹp 60' then edge_options[:nep60_multiplier].to_f
       else 1.0
       end
     end
@@ -714,11 +739,20 @@ module MH
     end
 
     def regroup_preview_rows(rows, show_paint_code)
+      # One Python call per batch; repeated previews reuse names until the
+      # shared workbook or engine changes. Never spawn Python for each row.
+      codes = rows.select { |row| export_item_name(row[:name]) == 'VÁN' }
+                  .map { |row| export_material_code(row[:material_code], show_paint_code) }
+      MH::MaterialItemNames.names(codes, python: python_command) unless codes.empty?
       grouped = {}
       rows.each do |row|
         export_code = export_material_code(row[:material_code], show_paint_code)
-        key = [row[:name].to_s, row[:size].to_s, export_code.to_s, row[:unit].to_s]
+        item_name = export_item_name(row[:name])
+        size = row[:unit].to_s == 'tấm' ? MH::MaterialCode.export_size(export_code, fallback: row[:size]) : row[:size]
+        key = [item_name, size.to_s, export_code.to_s, row[:unit].to_s]
         target = grouped[key] ||= row.merge(
+          name: item_name,
+          size: size,
           material_code: export_code,
           quantity: 0.0,
           note: row[:note].to_s
@@ -730,113 +764,26 @@ module MH
         .sort_by { |row| [row[:material_code].to_s, row[:unit].to_s == 'tấm' ? 0 : 1, row[:name].to_s] }
         .each do |row|
           row[:quantity] = row[:quantity].round
-          row[:name] = board_row_name(row[:material_code]) if row[:name].to_s.strip == 'Ván'
+          item_name = row[:name].to_s.strip == 'VÁN' ? board_row_name(row[:material_code]) : row[:name]
+          row[:name] = export_item_name(item_name)
         end
+    end
+
+    # "Tên hàng" is an export-facing purchase name. Normalize it before
+    # grouping as well as display so names that differ only by letter case are
+    # kept in a single row.
+    def export_item_name(value)
+      value.to_s.strip.upcase
     end
 
     def board_row_name(material_code)
       code = material_code.to_s.strip
-      standard = standard_material_item_name(code)
-      return standard unless standard.empty?
-
-      code.empty? ? 'Ván' : "Ván #{code}"
+      MH::MaterialItemNames.names([code], python: python_command).fetch(code)
     end
 
-    def standard_material_item_name(material_code)
-      code = material_code.to_s.strip
-      return '' if code.empty?
-
-      names = []
-      parsed = material_code_parse(code)
-      if parsed.is_a?(Hash)
-        layers = parsed[:layers] || parsed['layers'] || {}
-        %w[chat_lieu nha_cung_cap be_mat].each do |layer_key|
-          mapped = material_mapping_name(layer_key, layers[layer_key] || layers[layer_key.to_sym])
-          mapped = "phủ #{mapped}" if surface_cover_name?(layer_key, mapped)
-          names << mapped unless mapped.empty?
-        end
-      end
-
-      if names.empty?
-        code.split('.').each do |segment|
-          next if segment.to_s =~ /\A\d+(?:[,.]\d+)?\z/
-
-          mapped = material_mapping_name(nil, segment)
-          names << mapped unless mapped.empty?
-        end
-      end
-
-      names.map(&:strip).reject(&:empty?).uniq.join(' ')
-    rescue StandardError => error
-      warn_error(error)
-      ''
-    end
-
-    def surface_cover_name?(layer_key, value)
-      layer_key.to_s == 'be_mat' && value.to_s.strip.match?(SURFACE_COVER_PREFIX_REGEX)
-    end
-
-    def material_code_parse(code)
-      if defined?(MH::MaterialCode) && MH::MaterialCode.respond_to?(:parse)
-        MH::MaterialCode.parse(code)
-      else
-        {}
-      end
-    rescue StandardError
-      {}
-    end
-
-    def material_mapping_name(layer_key, mapped_value)
-      value_key = comparable_mapping_text(mapped_value)
-      return '' if value_key.empty?
-
-      material_mapping_rows.each do |row|
-        group = row_value(row, 'nhom', 'layer', 'key', 'group')
-        next if layer_key && comparable_mapping_text(group) != comparable_mapping_text(layer_key)
-
-        mapped = row_value(row, 'gia_tri_map', 'mapped', 'canonical', 'map', 'material_code')
-        source = row_value(row, 'gia_tri', 'value', 'raw', 'name')
-        next if source.to_s.strip.empty?
-
-        return source.to_s.strip if comparable_mapping_text(mapped) == value_key
-      end
-      ''
-    end
-
-    def material_mapping_rows
-      @material_mapping_rows ||= begin
-        rows = []
-        if defined?(MH::Registry) && MH::Registry.respond_to?(:material_code_mappings)
-          rows = Array(MH::Registry.material_code_mappings)
-        end
-        rows = read_config_material_mappings if rows.empty?
-        rows
-      end
-    end
-
-    def read_config_material_mappings
-      return [] unless defined?(MH::ExcelBridge) && MH::ExcelBridge.respond_to?(:read_as_hashes)
-
-      path = File.expand_path('../MH_Registry/Config.xlsx', __dir__)
-      return [] unless File.exist?(path)
-
-      MH::ExcelBridge.read_as_hashes(path, sheet: 'ma_vat_lieu')
-    rescue StandardError => error
-      warn_error(error)
-      []
-    end
-
-    def row_value(row, *keys)
-      keys.each do |key|
-        value = row[key]
-        value = row[key.to_sym] if value.nil? && row.respond_to?(:[])
-        return value unless value.nil? || value.to_s.empty?
-      end
-      ''
-    end
-
-    def comparable_mapping_text(value)
-      value.to_s.strip.upcase.gsub(/\s+/, '')
+    # Kept as a compatibility entry point; the rules live in the shared engine.
+    def material_item_name_qualifiers(material_code)
+      MH::MaterialItemNames.qualifiers(material_code, python: python_command)
     end
 
     def export_material_code(code, show_paint_code)
@@ -965,6 +912,9 @@ module MH
         edge_id = abf_attr(face, 'edge-band-id')
         next if edge_id.nil?
 
+        side = classify_edge_side(face.normal, face_transform, axes) if axes
+        sides[:banded_sides][side] = true if side
+
         info = edge_types[edge_id.to_i]
         unless info
           sides[:missing_edge_types] += 1
@@ -977,7 +927,6 @@ module MH
         sides[:material_totals][material_key] += length_m.to_f
         next unless axes
 
-        side = classify_edge_side(face.normal, face_transform, axes)
         next unless side
 
         grouped[side] << {
@@ -1007,9 +956,9 @@ module MH
     end
 
     # MH_nep stores the selected edge band as an EdgeBandType. This export-only
-    # path uses that selection to estimate all four small panel edges without
-    # changing the model or writing ABF EdgeBandData back to it.
-    def assumed_edge_band_sides(entity, transform, edge_types = nil, fallback_material_code = nil)
+    # path fills only the small panel edges that are not already banded in ABF,
+    # without changing the model or writing ABF EdgeBandData back to it.
+    def assumed_edge_band_sides(entity, transform, edge_types = nil, fallback_material_code = nil, actual_sides = nil)
       sides = blank_edge_sides
       config = assumed_edge_band_config(edge_types || {}, fallback_material_code)
       return sides unless config[:primary]
@@ -1026,6 +975,8 @@ module MH
       }
 
       side_lengths.each do |side, length_m|
+        next if edge_side_banded?(actual_sides, side)
+
         source = assumed_source_for_side(side, config, entity)
         next unless source && length_m.positive?
 
@@ -1048,7 +999,46 @@ module MH
       blank_edge_sides
     end
 
-    def assumed_edge_band_config(edge_types, fallback_material_code = nil)
+    def edge_side_banded?(edge_sides, side)
+      return false unless edge_sides.is_a?(Hash)
+
+      edge_sides.dig(:banded_sides, side) ||
+        edge_sides[side].to_s.strip != '' ||
+        edge_sides.dig(:edge_lengths, side).to_f.positive?
+    rescue StandardError
+      false
+    end
+
+    # Combines actual ABF bands with the estimate-only bands added on missing
+    # sides. The actual side keeps its label and thickness, while totals from
+    # both sources remain available to the ABF worksheet and material summary.
+    def merge_edge_sides(*sources)
+      result = blank_edge_sides
+      side_names = %i[top right bot left]
+
+      Array(sources).compact.each do |source|
+        result[:face_count] += source[:face_count].to_i
+        result[:missing_edge_types] += source[:missing_edge_types].to_i
+        source[:edge_totals].to_h.each { |name, length| result[:edge_totals][name] += length.to_f }
+        source[:material_totals].to_h.each { |key, length| result[:material_totals][key] += length.to_f }
+
+        side_names.each do |side|
+          next unless edge_side_banded?(source, side)
+
+          result[:banded_sides][side] = true
+          result[side] = edge_side_marker(side)
+          result[:"_#{side}_"] = join_edge_values([result[:"_#{side}_"], source[:"_#{side}_"]])
+          result[:edge_lengths][side] = [result[:edge_lengths][side].to_f, source.dig(:edge_lengths, side).to_f].max
+          result[:edge_thicknesses][side] = [result[:edge_thicknesses][side].to_f, source.dig(:edge_thicknesses, side).to_f].max
+        end
+      end
+      result
+    rescue StandardError => error
+      warn_error(error)
+      blank_edge_sides
+    end
+
+    def assumed_edge_band_config(edge_types, _fallback_material_code = nil)
       fallback = edge_types.values.first
       fallback_source = fallback && edge_source_from_info(fallback)
       library = []
@@ -1059,24 +1049,20 @@ module MH
         options = MH::Nep.load_defaults if MH::Nep.respond_to?(:load_defaults)
       end
 
-      if fallback_source.nil?
-        fallback_code = fallback_material_code.to_s.strip
-        fallback_code = options['primary_id'].to_s.strip if fallback_code.empty? || fallback_code == UNKNOWN_MATERIAL
-        unless fallback_code.empty?
-          fallback_source = {
-            name: fallback_code,
-            display_name: fallback_code,
-            thickness: DEFAULT_ASSUMED_EDGE_THICKNESS_MM,
-            width: 0.0,
-            color: ''
-          }
-        end
-      end
-
       primary = library_item_by_id(library, options['primary_id'])
       other = library_item_by_id(library, options['other_id'])
       veneer = library_item_by_id(library, options['veneer_id'])
       primary ||= fallback_source
+      # Some ABF models have no edge-band settings instantiated yet. Keep
+      # estimate mode usable with the generic band (normalized to Nẹp 22),
+      # but never fall back to the panel material code as if it were a band.
+      primary ||= {
+        name: 'Nẹp',
+        display_name: 'Nẹp',
+        thickness: DEFAULT_ASSUMED_EDGE_THICKNESS_MM,
+        width: 0.0,
+        color: ''
+      }
       other ||= primary
 
       config = {
@@ -1100,13 +1086,13 @@ module MH
 
       library = Array(MH::Nep.edge_band_library)
       return library unless library.empty?
-      return [] if @mh_nep_bootstrap_attempted
 
-      # ABF lazily creates EdgeBandSetting objects when its edge-band command
-      # is opened. Bootstrap that library once so export can work
-      # immediately after SketchUp starts, without requiring a manual MH_nep
-      # dialog visit first.
-      @mh_nep_bootstrap_attempted = true
+      # ABF may finish creating EdgeBandSetting objects only after the first
+      # edge-band editor request. Allow one bounded retry rather than caching
+      # that temporary empty state for the entire export session.
+      @mh_nep_bootstrap_attempts = @mh_nep_bootstrap_attempts.to_i + 1
+      return [] if @mh_nep_bootstrap_attempts > 2
+
       if defined?(ABF::Menu) && ABF::Menu.respond_to?(:instance)
         ABF::Menu.instance.on_click_edit_edge_band
       end
@@ -1227,6 +1213,7 @@ module MH
         material_totals: Hash.new(0.0),
         edge_lengths: Hash.new(0.0),
         edge_thicknesses: Hash.new(0.0),
+        banded_sides: Hash.new(false),
         face_count: 0,
         missing_edge_types: 0
       }
@@ -1403,21 +1390,30 @@ module MH
       clean = name.to_s.strip
       clean = clean.sub(/\A(?:NEP|NẸP|Nẹp)\s*/i, '').strip
       clean = clean.tr("–—", '--')
+      # ABF's generic "Nẹp" label is the same purchasing item as Nẹp 22.
+      # Normalize it before aggregation so their meters are combined and the
+      # Nẹp 22 multiplier is applied to the complete total.
+      return 'Nẹp 22' if clean.empty?
       return 'Nẹp 22' if clean.match?(/\A-?\s*1(?:[.,]0+)?\s*mm\b/i)
       return 'Nẹp 44' if clean.match?(/\A(?:chém\s+vát|chem\s+vat)\b/i)
       return 'Nẹp 44' if clean.match?(/\A36(?:\b|\s*-)/i)
 
-      clean.empty? ? 'Nẹp' : "Nẹp #{clean}"
+      "Nẹp #{clean}"
     end
 
     def default_output_name(model)
       base = model.path.to_s.empty? ? model.title.to_s : File.basename(model.path, '.*')
       base = 'MH_EXPORT' if base.to_s.strip.empty?
-      "#{base}_DMVT-VAN.xlsx"
+      # Keep the project code first and move the customer name after the
+      # document type; the nesting stage is not part of the purchase filename.
+      base = base.strip.sub(/_NESTING\d*(?=\s|\z)/i, '')
+      project_code, customer_name = base.split(/\s+/, 2)
+      customer_suffix = customer_name.to_s.empty? ? '' : " #{customer_name}"
+      "#{project_code}__DMVT-VAN#{customer_suffix}.xlsx"
     end
 
     def python_command
-      configured = Sketchup.read_default(PREF_KEY, 'python_path', nil).to_s.strip
+      configured = defined?(Sketchup) ? Sketchup.read_default(PREF_KEY, 'python_path', nil).to_s.strip : ''
       return [configured] unless configured.empty?
 
       ENV['PATH'].to_s.split(File::PATH_SEPARATOR).each do |dir|

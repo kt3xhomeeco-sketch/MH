@@ -29,6 +29,7 @@ module MH
         summary['code'] ||= data.dig('analysis', 'code')
         summary['activity_id'] ||= data.dig('analysis', 'activity_id')
         summary['automatic_scan'] = data.dig('analysis', 'automatic_scan')
+        summary['plan_title'] = data.dig('analysis', 'plan_title') if data.dig('analysis', 'plan_title')
         summary['error'] ||= data.dig('analysis', 'error')
         summary['file'] = File.basename(path)
         write_json(File.join(root, 'history', 'index', "#{stamp}-#{data['id']}.json"), summary)

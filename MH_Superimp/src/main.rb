@@ -204,7 +204,25 @@ module MH
       connector = MH::RegistryApp::Connector.get('superimp') rescue nil
       return [] unless connector && connector.respond_to?(:import_list)
 
-      Array(connector.import_list).filter_map do |row|
+      normalize_registry_import_rows(connector.import_list)
+    rescue => e
+      puts "[MH::Superimp] Registry import list error: #{e.class}: #{e.message}"
+      []
+    end
+
+    # Cập nhật list trong bộ nhớ sau "Lưu JSON" của Registry. Không gọi ngược
+    # vào Registry (vốn phải đọc Config/MCLib) và không dựng lại menu nặng.
+    def self.apply_registry_import_list(rows)
+      @import_list = normalize_registry_import_rows(rows)
+      rebuild_import_indexes(@import_list)
+      @import_list
+    rescue => e
+      puts "[MH::Superimp] Apply Registry import list error: #{e.class}: #{e.message}"
+      []
+    end
+
+    def self.normalize_registry_import_rows(rows)
+      Array(rows).filter_map do |row|
         h = row.is_a?(Hash) ? row : {}
         name = (h['name'] || h[:name]).to_s.strip
         path = (h['path'] || h[:path]).to_s.strip
@@ -222,9 +240,6 @@ module MH
           swap_key: swap_key.to_i > 0 ? swap_key.to_i : 0
         }
       end
-    rescue => e
-      puts "[MH::Superimp] Registry import list error: #{e.class}: #{e.message}"
-      []
     end
 
     # ---- Đọc list: ưu tiên Registry, fallback xlsx cũ ----
@@ -631,6 +646,7 @@ module MH
         @material_source_manual = MH::Superimp.material_source_manual?  # false=Auto(Excel), true=Manual(danh sach tay)
         @mode_button_rect = nil          # vung bam nut gat (set trong draw)
         @reload_button_rect = nil        # ep nap lai Excel + cache HUD
+        @position_reload_button_rect = nil # dong bo lai SP cua DC theo vi tri moi
         @last_imported_dc = nil          # DC vua import/replace - muc tieu uu tien khi go do day
         @material_profile_msg = nil
         @material_profile_msg_timer = nil
@@ -665,6 +681,8 @@ module MH
         @swap_msg_timer = nil
         UI.stop_timer(@material_profile_msg_timer) if @material_profile_msg_timer
         @material_profile_msg_timer = nil
+        UI.stop_timer(@material_profile_apply_timer) if @material_profile_apply_timer
+        @material_profile_apply_timer = nil
         view.invalidate
       end
 
@@ -701,7 +719,10 @@ module MH
       def remember_product_context_before_clear
         return unless defined?(MH::ProductContext)
 
-        MH::ProductContext.refresh_from_selection(Sketchup.active_model, allow_slow_scan: true)
+        # Khi bat tool/doi DC, chi can doc ma tren selection dang chon hoac
+        # ma SP da nho. Quet de quy toan model o day lam HUD mo rat cham voi
+        # model lon, trong khi khong tao them du lieu vat lieu nao.
+        MH::ProductContext.refresh_from_selection(Sketchup.active_model, allow_slow_scan: false)
       rescue => e
         puts "[MH::Superimp] remember product context error: #{e.class}: #{e.message}"
       end
@@ -811,13 +832,18 @@ module MH
         if defined?(MH::RegistryApp::Connector)
           connector = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
           if connector
+            # Tab/Alt là hot path: ưu tiên mã SP đã nhớ từ tool/selection. Quét
+            # toàn model chỉ là fallback khi thực sự chưa có mã, tránh khựng HUD
+            # ở mỗi phím trong model lớn.
+            context = registry_context(allow_slow_scan: false)
+            context = registry_context(allow_slow_scan: true) if context[:product_code].to_s.strip.empty?
             result =
               if mode == :option_in_row && connector.respond_to?(:cycle_thickness_option_in_row)
-                connector.cycle_thickness_option_in_row(registry_context(allow_slow_scan: true))
+                connector.cycle_thickness_option_in_row(context)
               elsif connector.respond_to?(:cycle_thickness_material_row)
-                connector.cycle_thickness_material_row(registry_context(allow_slow_scan: true))
+                connector.cycle_thickness_material_row(context)
               elsif connector.respond_to?(:cycle_material_profile)
-                connector.cycle_material_profile(registry_context(allow_slow_scan: true))
+                connector.cycle_material_profile(context)
               end
           end
         end
@@ -827,8 +853,14 @@ module MH
           @material_profile_manual = true
           label = result[:label] || result['label'] || result[:profile_name] || result['profile_name'] || result[:profile_id] || result['profile_id']
           invalidate_registry_context_cache
-          applied = apply_current_material_profile_to_selected_dcs(view, result)
-          @material_profile_msg = applied > 0 ? "VL: #{label} -> ap vao #{applied} DC" : "VL: #{label}"
+          # Tab/Alt phải phản hồi HUD ngay. Áp profile vào Dynamic Component có
+          # thể nặng (redraw + công thức DC), vì thế thực hiện ở tick UI kế tiếp
+          # sau khi highlight HUD đã được vẽ. Nếu người dùng bấm liên tục, chỉ
+          # profile cuối cùng mới được áp dụng.
+          @material_profile_msg = "VL: #{label}"
+          # Dòng nguồn không có option độ dày vẫn được Tab chọn để HUD bám
+          # đúng thứ tự Excel, nhưng tuyệt đối không ghi đè độ dày DC.
+          schedule_material_profile_apply(view, result, label, context) unless result[:hud_only] || result['hud_only']
         elsif result.is_a?(Hash)
           @material_profile_msg = "VL: #{profile_result_error(result)}"
         else
@@ -849,7 +881,7 @@ module MH
         view.invalidate
       end
 
-      def apply_current_material_profile_to_selected_dcs(view, profile)
+      def apply_current_material_profile_to_selected_dcs(view, profile, context = nil)
         return 0 unless profile.is_a?(Hash)
         return 0 unless defined?(MH::RegistryApp::Connector)
 
@@ -859,7 +891,8 @@ module MH
         targets = Sketchup.active_model.selection.to_a.grep(Sketchup::ComponentInstance).select(&:valid?)
         return 0 if targets.empty?
 
-        context = registry_context(allow_slow_scan: true)
+        context ||= registry_context(allow_slow_scan: false)
+        context = registry_context(allow_slow_scan: true) if context[:product_code].to_s.strip.empty?
         applied = 0
         targets.each do |inst|
           next unless inst && inst.valid?
@@ -879,6 +912,22 @@ module MH
       rescue => e
         puts "[MH::Superimp] apply selected profile error: #{e.class}: #{e.message}"
         0
+      end
+
+      def schedule_material_profile_apply(view, profile, label, context = nil)
+        @material_profile_apply_serial = (@material_profile_apply_serial || 0) + 1
+        serial = @material_profile_apply_serial
+        UI.stop_timer(@material_profile_apply_timer) if @material_profile_apply_timer
+        @material_profile_apply_timer = UI.start_timer(0.0, false) do
+          @material_profile_apply_timer = nil
+          next unless @material_profile_apply_serial == serial
+
+          applied = apply_current_material_profile_to_selected_dcs(view, profile, context)
+          @material_profile_msg = applied > 0 ? "VL: #{label} -> ap vao #{applied} DC" : "VL: #{label}"
+          view.invalidate if Sketchup.active_model && Sketchup.active_model.active_view
+        end
+      rescue => e
+        puts "[MH::Superimp] schedule profile apply error: #{e.class}: #{e.message}"
       end
 
       def stringify_profile_hash(profile)
@@ -911,7 +960,9 @@ module MH
         connector = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
         return unless connector && connector.respond_to?(:selected_profile)
 
-        result = connector.selected_profile(registry_context(allow_slow_scan: true))
+        # activate vua bo selection, nen slow scan chi ton thoi gian va se
+        # khong tim duoc SP moi. Context nhanh lay ma vua luu truoc khi clear.
+        result = connector.selected_profile(registry_context(allow_slow_scan: false))
         @material_profile = result if profile_result_ok?(result)
         @material_profile_manual = false
         invalidate_registry_context_cache
@@ -927,16 +978,6 @@ module MH
         context[:material_profile] = @material_profile if @material_profile
         MH::Superimp.notify_imported_dc(instance, context)
         @last_imported_dc = instance if instance && instance.valid?
-        remember_imported_product_context(instance)
-      end
-
-      def remember_imported_product_context(instance)
-        return unless defined?(MH::ProductContext)
-
-        code = product_code_from_instance(instance)
-        MH::ProductContext.remember_code(code, Sketchup.active_model) unless code.to_s.empty?
-      rescue => e
-        puts "[MH::Superimp] remember imported product error: #{e.class}: #{e.message}"
       end
 
       def resolve_import_path_for_depth(depth_length, view = nil)
@@ -1378,6 +1419,7 @@ module MH
         draw_material_profile_hud(view)
         draw_material_source_toggle(view)
         draw_material_reload_button(view)
+        draw_product_position_reload_button(view)
       end
 
       # Cong tac gat (toggle switch) nguon ma VL - bam de doi Auto <-> Thu cong.
@@ -1437,6 +1479,29 @@ module MH
         hud_draw_text(view, x + 9, y + 5, '↻', size: 8, bold: true, color: HUD_TEXT_COLOR)
       rescue
         @reload_button_rect = nil
+      end
+
+      # Dong bo lai SP sau khi copy/di chuyen DC. Day la nut rieng voi ↻:
+      # ↻ chi nap lai Registry/HUD, con "SP↻" doc lai cac marker Text tren
+      # ban ve va cap nhat ma SP cua DC da import qua SuperImp.
+      def draw_product_position_reload_button(view)
+        w = 46
+        h = 22
+        margin = 8
+        reload_x = @reload_button_rect ? @reload_button_rect[0] : view.vpwidth - 152
+        x = reload_x - w - margin
+        y = 14
+        @position_reload_button_rect = [x, y, w, h]
+
+        shape = capsule_points(x, y, w, h)
+        view.drawing_color = HUD_BUTTON_BG
+        view.draw2d(GL_POLYGON, shape)
+        view.line_width = 1
+        view.drawing_color = HUD_BUTTON_BORDER
+        view.draw2d(GL_LINE_LOOP, shape)
+        hud_draw_text(view, x + 8, y + 5, 'SP↻', size: 8, bold: true, color: HUD_TEXT_COLOR)
+      rescue
+        @position_reload_button_rect = nil
       end
 
       def capsule_points(x, y, w, h, seg = 8)
@@ -1573,35 +1638,128 @@ module MH
         connector = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
         return [] unless connector && connector.respond_to?(:hud_material_rows_for_context)
 
-        fallback_thickness = current_hud_thickness_tokens
         rows = Array(connector.hud_material_rows_for_context(context)).map do |row|
           code = (row['material_code'] || row[:material_code]).to_s.strip
-          material_specification = (row['material_specification'] || row[:material_specification]).to_s.strip
+          product_name = (row['product_name'] || row[:product_name]).to_s.strip
+          specification_primary = (row['material_specification_primary'] || row[:material_specification_primary]).to_s.strip
+          specification_secondary = (row['material_specification_secondary'] || row[:material_specification_secondary]).to_s.strip
+          specification_secondary = (row['material_specification'] || row[:material_specification]).to_s.strip if specification_primary.empty? && specification_secondary.empty?
           thick = Array(row['thickness_tokens'] || row[:thickness_tokens]).map(&:to_s)
           selected_option_index = (row['selected_option_index'] || row[:selected_option_index]).to_i
           selected_row = row['selected'] || row[:selected]
-          thick = fallback_thickness if thick.all? { |value| value.to_s.empty? }
-          # Cột chữ nét đơn sau mã SP hiển thị quy cách E/F/G. Mã vật liệu
-          # trở lại ô lựa chọn in đậm để giữ đúng cách nhận biết khi thao tác.
-          [product, material_specification, code] + thick + [{
+          product_group_start = row.key?('product_group_start') ? row['product_group_start'] : row[:product_group_start]
+          hud_row_key = (row['hud_row_key'] || row[:hud_row_key]).to_s
+          # Không bao giờ mượn độ dày của profile đang chọn trước đó. Dòng
+          # không có option phải để trống/hiển thị thiếu dữ liệu, nếu không
+          # MDFCA có thể hiện nhầm 18.6/8 của profile MDFCA.AC cũ.
+          # Quy cách tách thành Excel_E và Excel_F + Excel_G. Mã vật liệu vẫn
+          # là ô lựa chọn in đậm để giữ đúng cách nhận biết khi thao tác.
+          [product, product_name.empty? ? hud_product_name(product) : product_name, specification_primary, specification_secondary, code] + thick + [{
             material_code: code,
             selected_option_index: selected_option_index,
-            selected: selected_row ? true : false
+            selected: selected_row ? true : false,
+            show_product_name: product_group_start != false,
+            hud_row_key: hud_row_key
           }]
         end
-        if quick_thickness_profile?
+        # Quick profile chỉ là lựa chọn độ dày của người dùng, không phải dữ
+        # liệu vật liệu của SP. Không được dùng nó để dựng một dòng vật liệu
+        # giả khi Excel/JSON không có vật liệu cho SP hiện tại.
+        if quick_thickness_profile? && !rows.empty?
           quick_row = quick_material_profile_row(product)
           quick_code = hud_row_meta(quick_row)[:material_code].to_s
           rows.reject! { |row| hud_row_meta(row)[:material_code].to_s == quick_code } unless quick_code.empty?
           rows.unshift(quick_row)
         end
+        # Tab/Alt đã đổi profile trong pipeline, nhưng HUD có thể nhận lại một
+        # snapshot rows cũ từ cache nội bộ của connector. Ưu tiên profile vừa
+        # được chọn để dòng vật liệu/ô độ dày phản ánh ngay lần draw kế tiếp.
+        apply_active_profile_selection_to_hud_rows!(rows) if @material_profile_manual
         rows = rows.reject { |row| row.all? { |value| value.to_s.empty? } }
+        # Auto chỉ hiển thị vật liệu có thật trong dữ liệu SP. Khi không có,
+        # giữ một dòng trạng thái thay vì lấy mã từ profile đang chọn trước đó.
+        if !manual && product != '' && rows.empty?
+          rows = [hud_missing_material_row(product, context)]
+        end
         @material_rows_cache = rows.map(&:dup)
         @material_rows_cache_key = cache_key
         @material_rows_cache_time = now
         rows
       rescue
         []
+      end
+
+      def apply_active_profile_selection_to_hud_rows!(rows)
+        profile = @material_profile
+        return rows unless profile.is_a?(Hash)
+
+        profile_code = (profile[:material_code] || profile['material_code']).to_s.strip
+        return rows if profile_code.empty?
+
+        profile_row_key = (profile[:hud_row_key] || profile['hud_row_key']).to_s
+        target = Array(rows).find do |row|
+          !profile_row_key.empty? && hud_row_meta(row)[:hud_row_key].to_s == profile_row_key
+        end
+        target ||= Array(rows).find do |row|
+          hud_material_code_matches?(
+            hud_row_meta(row)[:material_code].to_s.empty? ? Array(row)[4].to_s : hud_row_meta(row)[:material_code].to_s,
+            profile_code
+          )
+        end
+        return rows unless target
+
+        Array(rows).each do |row|
+          meta = hud_row_meta(row)
+          meta[:selected] = false
+          meta[:selected_option_index] = -1
+        end
+
+        meta = hud_row_meta(target)
+        meta[:selected] = true
+        meta[:selected_option_index] = hud_option_index_for_profile(target, profile)
+        rows
+      rescue
+        rows
+      end
+
+      def hud_material_code_matches?(left, right)
+        normalize = lambda { |value| value.to_s.upcase.gsub(/\s+/, '') }
+        a = normalize.call(left)
+        b = normalize.call(right)
+        !a.empty? && !b.empty? && (a == b || a.start_with?(b + '.') || b.start_with?(a + '.'))
+      rescue
+        false
+      end
+
+      def hud_option_index_for_profile(row, profile)
+        tokens = Array(profile[:hud_tokens] || profile['hud_tokens']).map(&:to_s).map(&:strip).reject(&:empty?)
+        if tokens.empty?
+          panel = format_hud_number(profile[:panel_thickness_mm] || profile['panel_thickness_mm'])
+          back_value = profile[:back_thickness_mm] || profile['back_thickness_mm']
+          back = format_hud_number(back_value) unless back_value.to_s.strip.empty?
+          tokens = back && !back.empty? ? [panel, back] : [panel]
+        end
+        options = Array(row)[5...-1].to_a.map(&:to_s)
+        wanted = tokens.length > 1 ? "#{tokens[0]}/#{tokens[1]}" : tokens.first.to_s
+        # JSON profile uses "12/--" when the back thickness is omitted, while
+        # the HUD deliberately presents that very option as the shorter "12".
+        # Accept both forms (and the equivalent 12/12 form) so Alt never
+        # snaps the highlight back to the first option in a row.
+        candidates = [wanted]
+        if tokens.length > 1 && (tokens[1] == '--' || tokens[1] == tokens[0])
+          candidates << tokens[0]
+        end
+        normalize = lambda { |value| value.to_s.gsub(/\s+/, '').tr(',', '.').sub(/\.0+\z/, '') }
+        index = options.index { |option| candidates.any? { |candidate| normalize.call(option) == normalize.call(candidate) } }
+        return index unless index.nil?
+
+        # The connector's current state is a safer fallback than assuming the
+        # first cell.  This also protects the HUD when an older JSON file uses
+        # a label form that has not yet been seen by this renderer.
+        current = hud_row_meta(row)[:selected_option_index].to_i
+        current >= 0 && current < options.length ? current : 0
+      rescue
+        0
       end
 
       def material_profile_cache_key(profile)
@@ -1611,6 +1769,7 @@ module MH
           src[:material_code] || src['material_code'],
           src[:panel_thickness_mm] || src['panel_thickness_mm'],
           src[:back_thickness_mm] || src['back_thickness_mm'],
+          src[:hud_row_key] || src['hud_row_key'],
           Array(src[:hud_tokens] || src['hud_tokens']).join('/')
         ].map { |value| value.to_s.strip }.join('|')
       rescue
@@ -1629,8 +1788,27 @@ module MH
         material = current_hud_material_code if material.empty?
         tokens = Array(src[:hud_tokens] || src['hud_tokens']).map(&:to_s)
         tokens = [format_hud_number(src[:panel_thickness_mm] || src['panel_thickness_mm'])] if tokens.empty?
-        specification = hud_material_specification(product, material, registry_context)
-        [product, specification, material] + tokens + [{ material_code: material, selected_option_index: 0, selected: true }]
+        columns = hud_material_specification_columns(product, material, registry_context)
+        [product, hud_product_name(product), columns[:primary], columns[:secondary], material] + tokens + [{ material_code: material, selected_option_index: 0, selected: true }]
+      end
+
+      def hud_missing_material_row(product, context = nil)
+        [
+          product.to_s,
+          hud_product_name(product),
+          '',
+          '',
+          'KHÔNG CÓ THÔNG TIN',
+          { material_code: '', selected_option_index: -1, selected: false, missing_material: true }
+        ]
+      end
+
+      def hud_product_name(product)
+        return '' unless defined?(MH::ProjectData) && MH::ProjectData.respond_to?(:product_name_for)
+
+        MH::ProjectData.product_name_for(product).to_s.strip
+      rescue
+        ''
       end
 
       def current_hud_material_code
@@ -1689,6 +1867,22 @@ module MH
         ''
       end
 
+      def hud_material_specification_columns(product, material, context = nil)
+        return { primary: '', secondary: '' } if product.to_s.strip.empty? || material.to_s.strip.empty?
+        return { primary: '', secondary: '' } unless defined?(MH::RegistryApp::Connector)
+
+        connector = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
+        return { primary: '', secondary: '' } unless connector && connector.respond_to?(:hud_detail_finish_for_context)
+
+        result = connector.hud_detail_finish_for_context(context || registry_context, material)
+        {
+          primary: (result['material_specification_primary'] || result[:material_specification_primary]).to_s.strip,
+          secondary: (result['material_specification_secondary'] || result[:material_specification_secondary] || result['material_specification'] || result[:material_specification]).to_s.strip
+        }
+      rescue
+        { primary: '', secondary: '' }
+      end
+
       def draw_material_profile_hud(view)
         rows = material_profile_rows
         rows = [material_profile_tokens] if rows.empty?
@@ -1698,20 +1892,45 @@ module MH
         view_h = view.vpheight
         text_size = 8
         margin = 16
-        gap = 14
+        # HUD vật liệu có nhiều cột; giữ khoảng hở nhỏ để ưu tiên chỗ cho
+        # tên SP và quy cách thay vì lãng phí chiều ngang giữa các cột.
+        gap = 5
         right_reserved = material_hud_right_reserved_width(view)
         usable_w = [[view_w - margin * 2 - right_reserved, 120].max, 1200].min
         fixed_sp_w = 30.0
-        preferred_spec_w = 550.0
+        fixed_spec_primary_w = material_hud_specification_primary_width(view, rows, text_size)
+        preferred_spec_secondary_w = 390.0
         fixed_material_w = 246.0
         fixed_option_w = 72.0
         option_count = hud_option_count(rows)
-        content_w = [usable_w - gap * (2 + option_count), 80].max
-        available_spec_w = content_w - fixed_sp_w - fixed_material_w - fixed_option_w * option_count
-        small_w = [[available_spec_w, preferred_spec_w].min, 40].max
-        columns = [fixed_sp_w, small_w, fixed_material_w] + ([fixed_option_w] * option_count)
-        row_h = 15
-        start_y = view_h - 64 - (rows.length - 1) * row_h
+        content_w = [usable_w - gap * (3 + option_count), 80].max
+        available_secondary_w = content_w - fixed_sp_w - fixed_spec_primary_w - fixed_material_w - fixed_option_w * option_count
+        fixed_spec_secondary_w = [[available_secondary_w, preferred_spec_secondary_w].min, 40].max
+        # Ten SP nam tren dong rieng; dong duoi chi la E | F+G | ma VL | day.
+        columns = [fixed_sp_w, fixed_spec_primary_w, fixed_spec_secondary_w, fixed_material_w] + ([fixed_option_w] * option_count)
+        product_name_w = fixed_spec_primary_w + gap + fixed_spec_secondary_w
+        line_h = 11
+        row_gap = 4
+        layouts = rows.map do |tokens|
+          show_product_name = hud_row_meta(tokens)[:show_product_name] != false
+          name_lines = show_product_name ? hud_wrap_text_to_view_width(view, hud_row_value(tokens, 1), product_name_w, text_size) : []
+          primary_lines = hud_wrap_text_to_view_width(view, hud_row_value(tokens, 2), fixed_spec_primary_w, text_size)
+          secondary_lines = hud_wrap_text_to_view_width(view, hud_row_value(tokens, 3), fixed_spec_secondary_w, text_size)
+          {
+            name_lines: name_lines,
+            primary_lines: primary_lines,
+            secondary_lines: secondary_lines,
+            detail_line_count: [primary_lines.length, secondary_lines.length, 1].max
+          }
+        end
+        # Neo dong cuoi vao vi tri HUD cu; moi dong chu them se mo rong len
+        # tren, khong de len dong ke tiep ben duoi.
+        cursor_y = view_h - 64
+        layouts.reverse_each do |layout|
+          layout[:detail_y] = cursor_y - (layout[:detail_line_count] - 1) * line_h
+          layout[:name_y] = layout[:detail_y] - layout[:name_lines].length * line_h
+          cursor_y = layout[:name_y] - line_h - row_gap
+        end
         start_x = margin
         selected_code = current_hud_material_code
         # Khi DA co dong duoc chon ro rang (meta[:selected]), CHI danh dau dong do.
@@ -1721,43 +1940,99 @@ module MH
         any_selected = rows.any? { |t| hud_row_meta(t)[:selected] == true }
 
         rows.each_with_index do |tokens, row_index|
+          layout = layouts[row_index]
           meta = hud_row_meta(tokens)
-          y = start_y + row_index * row_h
+          y = layout[:detail_y]
           x = start_x
-          line_start_x = start_x
-          line_end_x = start_x
           row_code = meta[:material_code].to_s.strip
-          row_code = tokens[2].to_s.strip if row_code.empty?
+          row_code = tokens[4].to_s.strip if row_code.empty?
           row_selected = meta[:selected] == true ||
                          (!any_selected && !selected_code.empty? && row_code.upcase == selected_code.upcase)
+          # Ca hang thong tin phai highlight dong bo voi Ma VL/do day khi
+          # Tab chon dong. Nhu vay ma SP, ten SP va mo ta luon cho biet ro
+          # dong nao dang la dong thao tac hien tai.
+          detail_cell_h = layout[:detail_line_count] * line_h + 3
+          detail_y = y - 2
+          detail_primary_x = start_x + fixed_sp_w + gap
+          detail_secondary_x = detail_primary_x + fixed_spec_primary_w + gap
+          hud_draw_choice_background(view, detail_primary_x - 5, detail_y, fixed_spec_primary_w - 4, detail_cell_h, row_selected)
+          hud_draw_choice_background(view, detail_secondary_x - 5, detail_y, fixed_spec_secondary_w - 4, detail_cell_h, row_selected)
+          # Ten SP la dong rieng, nam ngay tren dong chi tiet. Ma SP chi ve
+          # mot lan tai dong nay, khong lap lai trong bang vat lieu ben duoi.
+          name_y = layout[:name_y]
+          unless layout[:name_lines].empty?
+            name_cell_h = [layout[:name_lines].length, 1].max * line_h + 3
+            # Ten SP la heading cua group, khong phai dong vat lieu duoc Tab
+            # chon. Giu nen trung tinh de highlight chi nam o hang chi tiet.
+            hud_draw_choice_background(view, start_x - 5, name_y - 2, fixed_sp_w - 4, name_cell_h, false)
+            hud_draw_choice_background(view, detail_primary_x - 5, name_y - 2, product_name_w - 4, name_cell_h, false)
+            name_color = HUD_TEXT_COLOR
+            hud_draw_text(view, start_x, name_y, hud_row_value(tokens, 0), size: text_size, color: name_color)
+            layout[:name_lines].each_with_index do |line, line_index|
+              hud_draw_text(
+                view, start_x + fixed_sp_w + gap, name_y + line_index * line_h, line,
+                size: text_size, bold: true, color: name_color
+              )
+            end
+          else
+            hud_draw_choice_background(view, start_x - 5, detail_y, fixed_sp_w - 4, detail_cell_h, row_selected)
+            hud_draw_text(view, start_x, y, hud_row_value(tokens, 0), size: text_size, color: row_selected ? HUD_CHOICE_SELECTED_TEXT : HUD_TEXT_COLOR)
+          end
           (0...columns.length).each do |index|
-            value = hud_row_value(tokens, index)
+            token_index = index == 0 ? 0 : index + 1
+            value = hud_row_value(tokens, token_index)
             width = columns[index]
             unless value.empty?
+              # Cot 0 da ve o dong ten SP; cot 1/2 la Excel_E va Excel_F+G.
+              if index == 0
+                x += width + gap
+                next
+              end
+              if index == 1 || index == 2
+                lines = case index
+                        when 1 then layout[:primary_lines]
+                        else layout[:secondary_lines]
+                        end
+                # Excel_E là cột chi tiết chính nên luôn dùng chữ đen; Excel_F
+                # + Excel_G vẫn là mô tả phụ màu xám.
+                color = if row_selected
+                  HUD_CHOICE_SELECTED_TEXT
+                elsif index == 1
+                  HUD_TEXT_COLOR
+                else
+                  HUD_MUTED_COLOR
+                end
+                Array(lines).each_with_index do |line, line_index|
+                  # Excel_E (cột 1 trong phần mô tả) là chỉ báo trực quan của
+                  # dòng HUD đang chọn. Giữ Excel_F+G nhẹ hơn để không làm rối.
+                  hud_draw_text(
+                    view, x, y + line_index * line_h, line,
+                    size: text_size,
+                    bold: index == 1 && row_selected,
+                    color: color
+                  )
+                end
+                x += width + gap
+                next
+              end
+              # Tên SP được cắt theo kích thước glyph thật để không bao giờ
+              # tràn sang cột mô tả.
               text = hud_truncate_line_text(value, width, text_size)
-              selected_cell = (index == 2 && row_selected) ||
-                              (index >= 3 &&
+              selected_cell = (index == 3 && row_selected) ||
+                              (index >= 4 &&
                                row_selected &&
-                               meta[:selected_option_index].to_i == index - 3)
-              color = index == 1 || index >= 3 ? HUD_MUTED_COLOR : HUD_TEXT_COLOR
-              if index == 2 || index >= 3
-                hud_draw_choice_background(view, x - 5, y - 2, width - 4, row_h - 1, selected_cell)
+                               meta[:selected_option_index].to_i == index - 4)
+              color = index >= 1 ? HUD_MUTED_COLOR : HUD_TEXT_COLOR
+              if index == 3 || index >= 4
+                hud_draw_choice_background(view, x - 5, y - 2, width - 4, 14, selected_cell)
                 color = selected_cell ? HUD_CHOICE_SELECTED_TEXT : HUD_TEXT_COLOR
                 hud_draw_text(view, x + 2, y, text, size: text_size, bold: selected_cell, color: color)
               else
                 color = HUD_TEXT_COLOR if selected_cell
                 hud_draw_text(view, x, y, text, size: text_size, bold: selected_cell, color: color)
               end
-              line_end_x = x + width if index <= 2
             end
             x += width + gap
-          end
-
-          if row_selected
-            y_line = y + text_size + 3
-            view.line_width = 1
-            view.drawing_color = HUD_TEXT_COLOR
-            view.draw2d(GL_LINES, [[line_start_x, y_line], [line_end_x, y_line]])
           end
         end
       end
@@ -1839,7 +2114,7 @@ module MH
         count = Array(rows).map do |row|
           values = Array(row)
           values = values[0...-1] if values.last.is_a?(Hash)
-          [values.length - 3, 0].max
+          [values.length - 5, 0].max
         end.max || 0
         [count, 2].max
       end
@@ -1849,8 +2124,9 @@ module MH
         return meta if meta.is_a?(Hash)
 
         {
-          selected_option_index: tokens[5].to_i,
-          selected: tokens[6] == true
+          selected_option_index: tokens[6].to_i,
+          selected: tokens[7] == true,
+          show_product_name: true
         }
       rescue
         { selected_option_index: -1, selected: false }
@@ -1860,7 +2136,7 @@ module MH
         values = Array(tokens)
         values = values[0...-1] if values.last.is_a?(Hash)
         value = values[index].to_s
-        index >= 3 && value.empty? ? '--' : value
+        index >= 5 && value.empty? ? '--' : value
       end
 
       def hud_truncate_line_text(value, max_width, text_size)
@@ -1875,7 +2151,114 @@ module MH
         "#{text[0, max_chars - 3]}..."
       end
 
+      def material_hud_product_name_width(view, rows, text_size)
+        widest = Array(rows).map do |row|
+          hud_multiline_text_width(view, hud_row_value(row, 1), text_size)
+        end.max.to_f
+        [[widest + 8.0, 100.0].max, 220.0].min
+      rescue
+        180.0
+      end
+
+      def material_hud_specification_primary_width(view, rows, text_size)
+        widest = Array(rows).map do |row|
+          hud_multiline_text_width(view, hud_row_value(row, 2), text_size)
+        end.max.to_f
+        # Excel_E là cột mô tả chính: chừa thêm 20% so với kích thước cũ
+        # (60..150), nên khoảng hoạt động mới là 72..180 px.
+        [[(widest + 8.0) * 1.2, 72.0].max, 180.0].min
+      rescue
+        120.0
+      end
+
+      def hud_truncate_text_to_view_width(view, value, max_width, text_size)
+        text = value.to_s.strip
+        return text if text.empty? || hud_text_width(view, text, text_size) <= max_width
+
+        suffix = '...'
+        return suffix if hud_text_width(view, suffix, text_size) > max_width
+
+        low = 0
+        high = text.length
+        best = suffix
+        while low <= high
+          mid = (low + high) / 2
+          candidate = "#{text[0, mid].rstrip}#{suffix}"
+          if hud_text_width(view, candidate, text_size) <= max_width
+            best = candidate
+            low = mid + 1
+          else
+            high = mid - 1
+          end
+        end
+        best
+      rescue
+        hud_truncate_line_text(value, max_width, text_size)
+      end
+
+      def hud_wrap_text_to_view_width(view, value, max_width, text_size)
+        text = value.to_s.strip
+        return [] if text.empty?
+
+        # Newline tu du lieu Excel la ranh gioi bat buoc (ten SP, Excel_E).
+        # Moi doan van ban van duoc wrap tiep neu dai hon chieu rong cot.
+        text.split(/\r?\n/).flat_map do |paragraph|
+          paragraph = paragraph.to_s.strip
+          next [] if paragraph.empty?
+          next [paragraph] if hud_text_width(view, paragraph, text_size) <= max_width
+
+          lines = []
+          current = ''
+          paragraph.split(/\s+/).each do |word|
+            candidate = current.empty? ? word : "#{current} #{word}"
+            if hud_text_width(view, candidate, text_size) <= max_width
+              current = candidate
+            elsif current.empty?
+              lines << hud_truncate_text_to_view_width(view, word, max_width, text_size)
+            else
+              lines << current
+              current = if hud_text_width(view, word, text_size) <= max_width
+                          word
+                        else
+                          hud_truncate_text_to_view_width(view, word, max_width, text_size)
+                        end
+            end
+          end
+          lines << current unless current.empty?
+          lines
+        end
+      rescue
+        [hud_truncate_line_text(value, max_width, text_size)]
+      end
+
+      def hud_multiline_text_width(view, text, text_size)
+        text.to_s.split(/\r?\n/).map { |line| hud_text_width(view, line, text_size) }.max.to_f
+      rescue
+        hud_text_width(view, text, text_size)
+      end
+
+      def hud_text_width(view, text, text_size)
+        return 0.0 if text.to_s.empty?
+
+        bounds = view.text_bounds(
+          Geom::Point3d.new(0, 0, 0), text.to_s,
+          size: text_size, bold: false
+        )
+        bounds.width.to_f
+      rescue
+        text.to_s.length * text_size.to_f * 0.82
+      end
+
+
       def onLButtonDown(flags, x, y, view)
+        if @position_reload_button_rect
+          bx, by, bw, bh = @position_reload_button_rect
+          if x >= bx && x <= bx + bw && y >= by && y <= by + bh
+            reload_imported_dc_positions(view)
+            return
+          end
+        end
+
         if @reload_button_rect
           bx, by, bw, bh = @reload_button_rect
           if x >= bx && x <= bx + bw && y >= by && y <= by + bh
@@ -1987,26 +2370,158 @@ module MH
       end
 
       def reload_material_hud_data(view)
-        Sketchup.status_text = 'Dang nap lai Excel va cache HUD...'
+        Sketchup.status_text = 'Dang nap lai Registry va cache HUD...'
         MH::Superimp.ensure_registry_runtime
         registry = defined?(MH::RegistryApp) ? MH::RegistryApp : nil
-        result = nil
-        if registry && registry.respond_to?(:reload_mvl_excel_pipeline)
-          result = registry.reload_mvl_excel_pipeline({})
-        end
-        if (!result.is_a?(Hash) || !(result['ok'] || result[:ok])) &&
-           registry && registry.respond_to?(:reload_registry_excel_runtime)
+        if registry && registry.respond_to?(:reload_registry_excel_runtime)
           registry.reload_registry_excel_runtime
         end
         invalidate_registry_context_cache
         load_current_material_profile
-        Sketchup.status_text = 'Da reload Excel + Registry + HUD.'
+        Sketchup.status_text = 'Da reload Registry + HUD.'
         view.invalidate
         true
       rescue => e
         Sketchup.status_text = "Reload HUD loi: #{e.message}"
         puts "[MH::Superimp] reload HUD data error: #{e.class}: #{e.message}"
         view.invalidate
+        false
+      end
+
+      # Explicit, user-triggered recovery for copied/moved DCs. We only touch
+      # roots that were previously handled by the DC import pipeline; no
+      # arbitrary component in the model is renamed or assigned a material.
+      # A marker that is ambiguous/outside its zone is deliberately left as-is.
+      def reload_imported_dc_positions(view)
+        model = Sketchup.active_model
+        unless defined?(MH::ProductContext) && model
+          Sketchup.status_text = 'Chua san sang Product Context.'
+          return false
+        end
+
+        MH::ProductContext.clear_spatial_marker_cache
+        markers = MH::ProductContext.spatial_markers(model, view)
+        if markers.empty?
+          Sketchup.status_text = 'Khong thay marker SP (Text) de dong bo vi tri.'
+          view.invalidate
+          return false
+        end
+
+        targets = imported_dc_position_targets(model)
+        if targets.empty?
+          Sketchup.status_text = 'Khong tim thay DC da import qua SuperImp.'
+          view.invalidate
+          return false
+        end
+
+        updates = []
+        stamped = 0
+        unmatched = 0
+        targets.each do |entry|
+          instance = entry[:instance]
+          spatial = MH::ProductContext.infer_spatial_product(
+            MH::ProductContext.world_points_for_entity(instance, entry[:world]),
+            model: model,
+            view: view
+          )
+          if spatial.to_s.empty?
+            unmatched += 1
+            next
+          end
+
+          product_code = MH::ProductContext.exact(spatial)
+          position_code = MH::ProductContext.position_product_code(instance)
+          registry_code = instance.get_attribute('MH_Registry', 'dc_product_code', '').to_s
+          current_code = position_code.empty? ? registry_code : position_code
+          changed = MH::ProductContext.base(current_code) != MH::ProductContext.base(product_code)
+          updates << { instance: instance, product_code: product_code } if changed
+          stamped += 1 unless changed || !position_code.empty?
+        end
+
+        # Store the resolved ownership before requesting the material pipeline.
+        # The operation is intentionally short; redraw/material work happens in
+        # the pipeline's existing deferred job only for DCs whose SP changed.
+        model.start_operation('MH Dong bo vi tri SP', true)
+        begin
+          targets.each do |entry|
+            instance = entry[:instance]
+            spatial = MH::ProductContext.infer_spatial_product(
+              MH::ProductContext.world_points_for_entity(instance, entry[:world]),
+              model: model,
+              view: view
+            )
+            next if spatial.to_s.empty?
+
+            product_code = MH::ProductContext.exact(spatial)
+            MH::ProductContext.stamp_position_product(instance, product_code)
+            instance.set_attribute('MH_Registry', 'dc_product_code', product_code)
+          end
+          model.commit_operation
+        rescue => e
+          model.abort_operation rescue nil
+          raise e
+        end
+
+        updates.each do |entry|
+          instance = entry[:instance]
+          context = {
+            source: 'MH_Superimp position reload',
+            import_name: (instance.definition.name rescue instance.name).to_s,
+            product_code: entry[:product_code],
+            material_source: @material_source_manual ? 'manual' : 'auto'
+          }
+          MH::Superimp.notify_imported_dc(instance, context)
+          @last_imported_dc = instance
+        end
+
+        MH::ProductContext.remember_code(updates.last[:product_code], model) unless updates.empty?
+        invalidate_registry_context_cache
+        summary = "SP da dong bo: #{updates.length} doi SP"
+        summary += ", #{stamped} gan dau" if stamped > 0
+        summary += ", #{unmatched} chua ro" if unmatched > 0
+        summary += '. VL se cap nhat cho DC doi SP.' unless updates.empty?
+        Sketchup.status_text = summary
+        view.invalidate
+        true
+      rescue => e
+        Sketchup.status_text = "Dong bo vi tri SP loi: #{e.message}"
+        puts "[MH::Superimp] reload positions error: #{e.class}: #{e.message}"
+        view.invalidate if view
+        false
+      end
+
+      def imported_dc_position_targets(model)
+        targets = []
+        visit = lambda do |entities, parent_transform|
+          entities.each do |entity|
+            next unless entity && entity.valid?
+
+            if entity.is_a?(Sketchup::Group)
+              visit.call(entity.entities, parent_transform * entity.transformation)
+              next
+            end
+            next unless entity.is_a?(Sketchup::ComponentInstance)
+            next unless imported_dc_instance?(entity)
+
+            targets << { instance: entity, world: parent_transform * entity.transformation }
+          end
+        end
+        visit.call(model.entities, Geom::Transformation.new)
+        targets
+      rescue => e
+        puts "[MH::Superimp] collect imported DCs error: #{e.class}: #{e.message}"
+        []
+      end
+
+      def imported_dc_instance?(instance)
+        registry = instance.attribute_dictionary('MH_Registry', false)
+        return false unless registry
+
+        registry['dc_import_pipeline_seen'] == true ||
+          !registry['dc_material_profile_id'].to_s.empty? ||
+          !registry['dc_material_code'].to_s.empty? ||
+          !registry['dc_product_code'].to_s.empty?
+      rescue
         false
       end
 
@@ -2332,6 +2847,13 @@ module MH
         code = @swap_buffer
         @swap_buffer = ""
 
+        # Danh sách DC có thể vừa được Registry cập nhật trong khi tool đang
+        # mở. Không dùng map/nhóm từ lúc khởi tạo nữa, nếu không shortcut sẽ
+        # báo thiếu key hoặc chọn sai DC sau một lần Lưu JSON/reload list.
+        @swap_map = MH::Superimp.swap_map
+        current_item = MH::Superimp.item_for_path(@import_path)
+        @group = current_item[:group].to_s if current_item
+
         if !@group || @group.empty? || !@swap_map[@group]
           @swap_last_msg = "✗ Lỗi: Cấu kiện này chưa được gán Nhóm!"
           Sketchup.status_text = "Không thể Swap vì cấu kiện gốc không có Nhóm."
@@ -2339,16 +2861,14 @@ module MH
           new_item = @swap_map[@group][code]
           if new_item
             if File.exist?(new_item[:path])
-              @import_path = new_item[:path]
               name = new_item[:name]
-              invalidate_registry_context_cache
+              set_import_path(new_item[:path])
               @swap_last_msg = "✓ [#{code}] → #{name}"
               Sketchup.status_text = "Đã swap sang: #{name}"
             else
               # File không tồn tại nhưng vẫn set path (có thể user sẽ tạo file sau)
-              @import_path = new_item[:path]
               name = new_item[:name]
-              invalidate_registry_context_cache
+              set_import_path(new_item[:path])
               @swap_last_msg = "⚠ [#{code}] #{name} — file chưa tồn tại!"
               Sketchup.status_text = "Swap [#{code}]: file không tìm thấy tại #{new_item[:path]}"
             end

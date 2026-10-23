@@ -28,7 +28,7 @@ def save_feedback(tmp_path, source, identity):
 def test_real_single_bay_rebuild_uses_accepted_boxes_after_geometry_recognition(tmp_path):
     packet = request(tmp_path, 'single')
     original = product(packet)
-    assert original['modules'][0]['size'] == [1238, 591, 1600]
+    assert original['modules'][0]['size'] == [1238, 600, 1600]
     save_feedback(tmp_path, original, 'correct-source')
     # A fresh scan has a different code/hash/handle set and translated coordinates.
     changed = deepcopy(packet)
@@ -44,8 +44,8 @@ def test_real_single_bay_rebuild_uses_accepted_boxes_after_geometry_recognition(
     assert rebuilt['modules'][0]['size'] == [1238, 600, 1600]
     assert len(rebuilt['trim_parts']) == 2
     assert rebuilt['bounds'] == [1310, 600, 1600]
-    assert rebuilt['plan_origin_offset_mm'] == [0, 0]  # Same physical position in the full-source frame.
-    assert rebuilt['placement']['origin_mm'] == [original['placement']['origin_mm'][0]+5000-18, original['placement']['origin_mm'][1]-3000-9]
+    assert rebuilt['plan_origin_offset_mm'] == [-18, -9]  # Explicit accepted offset is already source-based.
+    assert rebuilt['placement']['origin_mm'] == [original['source_plan_envelope'][0]+5000-18, original['source_plan_envelope'][1]-3000-9]
 
 
 def test_misbound_two_bay_sample_does_not_train_single_bay_or_silently_override_source(tmp_path):
@@ -56,10 +56,9 @@ def test_misbound_two_bay_sample_does_not_train_single_bay_or_silently_override_
     save_feedback(tmp_path, source, 'wrong-source')
     target = product(request(tmp_path, 'single'))
     assert source['signature'] != target['signature']
-    assert target['learning']['mode'] == 'staged'
-    assert 'khớp hình học' in target['learning']['message']
+    assert target['learning']['mode'] == 'geometry'
     same_source = product(request(tmp_path, 'two_bays'))
     assert same_source['status'] == 'needs_review'
     assert same_source['learning']['issues'][0]['code'] == 'source_binding_mismatch'
     atomic_json(tmp_path/'experience_exclusions'/'wrong-source.json',dict(reason='relinked_to_correct_source'))
-    assert product(request(tmp_path, 'two_bays'))['learning']['mode']=='staged'
+    assert product(request(tmp_path, 'two_bays'))['learning']['mode']=='geometry'

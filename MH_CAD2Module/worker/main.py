@@ -28,7 +28,7 @@ from plan_profiles import expand_plan_outlines
 from plan_evidence import measure_plan
 
 # Invalidate derived geometry without invalidating accepted source measurements.
-RECOGNIZER_VERSION = 11
+RECOGNIZER_VERSION = 39
 
 
 def fold(value):
@@ -38,7 +38,9 @@ def fold(value):
 
 def product_code(value):
     matches = re.findall(r"\bSP\s*[-_]?\s*(\d+)\b", str(value), re.I)
-    return ["SP" + m.zfill(2) for m in matches]
+    if matches:return ["SP" + m.zfill(2) for m in matches]
+    text=str(value).strip()
+    return [text.upper()] if re.fullmatch(r'[A-Za-z][A-Za-z0-9_-]*\d[A-Za-z0-9_-]*',text) else []
 
 
 def declared_scale(doc):
@@ -54,8 +56,9 @@ def find_products(doc, scale):
     frames = set()
     for entity in doc.modelspace().query("INSERT"):
         attrs = {fold(a.dxf.tag): a.dxf.text for a in entity.attribs}
-        code_values = [attrs.get(k, "") for k in ("MASP", "MA_SP", "PRODUCT", "TENBV1", "TENBV2")]
-        codes = list(dict.fromkeys(code for value in code_values for code in product_code(value)))
+        explicit = [code for key in ('MASP','MA_SP','PRODUCT') for code in product_code(attrs.get(key,''))]
+        fallback = [code for key in ('TENBV1','TENBV2') for code in product_code(attrs.get(key,''))]
+        codes = list(dict.fromkeys(explicit or [c for c in fallback if c.startswith('SP')] or fallback))
         if not codes:
             continue
         name = next((attrs[k] for k in ("TENSP", "TEN_SP", "PRODUCT_NAME") if attrs.get(k)), "")
@@ -73,6 +76,7 @@ def find_products(doc, scale):
         for code in codes:
             product = found.setdefault(code, {"code": code, "name": name, "regions": []})
             product["regions"].append(limits)
+            if len(codes)>1:product['shared_frame_codes']=sorted(set(product.get('shared_frame_codes',[])+codes))
     return found, frames
 
 
@@ -104,14 +108,16 @@ def outline_points(entity,scale):
     return [[round(p.x*scale,3),round(p.y*scale,3)] for p in path.flattening(max(0.1/scale,0.001))]
 
 
-def read_geometry(doc, scale, excluded, annotations=None, min_panel_length=100):
+def read_geometry(doc, scale, excluded, annotations=None, min_panel_length=100, recover_panels=True):
     rects, outlines, lines, diagnostics = [], [], [], []
 
-    def walk(entities, parent="", depth=0):
+    def walk(entities, parent="", depth=0, block_names=(), inherited_layer='0', inherited_style=None):
         if depth > 12:
             diagnostics.append("Block lồng quá 12 cấp: đã bỏ qua phần sâu hơn.")
             return
         for entity in entities:
+            if entity.dxf.get('invisible', 0):
+                continue
             kind = entity.dxftype()
             handle = str(entity.dxf.get("handle", "") or parent)
             if kind in ('TEXT','MTEXT') and annotations is not None:
@@ -129,19 +135,37 @@ def read_geometry(doc, scale, excluded, annotations=None, min_panel_length=100):
                     if annotations is not None:
                         extent=bbox.extents([entity])
                         attrs={a.dxf.tag:a.dxf.text.strip() for a in entity.attribs}
-                        axis='horizontal' if extent.size.x>extent.size.y else 'vertical'
+                        segments=[]
+                        for line in entity.virtual_entities():
+                            if line.dxftype()=='LINE' and not line.dxf.get('invisible',0):
+                                p,q=line.dxf.start,line.dxf.end
+                                segments.append(([p.x*scale,p.y*scale],[q.x*scale,q.y*scale]))
+                        cut=max(segments,key=lambda pair:math.dist(*pair),default=None)
+                        delta=[abs(cut[1][i]-cut[0][i]) for i in (0,1)] if cut else [extent.size.x,extent.size.y]
+                        axis='horizontal' if delta[1]<max(.15,delta[0]*.001) else 'vertical' if delta[0]<max(.15,delta[1]*.001) else 'oblique'
+                        local_axis=axis
+                        if cut:
+                            dx,dy=[cut[1][i]-cut[0][i] for i in (0,1)];angle=math.radians(entity.dxf.rotation)
+                            ux=(dx*math.cos(angle)+dy*math.sin(angle))/entity.dxf.xscale
+                            uy=(-dx*math.sin(angle)+dy*math.cos(angle))/entity.dxf.yscale
+                            local_axis='horizontal' if abs(ux)>=abs(uy) else 'vertical'
                         annotations.append({'kind':'section_marker','handle':parent+'/'+handle,
                                             'point':[entity.dxf.insert.x*scale,entity.dxf.insert.y*scale],
-                                            'numbers':[attrs['4' if axis=='horizontal' else '1']] if all(k in attrs for k in ('1','4')) else [],
-                                            'numbers_all':sorted(set(attrs.values())), 'axis':axis})
+                                            'numbers':[fold(attrs['4' if local_axis=='horizontal' else '1'])] if all(k in attrs for k in ('1','4')) else [],
+                                            'numbers_all':sorted(set(attrs.values())), 'axis':axis,'cut_line':cut})
+                        from section_arrows import visible_lines,arrow_evidence
+                        annotations[-1].update(arrow_evidence(visible_lines(entity.virtual_entities(),scale),cut))
                     continue
                 try:
-                    walk(entity.virtual_entities(), parent + "/" + handle, depth + 1)
+                    layer=entity.dxf.layer if entity.dxf.layer!='0' else inherited_layer
+                    from cad_style import entity_style
+                    walk(entity.virtual_entities(), parent + "/" + handle, depth + 1,
+                         block_names+(entity.dxf.name,),layer,entity_style(entity,layer,inherited_style))
                 except Exception as error:
                     diagnostics.append(f"Block {handle}: {error}")
                 continue
             identity = parent + "/" + handle
-            layer = entity.dxf.layer
+            layer = entity.dxf.layer if entity.dxf.layer!='0' else inherited_layer
             points = None
             if kind == "LWPOLYLINE" and entity.closed:
                 if all(abs(p[4]) < 1e-8 for p in entity.get_points("xyseb")):
@@ -158,12 +182,16 @@ def read_geometry(doc, scale, excluded, annotations=None, min_panel_length=100):
                     rects.append(candidate)
             try:
                 pts = outline_points(entity,scale)
-                if len(pts) > 1 and len(outlines) < 25000:
-                    outlines.append({"handle": identity, "points": pts[:3000], "layer": layer})
+                if len(pts) > 1:
+                    from cad_style import entity_style
+                    outlines.append({"handle": identity, "points": pts, "layer": layer,
+                                     'block_names':list(block_names),'entity_type':kind,**entity_style(entity,layer,inherited_style)})
             except (TypeError, ValueError, AttributeError):
                 pass
 
     walk(doc.modelspace())
+    if not recover_panels:
+        return rects, outlines, diagnostics
     if len(lines) <= 15000:
         rects.extend(line_rectangles(lines,min_length=min_panel_length))
     else:
@@ -171,30 +199,56 @@ def read_geometry(doc, scale, excluded, annotations=None, min_panel_length=100):
     return rects, outlines, diagnostics
 
 
-def analyse_source(source, root, converter="", targets=None, stages=None):
+def analyse_source(source, root, converter="", targets=None, stages=None, plan_choices=None):
+    source_started=time.perf_counter()
     stages=stages or {'plan':True,'elevation':True}
     revision = archive_source(source, root)
+    revision_seconds=time.perf_counter()-source_started
+    saved_choices={}
+    for path in (root/'view_choices'/revision['hash']).glob('SP*.json'):
+        try:saved_choices[path.stem]=json.loads(path.read_text(encoding='utf8'))
+        except (OSError,ValueError):continue
+    explicit_choices=plan_choices or {}
+    plan_choices={**saved_choices,**explicit_choices}
     target_key='-'+hashlib.sha256(json.dumps(sorted(targets),ensure_ascii=False).encode()).hexdigest()[:12] if targets else ''
+    if plan_choices:
+        target_key+='-'+hashlib.sha256(json.dumps(plan_choices,sort_keys=True).encode()).hexdigest()[:12]
     stage_key='full' if stages['elevation'] else 'plan1600'
     cache_path = Path(revision["folder"]) / (f"analysis-{VERSION}-r{RECOGNIZER_VERSION}-{stage_key}" + target_key + ".json")
-    if cache_path.is_file():
-        result = json.loads(cache_path.read_text(encoding="utf-8"))
+    result=None
+    if cache_path.is_file() and not stages['elevation']:
+        try:
+            result=json.loads(cache_path.read_text(encoding='utf8'))
+            if not isinstance(result.get('products'),list) or result['revision']['hash']!=revision['hash']:result=None
+        except (OSError,ValueError,TypeError,KeyError,AttributeError):result=None
+    if result is not None:
         result["revision"] = revision
+        result['source_cache']=dict(mode='analysis',revision_check=round(revision_seconds,6),total_source=round(time.perf_counter()-source_started,6))
+        for product in result.get('products',[]):
+            product.update(source_path=revision.get('original_path',product.get('source_path')),source_hash=revision['hash'])
+            product['source_cache']=result['source_cache']
+            product['processing_from_cache']=True
+            for child in product.get('plan_results',[]):child.update(source_path=product['source_path'],source_hash=revision['hash'])
+            for child in product.get('plan_results',[]):child.update(source_cache=result['source_cache'],processing_from_cache=True)
         return result
-    dxf = dxf_for_revision(revision, converter)
-    doc = ezdxf.readfile(dxf)
-    scale = declared_scale(doc)
-    products, frames = find_products(doc, scale)
+    from source_index import load_index
+    def extract():
+        doc=ezdxf.readfile(dxf_for_revision(revision,converter))
+        scale=declared_scale(doc);products,frames=find_products(doc,scale);annotations=[]
+        rects,outlines,diagnostics=read_geometry(doc,scale,frames,annotations,recover_panels=False)
+        dependencies=archive_dependencies(doc,revision,root)
+        if dependencies:diagnostics.append('Nguồn có Xref chưa ghép; cần bind vào bản sao CAD trước khi phân tích đầy đủ.')
+        return dict(source_hash=revision['hash'],products=products,annotations=annotations,
+                    rectangles=[r.as_dict() for r in rects],outlines=outlines,diagnostics=diagnostics,dependencies=dependencies)
+    index_started=time.perf_counter();index,cache_mode=load_index(revision,extract)
+    index_seconds=time.perf_counter()-index_started
+    from copy import deepcopy
+    products=deepcopy(index.meta['products']);annotations=index.meta['annotations']
     if targets:
         codes={c for text in targets for c in product_code(text)}
         names={fold(text) for text in targets}
         products={k:p for k,p in products.items() if k in codes or fold(p['name']) in names}
-    annotations=[]
-    rects, outlines, diagnostics = read_geometry(doc, scale, frames, annotations,
-                                                min_panel_length=100 if stages['elevation'] else 0)
-    dependencies = archive_dependencies(doc, revision, root)
-    if dependencies:
-        diagnostics.append("Nguồn có Xref; bộ nhận dạng hiện chưa ghép hình học từ Xref. Cần bind/Xref vào một bản sao CAD để phân tích đầy đủ.")
+    diagnostics=list(index.meta['diagnostics']);dependencies=index.meta['dependencies']
     result = {"version": VERSION, "revision": revision, "products": [], "diagnostics": diagnostics,
               "dependencies": dependencies}
     if not products:
@@ -202,26 +256,47 @@ def analyse_source(source, root, converter="", targets=None, stages=None):
                                      "Không thấy block khung có attribute mã SP. Cần nguồn có mã SP để tự định vị sản phẩm.")
     for product in products.values():
         product['parser_version'] = VERSION
-        relevant = [r for r in rects if any(inside(r.box(), region) for region in product["regions"])]
+        selection_started=time.perf_counter()
+        relevant=index.rectangles(product['regions'],full=False)
         product["rectangles"] = [r.as_dict() for r in relevant]
-        product["outlines"] = [p for p in outlines if any(
-            all(region[0] <= v[0] <= region[2] and region[1] <= v[1] <= region[3] for v in p["points"])
-            for region in product["regions"])]
-        views=split_views(product['regions'],annotations,relevant,product['outlines']) or infer_views(relevant,product['outlines'])
-        if not stages['elevation'] and not any(v['role']=='plan' for v in views):
-            views=infer_plan_views(relevant,product['outlines'])
-        prepare_views(product,views,stages)
-        try:
+        product['outlines']=index.select(product['regions'])
+        product['source_cache']=dict(mode=cache_mode,revision_check=round(revision_seconds,6),index_load=round(index_seconds,6),
+                                    spatial_selection=round(time.perf_counter()-selection_started,6),indexed_outlines=index.db.execute('SELECT count(*) FROM outlines').fetchone()[0])
+        from drawing_scope import choose_product_plan
+        from plan_reference import prepare_reference
+        choice=(plan_choices or {}).get(product['code'])
+        if choice and choice.get('source_hash')!=revision['hash']:
+            raise ValueError('Nguồn CAD đã đổi sau khi xem trước; đọc lại và xác nhận vùng mới.')
+        selected=choose_product_plan(product,annotations,choice,multiple=True)
+        if selected and product['code'] in explicit_choices:
+            atomic_json(root/'view_choices'/revision['hash']/(product['code']+'.json'),choice)
+        check=product['check_outlines']
+        if not selected:
+            product.update(status='needs_review',error=product['view_analysis']['message'],modules=[],
+                           build_stages=dict(stages),signature=None,explanation=[product['view_analysis']['message']],
+                           source_hash=revision['hash'],source_path=revision['original_path'])
+            result['products'].append(product)
+            continue
+        if not stages['elevation']:
+            product.update(source_hash=revision['hash'],source_path=revision['original_path'])
+            from named_plans import analyse_named_plans
+            analyse_named_plans(product,selected,root)
             if dependencies:
-                raise ValueError("Có Xref chưa ghép hình học; chưa đủ bằng chứng để tự dựng sản phẩm.")
-            product.update((recognise_ordered if stages['elevation'] else recognise_plan)(views,product['geometry_pipeline']))
-            product["status"] = "ready"
-        except ValueError as error:
-            product.update(status="needs_review", error=str(error), modules=[])
-            product["signature"] = geometry_signature(relevant, outlines=product['outlines'])
-        product["source_hash"] = revision["hash"]
-        product["source_path"] = revision["original_path"]
-        result["products"].append(product)
+                product.pop('plan_results',None)
+                product.update(status='needs_review',error='Có Xref chưa ghép hình học; chưa đủ bằng chứng dựng.',modules=[])
+            result['products'].append(product)
+            continue
+        product.update(source_hash=revision['hash'],source_path=revision['original_path'])
+        if dependencies:
+            product.update(status='needs_review',error='Có Xref chưa ghép hình học; chưa đủ bằng chứng dựng.',modules=[])
+        else:
+            from combined_runtime import analyse
+            analyse(product,selected,annotations,root)
+        result['products'].append(product)
+    result['source_cache']=dict(mode=cache_mode,revision_check=round(revision_seconds,6),index_load=round(index_seconds,6),total_source=round(time.perf_counter()-source_started,6))
+    for product in result['products']:
+        product['source_cache']['total_source']=result['source_cache']['total_source']
+        for child in product.get('plan_results',[]):child['source_cache']=product['source_cache']
     atomic_json(cache_path, result)
     return result
 
@@ -295,6 +370,40 @@ def report_progress(request, root, stage, message):
         atomic_json(Path(path),dict(stage=stage,message=message))
 
 
+def run_plan(request,root,stages):
+    from plan_reader import analyse_plan, replay_confirmed
+    notify=lambda stage,message:report_progress(request,root,stage,message)
+    if request.get('action')=='geometry':
+        geometry=request['geometry']
+        automatic=request.get('automatic_scan',not bool(request.get('code')))
+        product=dict(code=request.get('code') or f'SCAN-{str(uuid.uuid4()).upper()}',
+            name=request.get('name','Vùng quét CAD' if automatic else ''),automatic_scan=automatic,
+            source_hash=geometry['hash'],source_path=geometry.get('model_path') or 'Nét CAD được chọn trong SketchUp')
+        if geometry.get('source_watch'):product['source_watch']=geometry['source_watch']
+        from cad_style import metadata
+        outlines=[dict(handle=str(row['handle']),layer=row.get('layer',''),points=[row['a'],row['b']],**metadata(row)) for row in geometry['lines']]
+        analyse_plan(product,outlines,root,notify)
+        envelope_preview(product,geometry)
+        try:source_placement(product,geometry)
+        except ValueError as error:product.update(status='needs_review',error=str(error),modules=[])
+        notify('prepare_result','Đã đọc cặp biên theo hướng tấm; đang chuyển về SketchUp để kiểm tra nguồn và dựng…')
+        return dict(analyses=[dict(revision=dict(hash=geometry['hash'],original_path=product['source_path']),products=[product],diagnostics=[])],errors=[])
+    if not request.get('sources'):raise ValueError('Chưa cấu hình nguồn DWG/DXF trong bảng Quản lý.')
+    analyses=[];errors=[]
+    for source in request['sources']:
+        try:
+            notify('read_source','Đang đọc nguồn CAD và quét các tấm theo OY…')
+            analysis=analyse_source(source,root,request.get('converter',''),request.get('targets'),stages,request.get('plan_choices'))
+            for product in analysis['products']:
+                if not analysis.get('dependencies') and product.get('view_analysis',{}).get('selected_view_id'):
+                    from named_plans import replay_named
+                    replay_named(product,root)
+            analyses.append(analysis)
+        except Exception as error:errors.append(dict(source=source,error=str(error)))
+    notify('prepare_result','Đã đọc nguồn bằng cặp biên song song; không gọi AI.')
+    return dict(analyses=analyses,errors=errors)
+
+
 def run(request):
     root = library_root(request.get("library", ""))
     if request.get('action') == 'ai_status':
@@ -305,62 +414,19 @@ def run(request):
     if request.get('action') == 'learn_plan':
         return {'plan_rules': ExperienceLibrary(library_root(request.get('learning_library') or str(root))).refresh_plan_rules()}
     stages=requested_stages(request)
-    memory = ExperienceLibrary(root)
-    from local_ai import Assistant
-    assistant = Assistant(request, memory)
-    if request.get("action") == "geometry":
-        geometry = request["geometry"]
-        report_progress(request,root,'read_edges',f"Đang ghép biên tấm từ {len(geometry['lines'])} cạnh CAD…")
-        automatic=request.get('automatic_scan',not bool(request.get('code')))
-        code=request.get('code') or f'SCAN-{str(uuid.uuid4()).upper()}'
-        rows = [(tuple(row["a"]), tuple(row["b"]), row["handle"], row.get("layer", "")) for row in geometry["lines"]]
-        rects = line_rectangles(rows,min_length=100 if stages['elevation'] else 0)
-        product = {"code": code, "name": request.get("name", "Vùng quét CAD" if automatic else ""),
-                   'automatic_scan':automatic,"source_hash": geometry["hash"], "parser_version": VERSION,
-                   "source_path": geometry.get("model_path") or "Nét CAD được chọn trong SketchUp",
-                   "outlines": [{"handle": h, "layer": layer, "points": [a,b]} for a,b,h,layer in rows],
-                   "rectangles": [r.as_dict() for r in rects], "regions": [union([r.box() for r in rects])] if rects else []}
-        if geometry.get('source_watch'):product['source_watch']=geometry['source_watch']
-        report_progress(request,root,'views','Đang xác định mặt bằng và đo các tấm/cung…')
-        views=infer_views(rects,product['outlines'])
-        if not stages['elevation'] and not any(v['role']=='plan' for v in views):
-            views=infer_plan_views(rects,product['outlines'],allow_unresolved=True)
-        prepare_views(product,views,stages)
-        report_progress(request,root,'partition','Đang chia module từ hình học CAD…')
+    if not stages['elevation']:
+        return run_plan(request,root,stages)
+    if request.get('action')=='geometry':
+        from combined_runtime import selected_geometry
+        return selected_geometry(request,root,lambda stage,message:report_progress(request,root,stage,message))
+    if not request.get('sources'):raise ValueError('Chưa cấu hình nguồn DWG/DXF trong bảng Quản lý.')
+    analyses=[];errors=[]
+    for source in request['sources']:
         try:
-            product.update((recognise_ordered if stages['elevation'] else recognise_plan)(views,product['geometry_pipeline']))
-            product["status"] = "ready"
-            report_progress(request,root,'experience','Đang đối chiếu kinh nghiệm đã xác nhận…')
-            replay_experience(product, root, memory)
-        except ValueError as error:
-            product.update(status="needs_review", error=str(error), modules=[])
-            if not stages['elevation']:
-                product['envelope']=selected_envelope(geometry)
-                product['source_plan_envelope']=list(product['envelope'])
-            product["signature"] = geometry_signature(rects, outlines=product['outlines'])
-            replay_experience(product, root, memory)
-        assistant.apply(product)
-        report_progress(request,root,'prepare_result','Đã phân tích xong; đang chuyển kết quả về SketchUp để kiểm tra và dựng…')
-        envelope_preview(product,geometry)
-        try:
-            source_placement(product,geometry)
-        except ValueError as error:
-            product.update(status='needs_review',error=str(error),modules=[])
-        return {"analyses": [{"revision": {"hash": geometry["hash"], "original_path": product["source_path"]},
-                              "products": [product], "diagnostics": []}], "errors": []}
-    analyses, errors = [], []
-    for source in request.get("sources", []):
-        try:
-            analysis = analyse_source(source, root, request.get("converter", ""),request.get('targets'),stages)
-            for product in analysis["products"]:
-                replay_experience(product, root, memory)
-                assistant.apply(product)
-            analyses.append(analysis)
-        except Exception as error:
-            errors.append({"source": source, "error": str(error)})
-    if not request.get("sources"):
-        raise ValueError("Chưa cấu hình nguồn DWG/DXF trong bảng Quản lý.")
-    return {"analyses": analyses, "errors": errors}
+            report_progress(request,root,'sections','Đang đọc mặt bằng và liên kết mặt cắt đứng theo vị trí…')
+            analyses.append(analyse_source(source,root,request.get('converter',''),request.get('targets'),stages,request.get('plan_choices')))
+        except Exception as error:errors.append(dict(source=source,error=str(error)))
+    return dict(analyses=analyses,errors=errors)
 
 
 def main():

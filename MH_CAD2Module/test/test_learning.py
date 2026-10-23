@@ -223,13 +223,12 @@ def test_corrupted_derived_cache_rebuilds_from_immutable_example(tmp_path):
     assert target['modules'][0]['size'][0]==920
 
 
-def test_integration_after_cached_dwg_analysis(tmp_path,monkeypatch):
+def test_legacy_full_learning_remains_available_without_entering_new_section_stage(tmp_path):
     import main
     source,state=sample_product();save_example(tmp_path,source,state)
     target,expected=changed_product()
-    monkeypatch.setattr(main,'analyse_source',lambda *_:dict(products=[target],revision={},diagnostics=[]))
-    result=main.run(dict(library=str(tmp_path),sources=['source.dwg'],build_elevation=True))
-    actual=result['analyses'][0]['products'][0]
+    main.replay_experience(target,tmp_path)
+    actual=target
     assert actual['learning']['mode']=='similar' and actual['bounds']==expected['bounds']
 
 

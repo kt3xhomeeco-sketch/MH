@@ -21,6 +21,20 @@ module MH
           MH::MaterialCode.display(value)
         end
 
+        # Chi chap nhan ma vat lieu co y nghia.  Du lieu thong ke cu co the
+        # dua ma mau (vi du #FFFFFF) vao truong Ma_vat_lieu khi SP chua co
+        # vat lieu.  Ma mau la placeholder giao dien, khong phai vat lieu va
+        # tuyet doi khong duoc sinh profile do day/HUD.
+        def meaningful_material_code?(value)
+          code = normalize_logical_material_code(value).to_s.strip
+          return false if code.empty?
+          return false if code =~ /\A#(?:[0-9A-F]{3}|[0-9A-F]{6}|[0-9A-F]{8})\z/i
+
+          !%w[- -- N/A NA NONE NULL].include?(code.upcase)
+        rescue
+          false
+        end
+
         # Legacy shim: luồng mới không còn dc_type_groups.
         # type_key giữ lại như alias của material_code_key để các call cũ không lỗi.
         def type_key(material_code)

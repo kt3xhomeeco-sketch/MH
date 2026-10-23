@@ -235,6 +235,9 @@ module MH
 
         def apply_registry_naming_attrs(entity, naming, role = nil, detail_name = nil, full_name = nil)
           naming.each do |key, value|
+            # Keep module/detail metadata, but do not assign SP to the root or
+            # child groups as a side effect of the import/naming pipeline.
+            next if key.to_s == 'product_code'
             next if value.to_s.empty?
             entity.set_attribute('MH_Registry', "dc_#{key}", value)
           end

@@ -20,10 +20,17 @@ module MH
       def self.all(model)
         dictionary = model.attribute_dictionary(DICT)
         return [] unless dictionary
+        index = member_index(model)
         dictionary.keys.filter_map do |id|
           product = new(model, id)
-          product if product.valid?
+          product if product.valid?(index)
         end
+      end
+
+      def self.member_index(model)
+        # Members live at the model root; global persistent-ID searches traverse CAD too.
+        parts = model.entities.grep(Sketchup::Group) + model.entities.grep(Sketchup::ComponentInstance) # rubocop:disable SketchupSuggestions/ModelEntities -- Assembly members are independent world-level groups.
+        parts.to_h { |entity| [entity.persistent_id, entity] }
       end
 
       def initialize(model, id)
@@ -46,9 +53,10 @@ module MH
         @data = values
       end
 
-      def members
+      def members(index = nil)
+        index ||= self.class.member_index(model)
         Array(data && data['members']).filter_map do |id|
-          entity = model.find_entity_by_persistent_id(id)
+          entity = index[id]
           entity if entity && entity.valid? && entity.parent == model && entity.get_attribute(PART_DICT, 'assembly_id') == persistent_id
         end
       end
@@ -61,8 +69,8 @@ module MH
         write(values)
       end
 
-      def valid?
-        !model.get_attribute(DICT, persistent_id).nil? && !members.empty?
+      def valid?(index = nil)
+        !model.get_attribute(DICT, persistent_id).nil? && !members(index).empty?
       end
 
       def definition

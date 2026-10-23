@@ -6,7 +6,7 @@ require 'extensions.rb'
 module MH
   module Van
     EXTENSION_NAME = 'MH Van'.freeze
-    EXTENSION_VERSION = '1.3.1'.freeze
+    EXTENSION_VERSION = '1.3.5'.freeze
 
     unless file_loaded?(__FILE__)
       extension = SketchupExtension.new(

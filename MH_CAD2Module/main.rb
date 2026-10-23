@@ -9,6 +9,8 @@ require_relative 'selection_source'
 require_relative 'scan_tool'
 require_relative 'plan_rules'
 require_relative 'activity'
+require_relative 'product_requests'
+require_relative 'reference_build'
 
 module MH
   # SketchUp is the user surface; the local worker owns CAD parsing only.
@@ -16,23 +18,26 @@ module MH
     extend self
 
     def manager
+      created = @manager.nil?
       @manager ||= make_dialog('MH CAD2Module — Quản lý', 'manager.html', 1100, 780, 'manager')
       @manager.show
-      publish
+      publish(nil, target: @manager) unless created # A new page requests its state when ready.
     end
 
     def entry(mode = 'dwg')
       @entry_mode = mode
+      created = @entry.nil?
       @entry ||= make_dialog('MH CAD2Module — Dựng sản phẩm', 'entry.html', 420, 235, 'entry')
       @entry.show
-      publish
+      publish(nil, target: @entry) unless created
     end
 
     def start_scan
       raise ArgumentError, 'Kết thúc Sửa kết quả trước khi quét nguồn mới.' if Corrections.active?
       @selection_geometry = nil
       Sketchup.active_model.select_tool(ScanTool.new)
-      publish('Kéo khung bao mặt bằng CAD; thả chuột để dựng ngay tại vùng quét, không cần nhập mã SP.')
+      message = Settings.read['build_elevation'] ? 'Kéo khung bao mặt bằng, mặt đứng, mặt cắt đứng và đầy đủ chữ/dấu cắt của một SP; dựng tại mặt bằng nguồn, không cần mã SP.' : 'Kéo khung bao mặt bằng CAD; thả chuột để dựng ngay tại vùng quét, không cần nhập mã SP.'
+      publish(message)
     end
 
     def selection_ready(window)
@@ -48,7 +53,7 @@ module MH
       dialog.set_file(File.join(Settings::ROOT, 'ui', page))
       dialog.add_action_callback('request') do |_context, raw|
         packet = JSON.parse(raw)
-        dispatch(packet)
+        packet['action'] == 'ready' ? publish(nil, target: dialog) : dispatch(packet)
       rescue StandardError => error
         report_error(error.message, activity_key: packet && packet['activity_key'])
       end
@@ -67,7 +72,9 @@ module MH
     end
 
     def public_state
-      selected = Model.selected_product
+      model = Sketchup.active_model
+      live = Model.products(model)
+      selected = Model.selected_product(model, live)
       selected_module = Sketchup.active_model.selection.find do |entity|
         entity.get_attribute(Model::DICT, 'role') == 'module'
       end
@@ -82,20 +89,22 @@ module MH
                   products.find { |p| p['code'] == @focused } || products.first
                 end
       settings = Settings.read
-      activity_rows, activity_detail = activity_state
+      activity_rows, activity_detail = activity_state(live)
       focused = activity_detail['analysis'] if activity_detail && activity_detail['analysis']
       if activity_detail
         evidence = nil unless selected && selected.persistent_id.to_s == activity_detail['product_id'].to_s
-        selected = activity_detail['product_id'] && Model.product_by_id(Sketchup.active_model, activity_detail['product_id'])
+        selected = live.find { |product| product.persistent_id.to_s == activity_detail['product_id'].to_s } if activity_detail['product_id']
+        selected = nil unless activity_detail['product_id']
       end
       { 'settings' => settings, 'busy' => Jobs.busy?, 'message' => @message,
+        'plan_engine' => 'oy-stock-sweep-v1',
         'activities' => activity_rows, 'activity_detail' => activity_detail,
         'plan_rules' => PlanRules.status(settings['library']), 'local_ai' => @local_ai,
         'errors' => @errors || [], 'labels' => Model.labels,
-        'products' => products.map { |p| p.slice('code', 'name', 'automatic_scan', 'status', 'error', 'bounds', 'source_path') },
+        'products' => products.map { |p| p.slice('code', 'name', 'automatic_scan', 'status', 'error', 'bounds', 'source_path', 'elevation_pending') },
         'focused' => focused, 'correction' => Corrections.status, 'manual_acceptance' => @manual_acceptance,
         'current_modules' => selected ? Model.state(selected)['modules'] : [],
-        'last_products' => @last_products || '', 'selected_evidence' => evidence }
+        'last_products' => @last_products || '', 'last_product_end' => @last_product_end || '', 'selected_evidence' => evidence }
         .merge('entry_mode' => @entry_mode || 'dwg')
     end
 
@@ -104,9 +113,9 @@ module MH
       File.directory?(root) ? Storage.history(root) : []
     end
 
-    def activity_state
+    def activity_state(live = nil)
       model = Sketchup.active_model
-      live = Model.products(model)
+      live ||= Model.products(model)
       root = Settings.resolve_library(Settings.read['library'])
       rows = Activity.rows(root, live)
       focus = @activity_focus if @activity_focus && @activity_focus[:model].equal?(model)
@@ -158,7 +167,7 @@ module MH
         @history_product = nil
         @focus_cad = false
         publish('Đã Select toàn bộ khối được tạo của SP này.')
-      when 'wrong' then mark_wrong(product)
+      when 'wrong' then mark_wrong(product, show_manager: packet['surface'] != 'entry')
       when 'select_module' then select_module(packet.fetch('id'), product)
       when 'begin_correction' then begin_correction(packet['reason'], product)
       when 'accept_manual_boxes', 'cancel_manual_boxes', 'finish_correction', 'resize', 'split', 'merge', 'add_module', 'template'
@@ -168,12 +177,51 @@ module MH
       end
     end
 
-    def publish(message = nil)
+    def entry_state
+      product = entry_product
+      target = product && { 'product_id' => product.persistent_id, 'code' => product.get_attribute(Model::DICT, 'code') }
+      { 'busy' => Jobs.busy?, 'last_products' => @last_products || '', 'last_product_end' => @last_product_end || '',
+        'entry_mode' => @entry_mode || 'dwg', 'entry_target' => target, 'correction' => Corrections.status,
+        'manual_acceptance' => @manual_acceptance }
+    end
+
+    def entry_product
+      model = Sketchup.active_model
+      status = Corrections.status
+      ids = model.selection.filter_map { |e| e.get_attribute(Model::DICT, 'assembly_id') }.uniq
+      return nil if !status && ids.length > 1
+      identity = status && status['product_id']
+      identity ||= ids.first
+      legacy = model.selection.find { |e| e.get_attribute(Model::DICT, 'role') == 'product' }
+      return legacy if !identity && legacy
+      identity ||= @last_built[:ids].first if @last_built && @last_built[:model].equal?(model) && @last_built[:ids].length == 1
+      return nil unless identity
+      if identity.to_s.start_with?('assembly-')
+        product = Assembly.new(model, identity)
+        product if product.valid?(Assembly.member_index(model))
+      else
+        entity = model.find_entity_by_persistent_id(identity.to_i)
+        entity if entity && entity.valid? && entity.get_attribute(Model::DICT, 'role') == 'product'
+      end
+    end
+
+    def dispatch_entry(packet)
+      raise ArgumentError, 'Chờ tác vụ dựng hoàn tất.' if Jobs.busy?
+      operation = packet.fetch('operation')
+      raise ArgumentError, 'Nút sửa kết quả không hợp lệ.' unless %w[select_activity wrong accept_manual_boxes cancel_manual_boxes].include?(operation)
+      product = entry_product
+      raise ArgumentError, 'Chọn một SP cần thao tác trong SketchUp.' unless product
+      identity = Activity.key('activity_id' => product.get_attribute(Model::DICT, 'activity_id'), 'code' => product.get_attribute(Model::DICT, 'code'))
+      dispatch_activity(packet.merge('action' => operation, 'activity_key' => identity, 'surface' => 'entry'))
+    end
+
+    def publish(message = nil, target: nil)
       @message = message if message
       Sketchup.status_text = message if message
-      json = JSON.generate(public_state)
-      [@manager, @entry].compact.each do |dialog|
-        dialog.execute_script("window.receive && window.receive(#{json})") if dialog.visible?
+      dialogs = (target ? [target] : [@manager, @entry].compact).select(&:visible?)
+      dialogs.each do |dialog|
+        json = JSON.generate(dialog.equal?(@entry) ? entry_state : public_state)
+        dialog.execute_script("window.receive && window.receive(#{json})")
       end
     end
 
@@ -204,7 +252,6 @@ module MH
       rescue ArgumentError, SystemCallError
         # Configuration errors are shown before a usable library exists.
       end
-      manager unless @manager&.visible?
       publish(message)
     end
 
@@ -212,6 +259,7 @@ module MH
       return dispatch_activity(packet) if packet['activity_key']
       action = packet.fetch('action')
       case action
+      when 'entry_workflow' then dispatch_entry(packet)
       when 'activity_open' then open_activity(packet.fetch('key'))
       when 'activity_close' then @activity_focus = nil; publish
       when 'ready', 'refresh' then publish
@@ -224,7 +272,8 @@ module MH
       when 'choose_source' then choose_source
       when 'choose_python', 'choose_converter' then choose_program(action)
       when 'scan' then scan
-      when 'build' then build_request(packet.fetch('products', ''))
+      when 'build' then build_request(packet.fetch('products', ''), end_code: packet['product_end'])
+      when 'confirm_plan_view' then confirm_plan_view(packet)
       when 'cancel' then Jobs.cancel; publish('Đã hủy tác vụ; các bản nguồn đã lưu vẫn được giữ.')
       when 'excel' then excel
       when 'focus' then @history_product = nil; @focused = packet.fetch('code'); @focus_cad = true; publish
@@ -235,7 +284,7 @@ module MH
       when 'wrong' then mark_wrong
       when 'accept_manual_boxes' then accept_manual_boxes(packet['request_id'], packet['session_id'])
       when 'manual_acceptance_status' then manual_acceptance_status(packet.fetch('request_id'))
-      when 'cancel_manual_boxes' then Corrections.cancel_manual; @manual_acceptance = nil; publish('Đã hủy nhận box; kết quả cũ hiện lại, các box mày vẽ giữ nguyên.')
+      when 'cancel_manual_boxes' then Corrections.cancel_manual; @manual_acceptance = nil; publish('Đã hủy nhận box; các box và chỉnh sửa của mày được giữ nguyên.')
       when 'finish_correction' then Corrections.finish; publish('Đã lưu kết quả đúng và kinh nghiệm theo cấu tạo.')
       when 'select_module' then select_module(packet.fetch('id'))
       when 'resize' then resize_dialog
@@ -282,9 +331,13 @@ module MH
           @errors = result['errors'] || []
           @analyses.each do |analysis|
             analysis['products'].each do |product|
-              product['activity_id'] = Ids.uuid
-              Storage.event(job[:root], 'kind' => 'scan', 'status' => product['status'], 'job_id' => job[:id],
-                                        'analysis' => product, 'model_path' => job[:model].path)
+              product['worker_timing'] = result['worker'] if result['worker']
+              Array(product['plan_results'] || [product]).each do |target|
+                target['worker_timing'] = result['worker'] if result['worker']
+                target['activity_id'] = Ids.uuid
+                Storage.event(job[:root], 'kind' => 'scan', 'status' => target['status'], 'job_id' => job[:id],
+                                          'analysis' => target, 'model_path' => job[:model].path)
+              end
             end
             analysis['diagnostics'].each { |text| @errors << { 'source' => analysis['revision']['original_path'], 'error' => text } }
           end
@@ -302,19 +355,36 @@ module MH
       publish('Đang lưu phiên bản CAD và phân tích hình học…')
     end
 
-    def build_request(text)
+    def confirm_plan_view(packet)
+      raise ArgumentError, 'Chờ tác vụ hiện tại hoàn tất.' if Jobs.busy?
+      matches = products.select { |p| p['code'] == packet['code'] && p['source_hash'] == packet['source_hash'] && p['source_path'] == packet['source_path'] }
+      raise ArgumentError, 'Nguồn/vùng xem trước đã thay đổi; đọc lại nguồn để chọn mặt bằng.' unless matches.length == 1
+      product = matches.first
+      view = Array(product.dig('view_analysis', 'candidates')).find { |v| v['id'] == packet['view_id'] && v['signature'] == packet['signature'] }
+      raise ArgumentError, 'Vùng này chưa có bằng chứng mặt bằng để xác nhận.' unless view && view['can_confirm']
+      choice = packet.slice('source_hash', 'view_id', 'signature')
+      build_request(product['code'], source_values: { 'sources' => [product.fetch('source_path')], 'plan_choices' => { product['code'] => choice } })
+    end
+
+    def build_request(text, source_values: nil, end_code: nil)
       raise ArgumentError, 'Kết thúc Sửa kết quả trước khi dựng SP khác.' if Corrections.active?
-      if @entry_mode == 'selection'
+      if source_values
+        requests = [text]
+        values = source_values.merge('targets' => requests)
+      elsif @entry_mode == 'selection'
         values = SelectionSource.build_request(@selection_geometry || SelectionSource.capture)
         requests = [values['code']]
       else
-        requests = text.to_s.split(/[\r\n,;]+/).map(&:strip).reject(&:empty?).uniq
-        raise ArgumentError, 'Nhập tên hoặc mã SP cần dựng.' if requests.empty?
+        requests = ProductRequests.parse(text, end_code)
         @last_products = text.to_s
+        @last_product_end = end_code.to_s
         values = { 'targets' => requests }
       end
       scan(values) do |job|
         built = []
+        completed = 0
+        planned = 0
+        retained = 0; restored = 0
         requests.each do |request|
           matches = products.select do |product|
             Model.normalise(product['code']) == Model.normalise(request) || fold(product['name']) == fold(request)
@@ -324,13 +394,24 @@ module MH
           elsif matches.length > 1
             report_error("#{request} khớp nhiều sản phẩm/nguồn. Nhập mã SP duy nhất hoặc giữ đúng nguồn của dự án.")
           else
-            begin
-              built << Model.build(matches.first, job[:root], job[:id], job[:model])
-              @focused = matches.first['code']
-              @focus_cad = false
-            rescue StandardError => error
-              report_error(error.message, analysis: matches.first)
+            targets = matches.first['plan_results'] || [matches.first]
+            planned += targets.length
+            successful = 0
+            reference_owner = nil
+            targets.each do |target|
+              begin
+                outcome = ReferenceBuild.call(target, job[:root], job[:id], job[:model], reference_owner)
+                reference_owner = outcome[:owner]
+                outcome[:created] || outcome[:updated] ? built << outcome[:instance] : retained += 1
+                restored += outcome[:restored]
+                successful += 1
+                @focused = target['code']
+                @focus_cad = false
+              rescue StandardError => error
+                report_error(error.message, analysis: target)
+              end
             end
+            completed += 1 if successful == targets.length
           end
         end
         unless built.empty?
@@ -339,13 +420,19 @@ module MH
           model.selection.clear
           model.selection.add(built.flat_map { |product| Model.selection_entities(product) })
         end
-        summary = "Đã dựng #{built.length}/#{requests.length} SP."
+        summary = "Đã dựng #{completed}/#{requests.length} SP · #{built.length}/#{planned} bộ mặt bằng/khối."
+        summary += " Giữ #{retained} bộ box đã có; khôi phục #{restored} hình CAD còn thiếu." if retained.positive? || restored.positive?
         previews = built.filter_map { |item| JSON.parse(item.get_attribute(Model::DICT, 'analysis'))['envelope_preview'] }
-        summary += " #{previews.length} SP là khối tạm theo khung bao; chưa chia module. Bấm Sai để sửa. Lý do: #{previews.first['reason']}" unless previews.empty?
+        partials = built.filter_map { |item| JSON.parse(item.get_attribute(Model::DICT, 'analysis'))['partial_plan'] }
+        partials.each { |p| summary += " Đã chia #{p['confirmed_modules']} module; #{p['unresolved_modules']} vùng còn là box tạm. #{p['issues'].join(' ')}" }
+        built.each do |item|
+          p = JSON.parse(item.get_attribute(Model::DICT, 'analysis'))['plan_components']
+          summary += " Mặt cắt bằng: #{p['closed_bays']} khoang kín, #{p['pending_bays']} box tạm; chiều cao từng khoang còn chờ kiểm tra." if p
+        end
+        summary += " #{previews.length} mặt bằng là khối tạm theo khung bao; chưa chia module. Bấm Sai để sửa. Lý do: #{previews.first['reason']}" unless previews.empty?
         reasons = Array(@errors).filter_map { |item| item['error'] }.uniq
         summary += " Chưa dựng: #{reasons.first}" unless reasons.empty?
         publish(summary)
-        manager unless reasons.empty? && previews.empty?
       end
     end
 
@@ -367,6 +454,7 @@ module MH
       Jobs.start('products', 'path' => path) do |result, _job|
         if result['ok']
           @last_products = result.fetch('products').join("\n")
+          @last_product_end = ''
           entry
           publish("Đã lấy #{result['products'].length} SP từ danh sách; bấm Dựng để thực hiện.")
         else
@@ -395,19 +483,19 @@ module MH
       product
     end
 
-    def mark_wrong(product = nil)
+    def mark_wrong(product = nil, show_manager: true)
       raise ArgumentError, 'Chờ tác vụ dựng hoàn tất trước khi bấm Sai.' if Jobs.busy?
       product ||= correction_target
       Corrections.begin_manual(product)
       @activity_focus = { model: Sketchup.active_model, key: Activity.key(JSON.parse(product.get_attribute(Model::DICT, 'analysis'))) }
       @manual_acceptance = nil
-      manager
-      publish('Đã ghi Sai và tạm ẩn kết quả cũ. Vẽ mỗi box đúng thành một Group/Component; không cần tên, gốc hoặc trục riêng. Chọn các box trong SketchUp rồi bấm Kết quả đúng.')
+      manager if show_manager
+      publish('Đã ghi Sai; box vẫn hiện để sửa trực tiếp. Sửa box đang có hoặc vẽ box mới, chọn các box đúng rồi bấm Kết quả đúng.')
     end
 
     def emit_manual_acceptance(result)
-      if @manager&.visible?
-        @manager.execute_script("window.receiveManualAcceptance && window.receiveManualAcceptance(#{JSON.generate(result)})")
+      [@manager, @entry].compact.each do |dialog|
+        dialog.execute_script("window.receiveManualAcceptance && window.receiveManualAcceptance(#{JSON.generate(result)})") if dialog.visible?
       end
       result
     end
@@ -440,7 +528,6 @@ module MH
                              'elapsed_ms' => ((Process.clock_gettime(Process::CLOCK_MONOTONIC) - started) * 1000).round(2) }
       emit_manual_acceptance(@manual_acceptance)
       publish('Đã nhận Kết quả đúng và lưu mẫu từ các box mày đã vẽ.')
-      PlanRules.enqueue(event)
       event
     rescue StandardError => error
       @manual_acceptance = { 'status' => 'error', 'request_id' => request_id, 'message' => error.message } unless event

@@ -15,6 +15,8 @@ app.whenReady().then(async()=>{
   await js(`window.receive(${JSON.stringify(studio)});window.mockCatalog=${JSON.stringify(catalog)};window.recorded=[];window.sketchup={request:raw=>{const data=JSON.parse(raw);recorded.push(data);if(data.action==='library_settings')Object.assign(mockCatalog.settings,data.settings);if(data.action==='library_hud_edit'){mockCatalog.hud_editing=true;mockCatalog.hud_active=true;}if(data.action==='library_thumbnails'){setTimeout(()=>window.receiveLibraryThumbnails(Object.fromEntries(data.ids.map(id=>[id,{fingerprint:mockCatalog.entries.find(item=>item.id===id).fingerprint,url:null}]))),5);}else if(data.action.startsWith('library_'))setTimeout(()=>window.receiveLibrary(structuredClone(mockCatalog)),5);}};void 0;`);
   await click('library-tab');await sleep(150);
   assert(await js(`document.body.classList.contains('library-mode')&&getComputedStyle(document.getElementById('work-area')).display==='none'`));
+  await click('learn-tab');await js(`window.openLibraryTab()`);
+  assert(await js(`document.body.classList.contains('library-mode')&&document.getElementById('library-tab').classList.contains('active')`));
   assert.equal(await js(`document.querySelectorAll('.library-card').length`),18);
   assert(await js(`!document.getElementById('library-place').disabled`));
   await click('library-list');await sleep(30);assert(await js(`document.getElementById('library-items').classList.contains('library-list-view')`));

@@ -1,0 +1,13 @@
+﻿{
+    "jsonrpc":  "2.0",
+    "id":  "taovan-native-before",
+    "result":  {
+                   "content":  [
+                                   {
+                                       "type":  "text",
+                                       "text":  "status: ok\nresult: true\noutput:\nQA_PID 30668\nQA_SRC cap_nhat_do_day=[\"C:/Users/mhngu/AppData/Roaming/SketchUp/SketchUp 2025/SketchUp/Plugins/MH_panel/src/tools/taovan.rb\", 1002]\nQA_SRC calc_thickness=[\"C:/Users/mhngu/AppData/Roaming/SketchUp/SketchUp 2025/SketchUp/Plugins/MH_panel/src/core/board.rb\", 2]\nQA_CASE standalone             physical=17.600   local=17.600   sampled=17.600   created=17.600   expected=17.600 PASS\nQA_CASE own_scale_1.8          physical=17.600   local=17.600   sampled=17.600   created=17.600   expected=17.600 PASS\nQA_CASE nested_ancestor_1.8    physical=17.600   local=9.778    sampled=9.778    created=9.778    expected=17.600 FAIL\nQA_CASE rot_mirror_nonuniform  physical=17.600   local=9.778    sampled=9.778    created=9.778    expected=17.600 FAIL\nQA_CASE auto_off_manual_9      physical=17.600   local=17.600   sampled=9.000    created=9.000    expected=9.000  PASS\nQA_SUMMARY pass=3/5 cases=standalone,own_scale_1.8,nested_ancestor_1.8,rot_mirror_nonuniform,auto_off_manual_9\nQA_CLEANUP entities=0 definitions=0 settings_same=true selection_same=true camera_same=true materials_same=true\nQA_DONE\n\nduration: 86ms"
+                                   }
+                               ],
+                   "isError":  false
+               }
+}

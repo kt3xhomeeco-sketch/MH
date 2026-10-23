@@ -25,13 +25,48 @@ module MH::Geo
         offset_lines << [p1.offset(translation_vector), edge_vector]
       end
 
-      new_pts = []
+      # Each intersection belongs to the vertex at the end of the current
+      # offset line. Keep the result aligned with the input vertex indices so
+      # curve metadata can be transferred without shifting an arc endpoint.
       num_lines = offset_lines.length
+      new_pts = Array.new(num_lines)
       num_lines.times do |i|
         intersection = Geom.intersect_line_line(offset_lines[i], offset_lines[(i + 1) % num_lines])
-        new_pts << (intersection ? intersection : offset_lines[i][0])
+        new_pts[(i + 1) % num_lines] = (intersection ? intersection : offset_lines[i][0])
       end
       new_pts
+    end
+
+    # The radius grows on a convex arc and shrinks on a concave arc for an
+    # outward offset. Determine that direction from the ordered boundary.
+    def self.offset_arc_radius(center, radius, points, plane_normal, start_index, edge_count, distance)
+      return radius + distance unless center && radius && points && points.length >= 2 && plane_normal
+
+      count = points.length
+      edges = edge_count.to_i
+      return radius + distance if edges <= 0
+
+      direction = 0.0
+      edges.times do |offset|
+        index = (start_index + offset) % count
+        point = points[index]
+        following = points[(index + 1) % count]
+        tangent = point.vector_to(following)
+        next if tangent.length <= 0.001.mm
+
+        outward = tangent.cross(plane_normal)
+        next if outward.length <= 0.001.mm
+        outward.normalize!
+        midpoint = Geom.linear_combination(0.5, point, 0.5, following)
+        radial = center.vector_to(midpoint)
+        next if radial.length <= 0.001.mm
+        radial.normalize!
+        direction += outward.dot(radial)
+      end
+
+      radius + distance * (direction < 0 ? -1.0 : 1.0)
+    rescue
+      radius + distance
     end
 
     def self.offset_chain_pts(pts, plane_normal, distance)

@@ -37,6 +37,7 @@
     send('library_visibility',{visible:open});
     if(!open)mainViewer.schedule();
   }
+  window.openLibraryTab=()=>tab(true);
   $('library-tab').addEventListener('click',()=>tab(true));
   $('learn-tab').addEventListener('click',()=>tab(false));
   $('library-choose').addEventListener('click',()=>command('library_choose'));

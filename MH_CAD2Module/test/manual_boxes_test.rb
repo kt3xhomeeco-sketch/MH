@@ -4,6 +4,17 @@ require 'minitest/autorun'
 require_relative '../manual_boxes'
 
 class ManualBoxesTest < Minitest::Test
+  def test_combined_stage_keeps_plan_frame_and_allows_vertical_tiers
+    source = { 'plan_engine' => 'section-first-v1', 'build_stages' => { 'elevation' => true },
+               'envelope' => [1000, 2000, 1800, 2600], 'source_plan_envelope' => [1000, 2000, 1800, 2600],
+               'placement' => { 'mode' => 'source_plan', 'origin_mm' => [1000, 2000] } }
+    capture = { 'boxes' => [{ 'origin' => [0, 0, 1000], 'size' => [800, 600, 1200] }],
+                'normalised_from' => [0, 12, 0] }
+    parts = MH::CAD2Module::ManualBoxes.parts(capture, source)
+    assert_equal [1000, 2000, 1800, 2600], parts['modules'][0]['source_box']
+    assert_equal 1000, parts['modules'][0]['origin'][2]
+    assert_equal [0, 12], MH::CAD2Module::ManualBoxes.plan_offset(parts, source, capture)
+  end
   def test_source_correction_keeps_box_y_when_module_widths_changed
     source = { 'build_stages' => { 'elevation' => false }, 'envelope' => [1000, 377.606283, 4588, 951.592283],
                'placement' => { 'mode' => 'source_plan', 'origin_mm' => [1000, 377.606283] },

@@ -38,10 +38,18 @@ module MH
     end
 
     def reload
+      active_tool_class = begin
+        active_tool = Sketchup.active_model.tools.active_tool
+        name = active_tool.class.name.to_s
+        active_tool.class if active_tool && name.start_with?('MH::Panel::')
+      rescue
+        nil
+      end
       original_verbose = $VERBOSE
       $VERBOSE = nil
       files = Dir.glob(File.join(SRC, '**/*.rb')).sort
       files.each { |file| load file }
+      Sketchup.active_model.select_tool(active_tool_class.new) if active_tool_class
       dbg("MH::Panel reloaded #{files.size} file(s)")
       true
     ensure

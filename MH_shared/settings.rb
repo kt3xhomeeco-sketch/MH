@@ -57,7 +57,7 @@ module MH
       value_from(scope, app_key, key, fallback)
     end
 
-    def write(app, key, value, scope:)
+    def write(app, key, value, scope:, notify: true)
       app_key = normalize_app(app)
       key = key.to_s
       scope = normalize_scope(scope)
@@ -67,7 +67,7 @@ module MH
       data['apps'][app_key] ||= {}
       data['apps'][app_key][key] = deep_copy(value)
       write_scope(scope, data)
-      broadcast(app: app_key, keys: [key], scope: scope, source: :settings_write)
+      broadcast(app: app_key, keys: [key], scope: scope, source: :settings_write) if notify
       value
     end
 
@@ -431,7 +431,6 @@ if defined?(MH::Settings)
     end
 
     MH::Settings.register(app: 'thongke', key: 'hidden_list', scope: :project, default: [])
-    MH::Settings.register(app: 'registry', key: 'dc_thickness_options_project', scope: :project, default: [])
   rescue => e
     warn "[MH::Settings] register defaults lỗi: #{e.message}"
   end

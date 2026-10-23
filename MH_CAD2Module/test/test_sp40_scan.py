@@ -34,7 +34,7 @@ def test_sp40_does_not_reuse_a_previous_scan_feedback_by_name(tmp_path):
     save_feedback(tmp_path,previous,'previous-scan')
     current=product(packet(tmp_path))
     assert current['signature']!=previous['signature']
-    assert current['learning']['mode']=='staged'
+    assert current['learning']['mode']=='geometry'
     assert len(current['modules'])==3
     assert 'experience' not in current
 

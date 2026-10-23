@@ -335,6 +335,14 @@ module MH_Thongke
       sub_key = import_name_norm(item[:display_sub])
       merge_key = "#{merge_key}|section:#{section_key}" unless section_key.empty?
       merge_key = "#{merge_key}|sub:#{sub_key}" if (eq_key.nil? || item[:kind].to_s == "VL") && !sub_key.empty?
+      # A single Excel detail may deliberately expand into multiple material
+      # rows (for example LK063A + LKAFP16). They share the same description
+      # and display text, but are distinct material choices and must remain
+      # separate in both Mini Import and the on-screen Material HUD.
+      if item[:kind].to_s == "VL"
+        material_code_key = material_code_norm(item[:ma_vl_source])
+        merge_key = "#{merge_key}|material:#{material_code_key}" unless material_code_key.empty?
+      end
       if merged[merge_key]
         current = merged[merge_key]
         if import_excel_specificity_score(item[:hw_name], item[:spec]) > import_excel_specificity_score(current[:hw_name], current[:spec])

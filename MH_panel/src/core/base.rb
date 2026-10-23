@@ -1,8 +1,7 @@
 module MH::Panel
-  # Gán mã hệ MH cho 1 part vừa tạo:
-  #  - SP (product_code): lấy từ tấm gốc/parent (ProductContext), ghi attribute.
-  #  - Mã vật liệu: từ material gốc + độ dày part + hậu tố .1M/.2M theo tên chi
-  #    tiết (qua connector material_assign). Set group.material + attribute.
+  # Hoàn thiện tên và material cho part vừa tạo.
+  # MH_panel chỉ gán material thực tế lên obj; không lưu product_code hoặc
+  # dc_material_code vào attribute MH_Registry.
   # detail_name = tên chi tiết (vd "Cánh Trái"); thickness_mm = độ dày (mm);
   # material_name = tên VL gốc (mặc định lấy từ group.material); source = entity
   # tấm gốc để suy SP.
@@ -40,9 +39,8 @@ module MH::Panel
   end
 
   def self.material_name_from_source(source, fallback = nil)
-    raw = entity_attr(source, 'dc_material_code')
-    raw = entity_attr(source, 'material_code') if raw.strip.empty?
-    if raw.strip.empty? && source && source.respond_to?(:material) && source.material && source.material.respond_to?(:name)
+    raw = ''
+    if source && source.respond_to?(:material) && source.material && source.material.respond_to?(:name)
       raw = source.material.name.to_s
     end
     if raw.strip.empty? && fallback && fallback.respond_to?(:name)
@@ -59,7 +57,9 @@ module MH::Panel
     material = face.material if face && face.respond_to?(:material)
     material ||= face.back_material if face && face.respond_to?(:back_material)
     material ||= Array(path)[0..-2].reverse.find { |e| e.respond_to?(:material) && e.material }&.material
-    material_name_from_source(source, material)
+    return material.name.to_s.strip if material && material.respond_to?(:name) && !material.name.to_s.strip.empty?
+
+    material_name_from_source(source)
   rescue
     ''
   end
@@ -117,28 +117,17 @@ module MH::Panel
   def self.apply_mh_codes(group, detail_name: nil, thickness_mm: nil, material_name: nil, source: nil, product_code: nil)
     return unless group && group.valid?
 
-    # 1) SP từ tấm gốc / container → attribute (ưu tiên product_code truyền vào)
-    assigned_product_code = ''
-    begin
-      sp = product_code.to_s
-      sp = product_code_from_source(source) if sp.strip.empty? && source
-      sp = product_code_from_source(group) if sp.strip.empty?
-      if sp.strip.empty? && defined?(MH::ProductContext)
-        sp = product_code_from_source(source) if source
-        sp = MH::ProductContext.current_or_last_code.to_s if sp.strip.empty?
-      end
-      group.set_attribute('MH_Registry', 'product_code', sp) unless sp.strip.empty?
-      assigned_product_code = sp.to_s.strip
-    rescue => e
-      MH::Panel.dbg("[MH::Panel] SP error: #{e.class}: #{e.message}")
+    # Không giữ lại hai attribute cũ nếu obj được tạo từ bản sao có sẵn metadata.
+    [group, (group.definition if group.respond_to?(:definition))].compact.each do |entity|
+      entity.delete_attribute('MH_Registry', 'product_code') if entity.respond_to?(:delete_attribute)
+      entity.delete_attribute('MH_Registry', 'dc_material_code') if entity.respond_to?(:delete_attribute)
     end
 
-    # Không ghép mã SP vào tên obj nữa — chỉ lưu SP ở attribute phía trên.
-    # Tên chỉ dùng tên chi tiết (detail_name / tên nguồn).
+    # Tên chỉ dùng tên chi tiết (detail_name / tên nguồn), không ghi mã SP vào att.
     effective_detail = effective_detail_name(detail_name, group, source)
     assign_part_name(group, effective_detail, '', source)
 
-    # 2) Mã vật liệu (+1M/2M) từ material gốc
+    # Lấy material thực tế từ nguồn, chuẩn hóa mã nếu có connector, rồi đổ lên obj.
     begin
       raw = material_name.to_s
       raw = material_name_from_source(source, group.material) if raw.empty?
@@ -163,7 +152,6 @@ module MH::Panel
         end
       group.material = mat
       group.entities.grep(Sketchup::Face).each { |f| f.material = nil; f.back_material = nil } rescue nil
-      group.set_attribute('MH_Registry', 'dc_material_code', mat_name)
     rescue => e
       MH::Panel.dbg("[MH::Panel] material code error: #{e.class}: #{e.message}")
     end

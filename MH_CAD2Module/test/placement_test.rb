@@ -4,6 +4,48 @@ require 'minitest/autorun'
 require_relative '../placement'
 
 class PlacementTest < Minitest::Test
+  def test_rotated_footprints_can_touch_while_bounding_boxes_overlap
+    parts = [0, 800].map do |offset|
+      points = [[offset, 0], [offset + 800, 0], [offset + 800, 600], [offset, 600]].map do |x, y|
+        [x * Math.cos(0.54) - y * Math.sin(0.54), x * Math.sin(0.54) + y * Math.cos(0.54)]
+      end
+      low = 2.times.map { |i| points.map { |p| p[i] }.min }
+      size = 2.times.map { |i| points.map { |p| p[i] }.max - low[i] } + [1600]
+      local = points.map { |p| 2.times.map { |i| p[i] - low[i] } }
+      { 'origin' => low + [0], 'size' => size, 'plan_profile' => { 'segments' => local.each_index.map { |i| { 'type' => 'line', 'start' => local[i], 'end' => local[(i + 1) % 4] } } } }
+    end
+    refute MH::CAD2Module::Placement.overlap?(*parts)
+    assert MH::CAD2Module::Placement.overlap?(parts.first, parts.first)
+  end
+
+  def test_named_plans_keep_their_shared_label_offset
+    product = { 'bounds' => [2255, 600, 1600], 'display_layout' => { 'total_width_mm' => 5510, 'offset_mm' => [3255, 0] } }
+    assert_equal [1500.0, 0], MH::CAD2Module::Placement.named_origin(product, 1000)
+    product['bounds'][0] = 2300
+    assert_equal [1500.0, 0], MH::CAD2Module::Placement.named_origin(product, 1000)
+  end
+
+  def test_auto_label_spacing_grows_with_product_width
+    placement = MH::CAD2Module::Placement
+    assert_equal 1000.0, placement.next_label_x([], 5510)
+    assert_equal 9000.0, placement.next_label_x([[1000, 5510]], 2000)
+    assert_equal 12755.0, placement.next_label_x([[1000, 5510]], 16000)
+    assert_operator placement.next_label_x([[1000, 24000], [9000, 2000]], 16000), :>=, 22000
+  end
+  def test_oy_preflight_checks_source_position_dimensions_and_height
+    placement = MH::CAD2Module::Placement
+    source = { 'plan_engine' => 'oy-stock-sweep-v1', 'source_plan_envelope' => [1000, 2000, 1800, 2600],
+               'placement' => { 'mode' => 'source_plan', 'plane' => 'XY', 'origin_mm' => [1000, 2000], 'plane_offset_mm' => 73 },
+               'modules' => [{ 'origin' => [0, 0, 0], 'size' => [800, 600, 1600], 'source_box' => [1000, 2000, 1800, 2600] }] }
+    placement.validate_oy_product(source)
+    assert source['geometry_check']['passed']
+    bad = Marshal.load(Marshal.dump(source)); bad['modules'][0]['size'][0] += 10
+    assert_raises(ArgumentError) { placement.validate_oy_product(bad) }
+    bad = Marshal.load(Marshal.dump(source)); bad['placement']['origin_mm'][1] -= 24
+    assert_raises(ArgumentError) { placement.validate_oy_product(bad) }
+    bad = Marshal.load(Marshal.dump(source)); bad['modules'][0]['size'][2] = 900
+    assert_raises(ArgumentError) { placement.validate_oy_product(bad) }
+  end
   def test_whole_product_centred_on_label
     assert_in_delta 8140, MH::CAD2Module::Placement.base_x(9000, 1720), 0.001
     assert_in_delta 9000, MH::CAD2Module::Placement.base_x(9000, 1720) + 860, 0.001

@@ -1,10 +1,16 @@
 """Measured envelope, bounded stock strips and concentric circular panel evidence."""
-from collections import defaultdict
+from collections import OrderedDict
+from copy import deepcopy
+import hashlib
+import json
 import math
 
 from geometry import TOL, union
 from materials import BOARD_MM, stock_evidence
 from plan_profiles import arc_runs, arc_bounds
+from cad_style import structural_rows, interrupted
+
+_MEASURES=OrderedDict()
 
 
 def edge_key(a,b):
@@ -28,41 +34,8 @@ def covers_segment(a,b,lines):
 
 
 def straight_panels(lines,arc_edges):
-    groups=defaultdict(list)
-    for a,b,handle in lines:
-        if edge_key(a,b) in arc_edges:continue
-        length=math.dist(a,b)
-        if length<TOL:continue
-        u=[(b[i]-a[i])/length for i in (0,1)]
-        if u[0]<-1e-8 or abs(u[0])<1e-8 and u[1]<0:u=[-v for v in u]
-        n=[-u[1],u[0]];offset=sum(n[i]*a[i] for i in (0,1))
-        lo,hi=sorted(sum(u[i]*p[i] for i in (0,1)) for p in (a,b))
-        groups[round(math.atan2(u[1],u[0]),6)].append(dict(u=u,n=n,offset=offset,lo=lo,hi=hi,handles=[handle]))
-    panels=[]
-    for members in groups.values():
-        merged=[]
-        for edge in sorted(members,key=lambda e:(round(e['offset'],3),e['lo'])):
-            if merged and abs(edge['offset']-merged[-1]['offset'])<.002 and edge['lo']<=merged[-1]['hi']+TOL:
-                merged[-1]['hi']=max(edge['hi'],merged[-1]['hi']);merged[-1]['handles'].extend(edge['handles'])
-            else:merged.append(dict(edge))
-        for i,a in enumerate(merged):
-            for b in merged[i+1:]:
-                thickness=abs(b['offset']-a['offset'])
-                if thickness>max(BOARD_MM)+TOL:break
-                stock=stock_evidence(thickness)['stock_mm']
-                if not stock:continue
-                lo=max(a['lo'],b['lo']);hi=min(a['hi'],b['hi'])
-                if hi-lo<=max(20,thickness*2):continue
-                def point(edge,t):return [edge['u'][j]*t+edge['n'][j]*edge['offset'] for j in (0,1)]
-                sides=[[point(edge,t) for t in (lo,hi)] for edge in (a,b)]
-                if not all(covers_segment(sides[0][j],sides[1][j],lines) for j in (0,1)):continue
-                seams=sorted({round(abs(c['offset']-a['offset']),3) for c in merged
-                    if a['offset']+TOL<c['offset']<b['offset']-TOL and c['lo']<=lo+TOL and c['hi']>=hi-TOL})
-                panels.append(dict(kind='straight',measured_mm=round(thickness,6),stock_mm=stock,
-                    length_mm=round(hi-lo,6),boundary=sides,internal_seams_mm=seams,
-                    lamination_candidate=[18,18] if stock==36 else None,
-                    handles=sorted(set(a['handles']+b['handles'])),evidence='parallel_faces_and_closed_ends'))
-    return panels
+    from parallel_index import ParallelIndex
+    return ParallelIndex(lines,arc_edges).panels()
 
 
 def curved_panels(arcs,lines):
@@ -85,14 +58,27 @@ def curved_panels(arcs,lines):
 
 
 def measure_plan(outlines):
-    lines=[(a,b,o['handle']) for o in outlines for a,b in zip(o['points'],o['points'][1:])]
-    if not lines:return dict(schema=1,envelope=None,panels=[],arcs=[],stock_counts={})
-    arcs=arc_runs(outlines)
+    source=[(a,b,o['handle']) for o in outlines for a,b in zip(o['points'],o['points'][1:])]
+    if not source:return dict(schema=1,envelope=None,panels=[],arcs=[],stock_counts={})
+    # Only fields that change structural eligibility affect this evidence cache.
+    key=hashlib.sha256(json.dumps([source,[interrupted(o) for o in outlines]],separators=(',',':')).encode()).hexdigest()
+    if key in _MEASURES:
+        _MEASURES.move_to_end(key)
+        return deepcopy(_MEASURES[key])
+    rows=structural_rows(outlines)
+    lines=[(a,b,o['handle']) for o in rows for a,b in zip(o['points'],o['points'][1:])]
+    arcs=arc_runs(rows)
     arc_edges={e for arc in arcs for e in arc['source_edges']}
-    panels=straight_panels(lines,arc_edges)+curved_panels(arcs,lines)
+    from parallel_index import ParallelIndex
+    index=ParallelIndex(lines,arc_edges)
+    panels=index.panels()+curved_panels(arcs,lines)
     counts={str(stock):sum(p['stock_mm']==stock for p in panels) for stock in BOARD_MM}
-    envelope=union([[*p,*p] for a,b,_ in lines for p in (a,b)])
+    envelope=union([[*p,*p] for a,b,_ in source for p in (a,b)])
     if arcs:envelope=union([envelope]+[arc_bounds(a) for a in arcs])
-    return dict(schema=1,envelope=envelope,panels=panels,
+    result=dict(schema=1,envelope=envelope,panels=panels,
         arcs=[{k:v for k,v in arc.items() if k!='source_edges'} for arc in arcs],stock_counts=counts,
+        panel_index=dict(method='stock_offset_lookup',directions=len(index.groups),faces=sum(len(g[0]) for g in index.groups.values()),offset_probes=index.probes,candidate_pairs=index.pair_checks),
         standards_mm=list(BOARD_MM),interpretation='Geometric plate candidates; stock spacing alone is not a module boundary.')
+    _MEASURES[key]=deepcopy(result)
+    if len(_MEASURES)>16:_MEASURES.popitem(last=False)
+    return result

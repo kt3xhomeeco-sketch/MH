@@ -2,6 +2,8 @@
 
 require_relative 'placement'
 require_relative 'plan_profile'
+require_relative 'plan_reference'
+require_relative 'product_labels'
 require_relative 'assembly'
 
 module MH
@@ -22,13 +24,15 @@ module MH
         found = []
         walk = lambda do |entities, transform, depth|
           return if depth > 10
-          entities.each do |entity|
-            next unless container?(entity)
+          containers = entities.grep(Sketchup::Group) + entities.grep(Sketchup::ComponentInstance)
+          containers.each do |entity|
             next if entity.get_attribute(DICT, 'role')
             curic = entity.get_attribute('Curic Single-Line Text', 'text')
-            name = curic || entity.name
+            owned_label = entity.get_attribute('MH_CAD2Module_Label', 'code')
+            name = curic || owned_label || entity.name
             code = normalise(name)
-            if code.match?(/\ASP\d+\z/)
+            generic = (curic || owned_label) && code.match?(/\A[A-Z][A-Z0-9_-]*\d[A-Z0-9_-]*\z/)
+            if code.match?(/\ASP\d+\z/) || generic
               # bounds already includes this instance's own transform, but not its ancestors.
               centre = entity.bounds.center.transform(transform)
               found << { 'code' => code, 'name' => name, 'center_x' => centre.x.to_mm,
@@ -61,8 +65,8 @@ module MH
         product.is_a?(Assembly) ? product.transformation.inverse * entity.transformation : entity.transformation
       end
 
-      def selected_product(model = Sketchup.active_model)
-        roots = products(model)
+      def selected_product(model = Sketchup.active_model, roots = nil)
+        roots ||= products(model)
         selection = model.selection.to_a
         path = Array(model.active_path)
         roots.find do |root|
@@ -96,18 +100,23 @@ module MH
       end
 
       def build(product, root, job_id, model = Sketchup.active_model)
+        raise ArgumentError, 'Cần dựng từng mặt bằng của bộ SP.' if product['plan_results']
+        started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         preview = Placement.validate_envelope_preview(product)
         raise ArgumentError, product['error'] || 'Phân tích chưa đủ dữ liệu để dựng.' unless product['status'] == 'ready' || preview
-        product = product.merge('build_auxiliary' => Settings.read(model)['build_auxiliary'] != false,
+        settings = Settings.read(model)
+        product = product.merge('build_auxiliary' => settings['build_auxiliary'] != false,
                                 'activity_id' => product['activity_id'] || Ids.uuid)
         code = normalise(product.fetch('code'))
         on_source = product.dig('placement', 'mode') == 'source_plan'
         matched = on_source ? [] : labels(model).select { |label| label['code'] == code }
         unless on_source
-          raise ArgumentError, "Không có nhãn #{code} trong model. Thêm nhãn đúng mã rồi dựng lại." if matched.empty?
           raise ArgumentError, "Có #{matched.length} nhãn #{code}; cần phân biệt vị trí trước khi dựng." if matched.length > 1
         end
-        raise ArgumentError, "#{code} đã được dựng. Chọn khối để sửa; không tự ghi đè kết quả cũ." if products(model).any? { |e| e.get_attribute(DICT, 'code') == code }
+        duplicate = products(model).any? do |e|
+          e.get_attribute(DICT, 'code') == code && (!product['plan_view_id'] || !e.get_attribute(DICT, 'plan_view_id') || e.get_attribute(DICT, 'plan_view_id') == product['plan_view_id'])
+        end
+        raise ArgumentError, "#{code} / #{product['plan_title']} đã được dựng. Chọn khối để sửa; không tự ghi đè kết quả cũ." if duplicate
         raise ArgumentError, 'Thoát chế độ sửa group/component trước khi dựng.' if model.active_path
         product.fetch('modules').each { |mod| Placement.validate_module(mod) }
         (Array(product['trim_parts']) + Array(product['panel_parts'])).each { |part| Placement.validate_module(part) }
@@ -115,9 +124,18 @@ module MH
           raise ArgumentError, 'Các khối nhận dạng đang chồng nhau; cần kiểm tra trước khi dựng.'
         end
         Placement.validate_ai_product(product) unless preview
-        if product['source_watch']
+        Placement.validate_oy_product(product) unless preview
+        Placement.validate_elevation_product(product) unless preview
+        full_reference = product.dig('plan_reference', 'scope') == 'all_views'
+        full_reference ||= product.dig('plan_reference', 'shared') == true
+        import_plan = !on_source && product['plan_reference'] && (full_reference || settings['import_plan_reference'] != false)
+        PlanReference.validate(product) if import_plan
+        native_times = { 'validation' => Process.clock_gettime(Process::CLOCK_MONOTONIC) - started }
+        watch_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+        if product['source_watch'] || product['annotation_watch']
           begin
-            SelectionSource.validate_watch(product['source_watch'], model)
+            SelectionSource.validate_watch(product['source_watch'], model) if product['source_watch']
+            ScanAnnotations.validate_watch(product['annotation_watch'], model) if product['annotation_watch']
           rescue StandardError => error
             checked = { 'passed' => false, 'error' => error.message }
             product['source_preflight'] = checked
@@ -126,8 +144,15 @@ module MH
             raise
           end
         end
+        native_times['source_watch'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - watch_started
+        geometry_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         model.start_operation("CAD2Module: dựng #{code}", true)
         operation = true
+        if !on_source && matched.empty?
+          width = product.dig('display_layout', 'total_width_mm') || product.fetch('bounds')[0]
+          width = [width, product.fetch('cad_reference_reserved_width_mm', width)].max
+          matched = [ProductLabels.ensure_label(model, code, width)]
+        end
         instance = Assembly.create(model)
         definition = instance.definition
         product['modules'].each { |mod| module_instance(definition.entities, mod) }
@@ -138,8 +163,8 @@ module MH
         transform = if on_source
                       Geom::Transformation.new(Placement.source_matrix(product.fetch('placement')))
                     else
-                      x = Placement.base_x(matched.first['center_x'], product.fetch('bounds')[0])
-                      Geom::Transformation.translation([x.mm, 0, 0])
+                      xy = Placement.named_origin(product, matched.first['center_x'])
+                      Geom::Transformation.translation([*xy.map(&:mm), 0])
                     end
         instance.transformation = transform
         instance.name = product['automatic_scan'] ? product['name'] : "#{code} — #{product['name']}"
@@ -149,8 +174,17 @@ module MH
         instance.set_attribute(DICT, 'library', root)
         instance.set_attribute(DICT, 'job_id', job_id)
         instance.set_attribute(DICT, 'activity_id', product['activity_id'])
+        instance.set_attribute(DICT, 'plan_view_id', product['plan_view_id']) if product['plan_view_id']
+        instance.set_attribute(DICT, 'plan_title', product['plan_title']) if product['plan_title']
         instance.set_attribute(DICT, 'label_id', matched.first['id']) unless on_source
+        PlanReference.create(model, product, instance) if import_plan
+        native_times['groups'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - geometry_started
+        snapshot_started = Process.clock_gettime(Process::CLOCK_MONOTONIC)
         snapshot = Storage.snapshot(root, instance, "build-#{Ids.uuid}")
+        native_times['skp_snapshot'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - snapshot_started
+        native_times['total_to_snapshot'] = Process.clock_gettime(Process::CLOCK_MONOTONIC) - started
+        product['native_times'] = native_times.transform_values { |v| v.round(6) }
+        instance.set_attribute(DICT, 'analysis', JSON.generate(product))
         Storage.event(root, 'kind' => 'build', 'code' => code, 'job_id' => job_id, 'product_id' => instance.persistent_id,
                             'analysis' => product, 'skp' => snapshot, 'model_path' => model.path)
         model.commit_operation

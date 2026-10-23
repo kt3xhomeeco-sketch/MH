@@ -175,14 +175,15 @@ def test_ambiguous_correlated_training_rejects_different_new_relation(tmp_path):
         infer(program,cad)
 
 
-def test_normal_source_scan_uses_rule_and_keeps_world_origin(tmp_path):
+def test_normal_source_scan_uses_new_geometry_engine_and_keeps_world_origin(tmp_path):
     from main import run
     train(tmp_path);p,_=plan((1090,470),710)
     lines=[dict(a=a,b=b,handle=o['handle'],layer='0') for o in p['outlines'] for a,b in zip(o['points'],o['points'][1:])]
     result=run(dict(action='geometry',library=str(tmp_path),build_plan=True,build_elevation=False,
                     geometry=dict(hash='c'*64,lines=lines,plane='XY',plane_offset_mm=73)))
     target=result['analyses'][0]['products'][0]
-    assert target['learning']['mode']=='plan_rule',target
+    assert target['learning']['mode']=='geometry',target
+    assert target['plan_engine']=='oy-stock-sweep-v1'
     assert target['placement']['origin_mm']==[30000,40000]
     assert target['placement']['plane_offset_mm']==73
 

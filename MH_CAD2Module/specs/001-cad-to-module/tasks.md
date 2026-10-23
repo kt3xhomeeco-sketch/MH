@@ -141,3 +141,137 @@ Dependencies: T003 -> T004/T005 -> T006 -> T007/T008 -> T009/T010 -> T011/T012 -
 - [x] T086 Profile the actual dense scan and remove redundant rectangle/watch work without losing source checks.
 - [x] T087 Add geometry stages/lightweight elapsed progress and preserve near-source manual box registration.
 - [x] T088 Verify dense equivalence, native correction/source guards/progress, repair accepted result when originals match, and deploy/package.
+
+## Geometry-only OY sweep (0.11.0)
+- [x] T089 Commit before edits and preserve verified archive/manifest.
+- [x] T090 Implement stock/Y-span scan, depth groups and double-wall seam evidence.
+- [x] T091 Integrate plan-only/DWG worker without AI/old partition transfer; keep exact feedback/frame.
+- [x] T092 Show engine/evidence/times/archive status and preserve correction/history/source safety.
+- [x] T093 Verify synthetic/real/native/UI/full gates, reload and package.
+
+## Opening UI latency (0.11.1)
+- [x] T094 Profile initial state; remove duplicate initialization, repeated product scans and global member searches.
+- [x] T095 Verify fresh native membership, real CEF initialization/entry isolation, existing gates and release.
+
+## Named product plan reference (0.12.0)
+- [x] T096 Add product/context/view classification and measured elevation/callout checks before named-source recognition.
+- [x] T097 Add isolated candidate previews and source-bound confirmation; preserve direct-scan fast path.
+- [x] T098 Build separate measured edge/arc reference with settings toggle and module placement.
+- [x] T099 Verify synthetic/real/DXF/native/UI gates, preserve model and package/live reload.
+
+## Multiple named plans and auto labels (0.13.0)
+- [x] T100 Keep supported horizontal plans despite size mismatch; arrange independent view results with1000 mm clear gap.
+- [x] T101 Add Registry-style auto labels with8000 mm minimum/dynamic span, consistent correction placement and per-view logs.
+- [x] T102 Verify real SP01, orange fallback/correction/undo/label clearance, full gates, package/reload and retry failed request.
+
+## Detail-section exclusion (0.13.1)
+- [x] T103 Reproduce SP04 seven-versus-three error; bound whole-product size tolerance and check independent peer plans.
+- [x] T104 Verify source/threshold/peer regressions, full gates/native rollback, package/reload and repair unchanged generated SP04 results.
+
+## Full CAD scope, missing L plans and SP range (0.14.0)
+- [x] T105 Reproduce SP08 clipping and six titleless SP11 sheets; preserve stock profiles and perpendicular plan branches.
+- [x] T106 Add inclusive start/end entry with single-field/list compatibility and validation.
+- [x] T107 Verify geometry/range/browser/native gates, source-safe live repair and package/reload.
+
+## Indexed parallel panels / resident cache (0.15.0)
+- [x] T108 Replace all-later parallel comparisons with stock-offset and interval lookup; verify caps/real thickness/seams and directional/L footprints.
+- [x] T109 Add revision/spatial source cache, persistent serial worker, change/cancel/death guards and exact-feedback index.
+- [x] T110 Verify cold/warm/source-change/native polygon/lifecycle/UI gates, measure actual latency, reload/package and preserve model/history.
+
+## Section-first elevation (0.16.0)
+- [x] T111 Specify independent stage/shared panels and link marker orientation/position to plan bays.
+- [x] T112 Implement section tiers, front checks, multi-plan cut levels, conservative provisional recovery and source-frame corrections.
+- [x] T113 Verify full scoped gates, native solids/worker/UI, actual-source read-only results, package and guarded live reload.
+
+## Direct scanned L recovery (0.16.1)
+- [x] T114 Reproduce2016-edge native failure; recover perpendicular closed bays, auxiliaries and common rail without filling the empty L/gap; preserve exact feedback and rotated layouts.
+- [x] T115 Verify full Python/Ruby/RuboCop gates, browser explanation, cold/warm native worker and aborted native source-bound builds on the user's pasted Untitled1 plan; package and guarded reload.
+
+
+## Combined direct scan (0.17.0)
+- [x] T116 Specify native annotation capture, crop/transform/source-watch behavior and independent plan-only stage.
+- [x] T117 Implement readable text/symbol and exploded-cut recognition, section composition/source placement, provisional correction targets and UI diagnostics.
+- [x] T118 Verify metadata/ambiguity/multiple-plan Python regressions, full scoped gates, native transformed/stale/cropped source-bound solids, actual Untitled1 stage isolation and UI; package and guarded reload.
+
+
+## Deeper exterior panels / framed fronts (0.17.1)
+- [x] T119 Reproduce actual new Untitled1 scan; retain measured outer panels and the complete front frame rather than infill only.
+- [x] T120 Verify actual multiview/rotated regressions, source-bound native solids/toggle/volumes, UI/full gates, package and safe reload without replacing user geometry.
+
+
+## Full registered elevations and measured L trim (0.18.0)
+- [x] T121 Record source-bound user clarification:692 mm separates carcasses; top30 mm band is cabinet trim, not ceiling/wall.
+- [x] T122 Implement independent strict geometric registration, short parallel trim proof, native source/projection checks and UI diagnostics.
+- [x] T123 Verify Python/Ruby/RuboCop/UI and actual-source native solids/toggle, package/reload; build a new measured result while preserving edited user boxes.
+
+## Single solid L trim (0.18.1)
+- [x] T124 Add source-scoped confirmed50x30 trim representation with retained actual-panel proofs and native validation/UI.
+- [x] T125 Verify all scoped gates/native/UI, guarded live trim-only update and package; document symbol sample directory without claiming template recognition is implemented.
+
+## Complete aligned CAD references (0.19.0)
+- [x] T126 Preserve uncropped source for combined named imports even with unresolved heights; retain independent plan-only/direct scan behavior.
+- [x] T127 Put each CAD view in a separate root Group; align XOY/XOZ, cuts alongside, closed/open-front semantic tags and bounded stock-pair matching.
+- [x] T128 Run scoped gates/browser/native source-solid/reference checks, preserve live user model, package and safe reload; document actual limitations.
+
+## Cut-level placement, compact entry and direct edits (0.20.0)
+- [x] T129 Measure horizontal-cut Z with ambiguity guards; stack CAD at shared XY, reuse references and preserve module/source transforms.
+- [x] T130 Add compact entry actions without messages/hints, numeric/generic codes through source/labels/cache and fresh scoped action routing.
+- [x] T131 Keep boxes visible after Sai, accept direct edits of owned boxes, reject foreign product boxes and preserve before/after data.
+- [x] T132 Complete full scoped/targeted Python, Ruby/RuboCop, browser and native tests, verify package, guarded reload and compact entry.
+
+- [x] T133 Reproduce actual SP20 missing markers; stack references at sharedXY with explicit1000 mm provisionalZ; preserve measured heights/direct CAD/modules.
+- [x] T134 Enter builds from entry dialog; verify disabled/repeat/IME and both code fields.
+- [x] T135 Full Python/Ruby/RuboCop/browser/native regression, package and safe live reload; record actual limits.
+
+- [x] T136 Vertical/side CAD references parallelYOZ; fronts stayXOZ; verify native transforms, arcs and depth direction.
+- [x] T137 Single plan placedZ0 regardless of source cut height; preserve proof and multi-plan/direct-scan behavior.
+- [x] T138 Required gates, safe load/package; guarded relayout of latest imported references when unchanged.
+
+- [x] T139 Actual SP24 regression: local repeated-code families, caption recovery, six horizontal cuts and source order.
+- [x] T140 Visible nested arrows, cut-position/edge fallback, native proof validation and full-outline/row ownership.
+- [x] T141 Full-source B/C registration, same-width peers, L polylines across title borders and contained front details.
+- [x] T142 Required tests/browser/native actual-source QA, package and safe live load; only repair unchanged original references.
+
+- [x] T143 Reproduce wall-contaminated plan depth/SP27; separate closed standard-stock datums from complete source bounds; index pairs/endpoints, preserve bevelled and diagonal panels.
+- [x] T144 Register side minimumY against the cabinet arm intersected by cutX after direction rotation; register plan levels from cabinet minimumY; explicit pending datums, native validation and diagnostics.
+- [x] T145 Run required gates/native actual source, record wall/nonstock regressions and timing; package0.21.1, safe live load without moving original scans or edited user geometry.
+
+- [x] T146 Reproduce actualSP25 unclassified2-2/3-3; unique external vertical-symbol+stock-height fallback, preserve local duplicate-code scoping and reject ambiguity/wrong geometry.
+- [x] T147 Vertical/side referencesMH_DWG2; retain other semantic tags; native rootGroup/tag checks.
+- [x] T148 Separate open front to the right500 mm; preserve registeredYOZ and add source-orderedXOZ copies with500 mm edge gaps; independent display/proof validation and UI.
+- [x] T149 Required gates/browser/native actual-source regressions, guarded in-place SP25 repair/backups/history, package0.22.0 and safe live load.
+
+- [x] T150 Reproduce SP25 retry61d75182: source still8+3 views, primary/two old box sets trigger duplicate guard, only last shared child becomes cropped fallback.
+- [x] T151 Separate complete CAD restoration from named module reuse; validated explicit source owner across jobs, no silent shared fallback, idempotency and existing CAD-edit guards.
+- [x] T152 Full Python/Ruby/RuboCop and browser/native retry regressions; restore10 missing live references, retain3 box sets/front and back up verified partial fallback before replacement.
+- [x] T153 Package0.22.1, safe runtime load and final live reference/owner check; record evidence/limits.
+
+- [x] T154 Gap-indexed W/D/H stock signatures, unique station votes and standard-stock closed geometry; front-to-front merged-stroke fallback for door-only marker carriers.
+- [x] T155 Prefer highest-ratio open-front/cut-height registration, retain partial/missing geometry, reject conflicting equal poses; local-arm D and cut-position H checks, independent display layout.
+- [x] T156 User clarification: ordered two-sided single-middle-gap stretch recognition even at50% coordinate matches/over50% total size difference; preserve geometry, warn about unaligned side and keep unresolved heights provisional.
+- [x] T157 Python/Ruby regressions and independent native proof validation; maintain actualSP24/SP25/SP27, direct scans, missing-reference restore and cache history.
+- [x] T158 Final required gates/browser/native, package0.23.0 and safe idle runtime load; record timing, preservation and practical limits.
+
+- [x] T159 Reproduce latestSP25 job9eb649ce; distinguish intentional500 mm display offset from logical pairing, obtain explicit front-overlay clarification, add data-derived2–3 height verification for cropped fronts.
+- [x] T160 Overlay front Groups/tags, retain side copies500 mm beyond all fronts, validate new mode and archived layouts; prevent automatic Manager opens for builds/errors/previews.
+- [x] T161 Guard existing-reference relayout with source/native geometry/previous placement checks, preserve edits/locks/boxes and idempotency; aborted native regressions and guarded liveSP25 correction with backup/history.
+- [x] T162 Required gates/browser/native, package0.23.1, safe idle runtime load, current live/reference proof checks and evidence.
+
+- [x] T163 Separate measured SP-envelope height from pending module-tier partition; native height proof, raised/noisy/conflicting/missing-height cases and final replay protection.
+- [x] T164 Guard in-place untouched1600 envelope refresh; protect moved/edited/locked/manual/source-changed boxes and retain CAD/Group identities/history.
+- [x] T165 Python/Ruby/RuboCop/browser/native gates, guarded liveSP25 height update, package0.23.2 and idle runtime load; document evidence/limits.
+
+- [x] T166 Diagnose SP25 raw-context depth regression; preserve resolved DXF/native stroke metadata, compatible stock datum/depth witnesses and style-aware cache/watch identity.
+- [x] T167 Separate cabinet/raw bounds in bay checks and previews; corroborate SP25 depth using1-1/2-2/3-3, validate small drafting discrepancies and native proof.
+- [x] T168 Guard in-place preview depth shrink, retain height/CAD/user edits/deletions, run native source-style capture/watch/hash and preview refresh regressions.
+- [x] T169 Required gates/browser/native, safe live retainedSP25 repair, package0.23.3/runtime/index4 timing and evidence.
+
+- [x] T170 Reproduce SP25 all-or-nothing curved-end/short-trim failures; reconcile A-A/B-B/C-C using rigid stock registration and retain independent closed bays.
+- [x] T171 Local provisional gaps/tail/roof bands, measured front wall/cap profile proof, unique complete source/reference levels and one common layout; no hard-coded SP coordinates.
+- [x] T172 Guard untouched preview replacement with snapshots/history and unchanged CAD; protect moved/edited/locked/manual/source-changed boxes, portable/native proof tests.
+- [x] T173 Required regression/browser/native gates, package0.24.0/r37, safe idle runtime load and actual timing/preservation evidence.
+
+- [x] T174 Reproduce missing SP25 plinth and split roof; measure continuous front bands against linked side stock faces and preserve actual18mm inset/292mm plinth depth.
+- [x] T175 Recognise SP35 horizontal5-5 despite large L span; independent perpendicular stock components, provisional unclosed end and projected-arm/auxiliary sums against furniture fronts A/B.
+- [x] T176 Native profile/component preflight and selective refresh of unchanged/affected Groups; guard edits/movement/deletion/source changes and retain untouched shared/locked Groups without mutating them.
+- [x] T177 Required gates/browser/native, safe runtime/live repair, package0.25.0/r38 and actual evidence/limits.

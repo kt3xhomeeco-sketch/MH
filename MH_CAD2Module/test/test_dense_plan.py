@@ -28,7 +28,7 @@ def test_worker_reports_geometry_stages_before_returning_result(tmp_path,monkeyp
     packet=request(tmp_path);path=tmp_path/'jobs'/'progress-test'/'progress.json'
     packet['progress_file']=str(path)
     run(packet)
-    assert seen==['read_edges','views','partition','experience','prepare_result']
+    assert seen==['read_edges','partition','measure_evidence','experience','prepare_result']
     assert json.loads(path.read_text())['stage']=='prepare_result'
     outside=tmp_path/'outside.json'
     report_progress(dict(progress_file=str(outside)),tmp_path,'bad','bad')

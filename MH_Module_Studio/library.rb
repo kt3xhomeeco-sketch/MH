@@ -301,6 +301,7 @@ module MH
         changed=HUDBoards.edit(@config,action,values)
         save_settings(changed.slice(*HUDBoards::FIELDS))
         @tool.catalog_changed if %w[create delete update page].include?(action)
+        MH::ModuleStudio.sync_hud_board_commands if %w[create delete update].include?(action)
         publish('Đã lưu bảng icon HUD.')
       end
 
@@ -533,6 +534,9 @@ module MH
 
       def resolve_fit(data,placement,within_operation: false)
         placement=ImportTemplate.replace_bounds(data,placement)
+        # A planar face has no cavity depth from which to choose a drawer rail
+        # variant; its source Y span is retained as the panel's physical depth.
+        return [data,placement] if placement && placement['target_kind']=='face'
         return [data,placement] unless placement && (placement['mode']!='template' || placement['kind']=='inside')
         scales=Frames.scale_frame(placement['frame'])
         depth=placement['fit_depth_mm'] || Core.dimensions(placement['bounds'])[1]*scales[5]

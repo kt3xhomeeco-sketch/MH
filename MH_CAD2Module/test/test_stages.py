@@ -28,7 +28,7 @@ def test_standalone_selected_plan_needs_no_front_or_section(tmp_path):
     assert product['status']=='ready',product.get('error')
     assert [m['size'] for m in product['modules']]==[[800,600,1600]]
     assert product['build_stages']=={'plan':True,'elevation':False}
-    assert product['learning']['mode']=='staged'
+    assert product['learning']['mode']=='geometry'
 
 
 def test_plan_stage_cannot_replay_full_height_example(tmp_path):
@@ -56,12 +56,15 @@ def test_plan_correction_is_not_treated_as_a_full_height_training_sample(tmp_pat
 
 def test_cache_separates_plan_preview_and_full_construction(tmp_path,monkeypatch):
     import main
-    monkeypatch.setattr(main,'archive_source',lambda *_:{'folder':str(tmp_path)})
+    monkeypatch.setattr(main,'archive_source',lambda *_:{'folder':str(tmp_path),'hash':'a'*64})
     for stage in ('full','plan1600'):
         path=tmp_path/f'analysis-{main.VERSION}-r{main.RECOGNIZER_VERSION}-{stage}.json'
-        path.write_text(json.dumps({'products':[{'mode':stage}]}),encoding='utf8')
+        path.write_text(json.dumps({'revision':{'hash':'a'*64},'products':[{'mode':stage}]}),encoding='utf8')
     assert analyse_source('a',tmp_path,stages={'plan':True,'elevation':False})['products'][0]['mode']=='plan1600'
-    assert analyse_source('a',tmp_path,stages={'plan':True,'elevation':True})['products'][0]['mode']=='full'
+    def reparse(*_):raise RuntimeError('Full stage must refresh current plan feedback and section evidence')
+    monkeypatch.setattr(main,'dxf_for_revision',reparse)
+    with pytest.raises(RuntimeError,match='refresh current'):
+        analyse_source('a',tmp_path,stages={'plan':True,'elevation':True})
 
 
 def test_sp32_selected_lines_keep_short_trims_and_extend_solid_proxies_to_cabinet_depth(tmp_path):
@@ -70,7 +73,7 @@ def test_sp32_selected_lines_keep_short_trims_and_extend_solid_proxies_to_cabine
                     geometry=dict(hash='b'*64,lines=lines)))
     product=result['analyses'][0]['products'][0]
     assert product['status']=='ready',product.get('error')
-    assert [m['size'] for m in product['modules']]==[[1164,249,1600],[432,250,1600],[1321,250,1600],[432,250,1600]]
+    assert [m['size'] for m in product['modules']]==[[1164,250,1600],[432,250,1600],[1321,250,1600],[432,250,1600]]
     short=[p for p in product['trim_parts'] if p.get('original_depth_mm')==50]
     assert len(short)==2 and len(product['trim_parts'])==3
     assert sorted(p['origin'] for p in short)==[[1182,0,0],[3385,0,0]]

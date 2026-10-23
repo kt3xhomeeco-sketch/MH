@@ -50,9 +50,11 @@ module MH
       error_snapshot('json_error', e.message, json_path, source_path)
     end
 
-    def set_rows(rows, source_path: nil, json_path: nil, source_mtime: nil, json_mtime: nil, source: 'payload', reason: nil, model_key: nil)
+    def set_rows(rows, source_path: nil, json_path: nil, json_paths: nil, source_mtime: nil, json_mtime: nil, source: 'payload', reason: nil, model_key: nil)
       normalized = Array(rows).map { |row| normalize_row(row) }.select { |row| row.is_a?(Hash) && !row.empty? }
       model_key = model_key.to_s.strip.empty? ? current_model_key : model_key.to_s
+      source_paths = Array(json_paths).map { |path| path.to_s.strip }.reject(&:empty?).uniq
+      source_paths = [json_path.to_s.strip].reject(&:empty?) if source_paths.empty?
       @version = @version.to_i + 1
       @version = 1 if @version <= 0
       @last_error = nil
@@ -65,6 +67,7 @@ module MH
         model_key: model_key,
         source_path: source_path.to_s,
         json_path: json_path.to_s,
+        json_paths: source_paths,
         source_mtime: source_mtime.to_f,
         json_mtime: json_mtime.to_f,
         rows_count: normalized.length,
@@ -84,6 +87,11 @@ module MH
       json_path = json_path.to_s.strip
       return load_json(json_path, source_path: source_path) unless json_path.empty?
       return snapshot if @snapshot && @snapshot[:ok] && @snapshot[:model_key].to_s == current_model_key
+
+      if defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:load_runtime_project_data)
+        sources, project_snapshot = MH::RegistryApp.load_runtime_project_data([], reason: 'project_data_ensure_loaded')
+        return project_snapshot if sources && sources['ok'] && project_snapshot && project_snapshot[:ok]
+      end
 
       remembered = remembered_source
       if remembered && !remembered[:json_path].to_s.empty?
@@ -252,9 +260,25 @@ module MH
       return false unless model && snap && snap[:ok]
       return false if snap[:json_path].to_s.strip.empty?
 
-      model.set_attribute(ATTR_DICT, ATTR_JSON_PATH, snap[:json_path].to_s) rescue nil
-      model.set_attribute(ATTR_DICT, ATTR_SOURCE_PATH, snap[:source_path].to_s) rescue nil
-      model.set_attribute(ATTR_DICT, ATTR_MODEL_KEY, snap[:model_key].to_s) rescue nil
+      # Attribute writes can synchronously commit a transaction and re-enter
+      # this method. Skip a nested batch without releasing the outer guard.
+      if @remembering_source
+        return true
+      end
+
+      @remembering_source = true
+      begin
+        [[ATTR_JSON_PATH, snap[:json_path]], [ATTR_SOURCE_PATH, snap[:source_path]],
+         [ATTR_MODEL_KEY, snap[:model_key]]].each do |key, value|
+          value = value.to_s
+          current = model.get_attribute(ATTR_DICT, key) rescue nil
+          next if current == value
+
+          model.set_attribute(ATTR_DICT, key, value) rescue nil
+        end
+      ensure
+        @remembering_source = false
+      end
       true
     rescue
       false

@@ -75,6 +75,27 @@ class ModuleStudioPartFormulaTest < Minitest::Test
     assert_equal before, JSON.generate(@snapshot)
   end
 
+  def test_manual_exterior_length_growth_expands_only_high_envelope_edge
+    snapshot = Marshal.load(Marshal.dump(@snapshot))
+    part = { 'key' => 'viền', 'name' => 'Viền', 'visible' => true, 'box_verified' => true, 'thickness_axis' => 1,
+             'bounds' => [[0, -17.6, 0], [100, 0, 100]] }
+    snapshot['parts'] = [part]
+    snapshot['envelope'] = [[0, -17.6, 0], [100, 0, 100]]
+    rule = System.build(snapshot)
+    rows = Parametric.variables(rule)
+    rows << { 'id' => 'custom:t1', 'binding' => nil, 'name' => 'T1', 'symbol' => 't1', 'category' => 'dimension', 'unit' => 'mm', 'value' => 17.6, 'formula' => '', 'exported' => true }
+    edited = Parametric.edit_part_formula(Parametric.edit_variables(rule, rows), 'viền', 'leny', 'T1+1')
+    result = Core.plan(edited, snapshot, Parametric.targets(edited))
+    bounds = result['parts'].first['bounds']
+    assert_in_delta(-17.6, bounds[0][1], 0.001)
+    assert_in_delta 1, bounds[1][1], 0.001
+    assert_in_delta 18.6, Core.dimensions(bounds)[1], 0.001
+    assert_in_delta(-17.6, result['envelope'][0][1], 0.001)
+    assert_in_delta 1, result['envelope'][1][1], 0.001
+    assert_equal snapshot['envelope'][0].values_at(0, 2), result['envelope'][0].values_at(0, 2)
+    assert_equal snapshot['envelope'][1].values_at(0, 2), result['envelope'][1].values_at(0, 2)
+  end
+
   def test_repeated_trial_update_and_restoring_imported_formula_are_idempotent
     edited = edit('giang + 10')
     result = plan(edited)

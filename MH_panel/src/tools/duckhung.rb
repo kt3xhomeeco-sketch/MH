@@ -191,6 +191,7 @@ class MH::Panel::DucKhung
       view.invalidate
       return
     end
+    f = face_pair[:face]
     @cached_thickness = face_pair[:thickness]
     if @van_day_toi_thieu > 0 && @cached_thickness < @van_day_toi_thieu &&
        (@cached_thickness - @van_day_toi_thieu).abs > 0.01.mm
@@ -210,8 +211,8 @@ class MH::Panel::DucKhung
       return
     end
     @original_face = f
-    picked = @shift_mode ? face_pair[:opposite] : f
-    @cached_thickness = opposite_face_pair(picked)[:thickness]
+    picked = picked_face_for_pair(face_pair)
+    @cached_thickness = face_pair[:thickness]
     prev_face = @cached_face
     update_cached_face(picked, tr)
     prev_hover = @hovered_arc_idx
@@ -416,9 +417,8 @@ class MH::Panel::DucKhung
     return unless @original_face && @cached_parent
     face_pair = opposite_face_pair(@original_face)
     return unless face_pair
-    f = @original_face
-    picked = @shift_mode ? face_pair[:opposite] : f
-    @cached_thickness = opposite_face_pair(picked)[:thickness]
+    picked = picked_face_for_pair(face_pair)
+    @cached_thickness = face_pair[:thickness]
     update_cached_face(picked, @cached_parent.transformation)
   end
   def update_cached_face(f, tr)
@@ -667,8 +667,55 @@ class MH::Panel::DucKhung
       { face: face, opposite: other, thickness: depth.abs, area_delta: area_delta }
     end
     pair = candidates.min_by { |candidate| candidate[:area_delta] }
+    pair ||= fragmented_opposite_face_pair(face, parent)
     @cached_face_pairs[cache_key] = pair if pair
     pair
+  end
+  # Imported/repaired panels can have one complete CNC face and an opposing
+  # surface split into coplanar fragments. Accept it only if the fragments
+  # cover the full profile, so unrelated side faces remain excluded.
+  def fragmented_opposite_face_pair(face, parent)
+    faces = parent.definition.entities.grep(Sketchup::Face)
+    parallel_faces = faces.select do |candidate|
+      candidate.valid? && candidate.normal.dot(face.normal).abs > 0.999
+    end
+    profile = parallel_faces.max_by(&:area)
+    return nil unless profile && profile.area > 0
+
+    fragments = faces.filter_map do |candidate|
+      next unless candidate != profile && candidate.valid?
+      next unless candidate.normal.dot(profile.normal) < -0.999
+
+      depth = profile.vertices.first.position.vector_to(candidate.vertices.first.position).dot(profile.normal)
+      next if depth.abs <= 0.01.mm
+
+      { face: candidate, depth: depth }
+    end
+    return nil if fragments.empty?
+
+    depth_groups = fragments.sort_by { |item| item[:depth] }.slice_when do |left, right|
+      (right[:depth] - left[:depth]).abs > 0.01.mm
+    end.to_a
+    group = depth_groups.max_by { |items| items.sum { |item| item[:face].area } }
+    return nil unless group
+
+    covered_area = group.sum { |item| item[:face].area }
+    area_delta = (covered_area - profile.area).abs / profile.area
+    return nil if area_delta > 0.01
+
+    representative = group.max_by { |item| item[:face].area }
+    {
+      face: profile,
+      opposite: representative[:face],
+      thickness: representative[:depth].abs,
+      area_delta: area_delta,
+      fragmented: true
+    }
+  end
+  def picked_face_for_pair(face_pair)
+    return face_pair[:face] if face_pair[:fragmented]
+
+    @shift_mode ? face_pair[:opposite] : face_pair[:face]
   end
   def face_pair_for_normal(parent, ref_normal_world)
     return nil unless parent && parent.valid? && ref_normal_world
@@ -677,7 +724,7 @@ class MH::Panel::DucKhung
       pair = opposite_face_pair(face, parent)
       next unless pair
 
-      normal = face.normal.transform(parent.transformation).normalize
+      normal = pair[:face].normal.transform(parent.transformation).normalize
       { pair: pair, alignment: normal.dot(ref_normal_world) }
     end
     candidates.max_by { |candidate| candidate[:alignment] }&.fetch(:pair)
@@ -719,7 +766,9 @@ class MH::Panel::DucKhung
             end
       next unless arc
 
-      target_radius = arc[:radius] + distance
+      target_radius = MH::Geo::Offset.offset_arc_radius(
+        arc[:center], arc[:radius], source_points, normal, start_index, edge_count, distance
+      )
       next if target_radius <= 0.001.mm
 
       offsets = edge_count >= count ? (0...edge_count) : (0..edge_count)
@@ -876,6 +925,57 @@ class MH::Panel::DucKhung
       hem_segments = (@bo_goc_kinh || !@bo_goc_trong) ? inner_segments : nil
       build_hem(ents, inner_pts, hem_pts, hem_segments, frame_face.normal) if hem_pts && hem_pts.length >= 3
     end
+    remove_duplicate_frame_base_faces(ents)
+  end
+  # Drawing an inner curve can leave its filled center coplanar with the new
+  # ring face. It closes the opening from below and must not remain.
+  def remove_duplicate_frame_base_faces(ents)
+    faces = ents.grep(Sketchup::Face).select(&:valid?)
+    frame_faces = faces.select { |face| face.loops.length >= 2 }
+    frame_faces.each do |frame_face|
+      faces.each do |candidate|
+        next unless candidate.valid? && candidate != frame_face && candidate.loops.length == 1
+        next unless candidate.normal.dot(frame_face.normal) > 0.999
+        next unless coplanar_faces?(candidate, frame_face)
+        next unless matching_inner_loop?(candidate, frame_face)
+
+        candidate.erase!
+      end
+    end
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::DucKhung] remove duplicate frame face error: #{e.class}: #{e.message}")
+  end
+  def coplanar_faces?(first, second)
+    point = first.vertices.first.position
+    second.vertices.all? do |vertex|
+      point.vector_to(vertex.position).dot(first.normal).abs <= 0.001.mm
+    end
+  rescue
+    false
+  end
+  def matching_inner_loop?(face, frame_face)
+    frame_face.loops.any? do |loop|
+      !loop.outer? && matching_loop_points?(face.outer_loop.vertices.map(&:position), loop.vertices.map(&:position))
+    end
+  rescue
+    false
+  end
+  def matching_loop_points?(first_points, second_points)
+    return false unless first_points.length == second_points.length
+
+    tolerance = 0.001.mm
+    starts = first_points.each_index.select { |index| first_points[index].distance(second_points.first) <= tolerance }
+    starts.any? do |start|
+      forward = second_points.each_with_index.all? do |point, index|
+        first_points[(start + index) % first_points.length].distance(point) <= tolerance
+      end
+      reverse = second_points.each_with_index.all? do |point, index|
+        first_points[(start - index) % first_points.length].distance(point) <= tolerance
+      end
+      forward || reverse
+    end
+  rescue
+    false
   end
   def repair_panel_profile_curves(ents, parent)
     profile_faces = ents.grep(Sketchup::Face).select { |face| face.valid? && face.loops.length == 2 }

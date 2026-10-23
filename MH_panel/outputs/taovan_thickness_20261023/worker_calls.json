@@ -1,0 +1,9 @@
+﻿{
+    "completed_model_turns":  65,
+    "count_method":  "Completed assistant model messages in sanitized OpenCode session export; hidden provider retries not measurable.",
+    "models":  {
+                   "Name":  "opencode/deepseek-v4.1-flash-free",
+                   "Count":  65
+               },
+    "session":  "ses_e98258f71ffetOo6AqvqiXDXn2"
+}

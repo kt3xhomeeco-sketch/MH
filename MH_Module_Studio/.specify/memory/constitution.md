@@ -54,8 +54,10 @@ matches. Feature 076 permits explicitly selected open sides to reference host en
 planes; draw these as virtual boundaries, not filled real faces. Feature 077
 resizes only between two enabled opposing contacts, preserving ATT/T and inset
 door thickness. One contact aligns without resizing; no template/match preserves
-source dimensions. Placement-click Shift fits the detected cavity without links
-(080), retaining raw placement outside a cavity; Ctrl replaces. Drawer rail variants
+source dimensions. Placement-click Shift fits without links (080): prefer a detected
+cavity only when it opens to the host exterior, then fit ordinary group/component/DC/module bounds without requiring ATT;
+a loose face fits the module footprint while retaining source depth/T. Keep raw
+placement when no bounded target is detected; Ctrl replaces. Drawer rail variants
 retain nominal length while width/height fit. The open
 front datum is the host front envelope, not the back of an upper front brace.
 Matrix scale supplies real-mm offsets. The host needs no template. Door behavior is saved module metadata,

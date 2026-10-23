@@ -5,18 +5,11 @@ require 'extensions.rb'
 module CustomPlugins
   module DuplicateObject
     PLUGIN_NAME = 'Duplicate Obj'.freeze unless const_defined?(:PLUGIN_NAME, false)
-    DYNAMIC_DICTIONARY = 'dynamic_attributes'.freeze unless const_defined?(:DYNAMIC_DICTIONARY, false)
-    DYNAMIC_LENGTH_KEYS = {
-      x: 'lenx',
-      y: 'leny',
-      z: 'lenz'
-    }.freeze unless const_defined?(:DYNAMIC_LENGTH_KEYS, false)
-    SCALE_EPSILON = 0.001 unless const_defined?(:SCALE_EPSILON, false)
 
     unless const_defined?(:EXTENSION, false)
       EXTENSION = SketchupExtension.new(PLUGIN_NAME, 'DuplicateObject x')
       EXTENSION.creator = 'MH'
-      EXTENSION.description = 'Duplicate group/component theo 6 huong, make unique va giu properties.'
+      EXTENSION.description = 'Duplicate group/component theo 6 huong bang copy va move native SketchUp.'
       EXTENSION.version = '1.1.0'
       EXTENSION.copyright = '2026 MH'
     end
@@ -58,6 +51,11 @@ module CustomPlugins
 
         begin
           originals.each do |entity|
+            if entity.respond_to?(:locked?) && entity.locked?
+              skipped << "#{display_name(entity)} (locked)"
+              next
+            end
+
             distance = offset_distance(entity, axis[:axis])
             if distance <= 0.0
               skipped << display_name(entity)
@@ -67,15 +65,8 @@ module CustomPlugins
             copy = copy_entity(entity)
             next unless copy && copy.valid?
 
-            copy = unlock_temporarily(copy) do
-              copy = make_unique(copy)
-              preserve_visible_name(entity, copy)
-              move_copy(copy, axis[:vector], distance)
-              restore_definition_properties(entity, copy)
-              restore_instance_properties(entity, copy)
-              preserve_dynamic_component_size(copy)
-              copy
-            end
+            # Move the copied instance without changing its definition or axes.
+            move_copy(copy, axis[:vector], distance)
 
             copies << copy
           rescue StandardError => e
@@ -101,7 +92,27 @@ module CustomPlugins
       end
 
       def copy_entity(entity)
-        entity.copy
+        # ComponentInstance#copy is NOT a SketchUp Ruby API method. Dynamic
+        # Components adds a helper with that name which drops instance data.
+        # Create an instance of the same definition and preserve its data here.
+        if entity.is_a?(Sketchup::Group)
+          copy = entity.copy
+        else
+          parent = entity.parent
+          entities = parent.is_a?(Sketchup::Entities) ? parent : parent.entities
+          copy = entities.add_instance(entity.definition, entity.transformation)
+        end
+        preserve_instance_properties(entity, copy)
+        dictionaries = entity.attribute_dictionaries
+        dictionaries.each do |dictionary|
+          dictionary.each_pair do |key, value|
+            copy.set_attribute(dictionary.name, key, value)
+          end
+        end if dictionaries
+        copy
+      rescue StandardError
+        copy.erase! if copy && copy.valid?
+        raise
       end
 
       def make_unique(entity)
@@ -117,55 +128,7 @@ module CustomPlugins
           direction[1] * distance,
           direction[2] * distance
         )
-        base_transformation = entity.transformation
-        translation = Geom::Transformation.translation(vector)
-        entity.transform!(translation)
-        bake_duplicate_translation(entity, base_transformation, translation)
-      end
-
-      # MH Stretch classifies a crossing Group from its local origin. A regular
-      # duplicate is moved by changing only its instance transformation, so its
-      # visual location and local origin disagree on the first stretch. Bake
-      # just the duplicate offset into the now-unique copy instead. It keeps
-      # the visual result identical while giving Stretch stable local bounds.
-      def bake_duplicate_translation(entity, base_transformation, translation)
-        return unless entity.respond_to?(:transformation=)
-        return if dynamic_component?(entity)
-
-        entities =
-          if entity.is_a?(Sketchup::Group)
-            entity.entities
-          elsif entity.is_a?(Sketchup::ComponentInstance)
-            entity.definition.entities
-          end
-        return unless entities
-
-        targets = entities.to_a
-        return if targets.empty?
-
-        local_translation = base_transformation.inverse * translation * base_transformation
-        transformed_contents = false
-        entities.transform_entities(local_translation, targets)
-        transformed_contents = true
-        entity.transformation = base_transformation
-      rescue StandardError => error
-        if transformed_contents
-          begin
-            entities.transform_entities(local_translation.inverse, targets)
-          rescue StandardError
-            # Keep the already-visible instance transform if the rollback itself fails.
-          end
-        end
-        puts "[#{PLUGIN_NAME}] Khong bake offset duplicate: #{error.message}"
-      end
-
-      def dynamic_component?(entity)
-        return false unless entity.is_a?(Sketchup::ComponentInstance)
-
-        !entity.attribute_dictionary('dynamic_attributes', false).nil? ||
-          !entity.definition.attribute_dictionary('dynamic_attributes', false).nil?
-      rescue StandardError
-        false
+        entity.transform!(Geom::Transformation.translation(vector))
       end
 
       def offset_distance(entity, axis)
@@ -221,205 +184,22 @@ module CustomPlugins
         end
       end
 
-      def restore_instance_properties(source, target)
-        restore_property(source, target, :name, :name=)
-        restore_property(source, target, :material, :material=)
-        restore_property(source, target, :layer, :layer=)
-        restore_property(source, target, :casts_shadows?, :casts_shadows=)
-        restore_property(source, target, :receives_shadows?, :receives_shadows=)
-        restore_attributes(source, target)
-        preserve_visible_name(source, target)
-        restore_property(source, target, :hidden?, :hidden=)
-        restore_property(source, target, :locked?, :locked=)
+      def preserve_instance_properties(source, target)
+        preserve_property(source, target, :material, :material=)
+        preserve_property(source, target, :layer, :layer=)
+        preserve_property(source, target, :casts_shadows?, :casts_shadows=)
+        preserve_property(source, target, :receives_shadows?, :receives_shadows=)
+        preserve_property(source, target, :name, :name=)
+        preserve_property(source, target, :hidden?, :hidden=)
       end
 
-      def restore_definition_properties(source, target)
-        return unless source.respond_to?(:definition) && target.respond_to?(:definition)
-
-        restore_attributes_between(source.definition, target.definition)
-      rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong restore definition attributes: #{e.message}"
-      end
-
-      def restore_property(source, target, reader, writer)
+      def preserve_property(source, target, reader, writer)
         return unless source.respond_to?(reader) && target.respond_to?(writer)
 
-        target.public_send(writer, source.public_send(reader))
+        value = source.public_send(reader)
+        target.public_send(writer, value) unless target.public_send(reader) == value
       rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong restore #{reader}: #{e.message}"
-      end
-
-      def restore_attributes(source, target)
-        restore_attributes_between(source, target)
-      rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong restore attributes: #{e.message}"
-      end
-
-      def restore_attributes_between(source, target)
-        dictionaries = source.attribute_dictionaries
-        return unless dictionaries && target.respond_to?(:set_attribute)
-
-        dictionaries.each do |dictionary|
-          dictionary.each_pair do |key, value|
-            target.set_attribute(dictionary.name, key, value)
-          end
-        end
-      end
-
-      # A Dynamic Component can be resized with SketchUp's Scale tool. In that
-      # case the visible size is stored in the instance transformation while
-      # lenx/leny/lenz still contain the old DC values. A later DC redraw then
-      # evaluates those old values and snaps the duplicate back to its base
-      # size. Store the actual size on the duplicate so a redraw is stable.
-      #
-      # Only the duplicate is changed. Nested dynamic components are included
-      # because redraw_with_undo on a parent redraws its complete tree.
-      def preserve_dynamic_component_size(entity)
-        sync_dynamic_component_tree(entity, {})
-      rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong dong bo kich thuoc Dynamic Component: #{e.message}"
-      end
-
-      def sync_dynamic_component_tree(entity, visited)
-        return unless entity && entity.valid?
-
-        object_key = entity.object_id
-        return if visited[object_key]
-
-        visited[object_key] = true
-        sync_dynamic_component_dimensions(entity) if dynamic_component?(entity)
-
-        child_entities(entity).each do |child|
-          sync_dynamic_component_tree(child, visited) if duplicatable?(child)
-        end
-      rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong dong bo DC con: #{e.message}"
-      end
-
-      def dynamic_component?(entity)
-        return false unless entity.is_a?(Sketchup::ComponentInstance)
-        return false unless entity.valid?
-
-        entity.attribute_dictionary(DYNAMIC_DICTIONARY, false) ||
-          entity.definition.attribute_dictionary(DYNAMIC_DICTIONARY, false)
-      rescue StandardError
-        false
-      end
-
-      def child_entities(entity)
-        if entity.is_a?(Sketchup::Group)
-          entity.entities.to_a
-        elsif entity.is_a?(Sketchup::ComponentInstance)
-          entity.definition.entities.to_a
-        else
-          []
-        end
-      rescue StandardError
-        []
-      end
-
-      def sync_dynamic_component_dimensions(entity)
-        dimensions = dynamic_component_dimensions(entity)
-        return unless dimensions
-
-        DYNAMIC_LENGTH_KEYS.each do |axis, key|
-          next unless dynamic_length_attribute_present?(entity, key)
-
-          actual = dimensions[axis]
-          current = dynamic_attribute_value(entity, key)
-          next unless dynamic_dimension_needs_sync?(entity, axis, actual, current)
-
-          write_dynamic_length(entity, key, actual)
-        end
-      end
-
-      def dynamic_component_dimensions(entity)
-        bounds = entity.definition.bounds
-        return nil if bounds.empty?
-
-        sx, sy, sz = transformation_scale(entity.transformation)
-        {
-          x: bounds.width.to_f * sx,
-          y: bounds.depth.to_f * sy,
-          z: bounds.height.to_f * sz
-        }
-      rescue StandardError
-        nil
-      end
-
-      def transformation_scale(transformation)
-        matrix = transformation.to_a
-        [
-          Math.sqrt(matrix[0]**2 + matrix[1]**2 + matrix[2]**2),
-          Math.sqrt(matrix[4]**2 + matrix[5]**2 + matrix[6]**2),
-          Math.sqrt(matrix[8]**2 + matrix[9]**2 + matrix[10]**2)
-        ]
-      end
-
-      def dynamic_length_attribute_present?(entity, key)
-        attribute_present?(entity, key) || attribute_present?(entity.definition, key)
-      rescue StandardError
-        false
-      end
-
-      def attribute_present?(entity, key)
-        dictionary = entity.attribute_dictionary(DYNAMIC_DICTIONARY, false)
-        return false unless dictionary
-
-        !dictionary[key].nil? ||
-          !dictionary["_#{key}_formula"].nil? ||
-          !dictionary["_#{key}_nominal"].nil?
-      rescue StandardError
-        false
-      end
-
-      def dynamic_attribute_value(entity, key)
-        value = entity.get_attribute(DYNAMIC_DICTIONARY, key)
-        return value unless value.nil?
-
-        entity.definition.get_attribute(DYNAMIC_DICTIONARY, key)
-      rescue StandardError
-        nil
-      end
-
-      def dynamic_dimension_needs_sync?(entity, axis, actual, current)
-        return false unless actual && actual > 0.0
-
-        scales = transformation_scale(entity.transformation)
-        scale_index = { x: 0, y: 1, z: 2 }[axis]
-        return true if scale_index && (scales[scale_index] - 1.0).abs > SCALE_EPSILON
-
-        numeric = numeric_dynamic_value(current)
-        numeric.nil? || (numeric - actual).abs > [actual.abs * 0.001, 0.01].max
-      end
-
-      def numeric_dynamic_value(value)
-        return value.to_f if value.is_a?(Numeric)
-
-        text = value.to_s.strip
-        return nil unless text.match?(/\A-?\d+(?:\.\d+)?\z/)
-
-        text.to_f
-      end
-
-      def write_dynamic_length(entity, key, value)
-        definition_present = attribute_present?(entity.definition, key)
-        entity.make_unique if definition_present && entity.respond_to?(:make_unique)
-        definition = entity.definition
-
-        write_dynamic_length_value(entity, key, value)
-        write_dynamic_length_value(definition, key, value) if definition_present
-      rescue StandardError => e
-        puts "[#{PLUGIN_NAME}] Khong luu #{key} cho DC: #{e.message}"
-      end
-
-      def write_dynamic_length_value(target, key, value)
-        target.set_attribute(DYNAMIC_DICTIONARY, key, value)
-        target.set_attribute(DYNAMIC_DICTIONARY, "_#{key}_nominal", value)
-        target.set_attribute(DYNAMIC_DICTIONARY, "_#{key}_error", value.to_s)
-
-        dictionary = target.attribute_dictionary(DYNAMIC_DICTIONARY, false)
-        dictionary.delete_key("_#{key}_formula") if dictionary && dictionary.respond_to?(:delete_key)
+        puts "[#{PLUGIN_NAME}] Khong giu #{reader}: #{e.message}"
       end
 
       def preserve_visible_name(source, target)
@@ -463,8 +243,8 @@ module CustomPlugins
             cmd.large_icon = icon
           end
 
-          cmd.tooltip = "#{axis[:text]} (make unique)"
-          cmd.status_bar_text = 'Duplicate group/component, make unique, giu ten mau tag attributes, va offset theo truc da chon.'
+          cmd.tooltip = "#{axis[:text]} (Copy + Move)"
+          cmd.status_bar_text = 'Duplicate group/component bang Copy + Move native SketchUp theo truc da chon.'
           cmd.menu_text = axis[:text]
           apply_extension_to_command(cmd)
         end

@@ -1,1292 +1,324 @@
 {
   "schema_version": "1.0",
-  "materials": [
-
-  ],
-  "thickness_mappings": [
-
-  ],
-  "invalid_materials": [
-
-  ],
+  "materials": [],
+  "thickness_mappings": [],
+  "invalid_materials": [],
   "material_code_rules": {
-    "gloss_suffix_regex": "-(\\d+)\\z",
-    "layers": [
+    "exclusions": [
       {
-        "key": "chat_lieu",
-        "label": "Chất liệu",
-        "required": true
+        "raw": "SƠN TĨNH ĐIỆN",
+        "rawNorm": "son tinh dien",
+        "sourceColumns": [
+          "Excel_E",
+          "Excel_F",
+          "Excel_G"
+        ],
+        "layerKey": "be_mat",
+        "excludedCodes": [
+          "SON"
+        ],
+        "rowNumber": 2
       },
       {
-        "key": "do_day",
-        "label": "Độ dày",
-        "omit_from_parent": true,
-        "optional": true,
-        "pattern": "\\A\\d+(?:[,.]\\d+)?\\z",
-        "role": "thickness"
+        "raw": "MIN ĐỒNG MÀU",
+        "rawNorm": "min dong mau",
+        "sourceColumns": [
+          "Excel_G"
+        ],
+        "layerKey": "finish_code",
+        "excludedCodes": [
+          "MEL"
+        ],
+        "rowNumber": 3
+      }
+    ],
+    "mappings": [
+      {
+        "gia_tri": "Plywood",
+        "gia_tri_map": "PLY",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
       },
       {
-        "key": "nha_cung_cap",
-        "label": "Nhà cung cấp",
-        "optional": true
+        "gia_tri": "MDF chống ẩm",
+        "gia_tri_map": "MDFCA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
       },
       {
-        "key": "be_mat",
-        "label": "Bề mặt",
-        "optional": true
+        "gia_tri": "MDF",
+        "gia_tri_map": "MDF",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
       },
       {
-        "capture_rest": true,
-        "key": "finish_code",
-        "label": "Mã hoàn thiện / mã sơn",
-        "optional": true,
-        "role": "finish"
+        "gia_tri": "HDF chống ẩm",
+        "gia_tri_map": "HDFCA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "HDF",
+        "gia_tri_map": "HDF",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Picomat",
+        "gia_tri_map": "PICOMAT",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Gỗ sồi",
+        "gia_tri_map": "GOSOI",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Tần bì",
+        "gia_tri_map": "TANBI",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Ván nhựa",
+        "gia_tri_map": "GONHUA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Gỗ nhựa",
+        "gia_tri_map": "GONHUA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "VÁN NHỰA AN CƯỜNG",
+        "gia_tri_map": "WPB",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "gỗ tự nhiên",
+        "gia_tri_map": "GTN",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "WPB",
+        "gia_tri_map": "WPB",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "E0",
+        "gia_tri_map": "E0",
+        "nhom": "tieu_chuan",
+        "thu_tu": "3"
+      },
+      {
+        "gia_tri": "E1",
+        "gia_tri_map": "E1",
+        "nhom": "tieu_chuan",
+        "thu_tu": "3"
+      },
+      {
+        "gia_tri": "E2",
+        "gia_tri_map": "E2",
+        "nhom": "tieu_chuan",
+        "thu_tu": "3"
+      },
+      {
+        "gia_tri": "An Cường",
+        "gia_tri_map": "AC",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "Panel",
+        "gia_tri_map": "PANEL",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "VÂN ĐÁ",
+        "gia_tri_map": "VANDA",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "Dongwha",
+        "gia_tri_map": "DW",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "Thái Lan",
+        "gia_tri_map": "TL",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "Veneer",
+        "gia_tri_map": "VER",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "Veneer kỹ thuật",
+        "gia_tri_map": "VERKT",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "VENEER KỸ THUẬT SỒI",
+        "gia_tri_map": "VERKTSOI",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "Veneer sồi",
+        "gia_tri_map": "VERSOI",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "Laminate",
+        "gia_tri_map": "LAM",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "Sơn",
+        "gia_tri_map": "SON",
+        "nhom": "finish_code",
+        "thu_tu": "6"
+      },
+      {
+        "gia_tri": "Melamine",
+        "gia_tri_map": "MEL",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "GỖ NHỰA WBP",
+        "gia_tri_map": "WBP",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "MDFCA",
+        "gia_tri_map": "MDFCA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "L8304 Keding",
+        "gia_tri_map": "L8304",
+        "nhom": "finish_code",
+        "thu_tu": "6"
+      },
+      {
+        "gia_tri": "MELAMIN",
+        "gia_tri_map": "MEL",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "GỖ ASH",
+        "gia_tri_map": "ASH",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "LAMINAT",
+        "gia_tri_map": "LAM",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "DÁN",
+        "gia_tri_map": "SON",
+        "nhom": "finish_code",
+        "thu_tu": "6"
+      },
+      {
+        "gia_tri": "GỖ GHÉP THANH",
+        "gia_tri_map": "GGT",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "AC",
+        "gia_tri_map": "AC",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "WPB AC",
+        "gia_tri_map": "WPB",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Thái",
+        "gia_tri_map": "TL",
+        "nhom": "nha_cung_cap",
+        "thu_tu": "4"
+      },
+      {
+        "gia_tri": "WBP",
+        "gia_tri_map": "WPB",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "Pywood",
+        "gia_tri_map": "PLY",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "VÁN NHỰA WBP",
+        "gia_tri_map": "WBP",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "VÁN NHỰA WPB",
+        "gia_tri_map": "WPB",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
+      },
+      {
+        "gia_tri": "LACQUERED",
+        "gia_tri_map": "LAM",
+        "nhom": "be_mat",
+        "thu_tu": "5"
+      },
+      {
+        "gia_tri": "Minh Long",
+        "gia_tri_map": "ML",
+        "nhom": "tieu_chuan",
+        "thu_tu": "3"
+      },
+      {
+        "gia_tri": "MDF CA",
+        "gia_tri_map": "MDFCA",
+        "nhom": "chat_lieu",
+        "thu_tu": "1"
       }
     ],
     "multi_separators": [
       "&"
     ],
-    "paint_code_regex": "\\A(?=.*[A-Z])(?=.*\\d)[A-Z0-9][A-Z0-9 _\\/.-]*\\z",
     "paint_surface_token": "SON",
-    "parent_codes": [
-      "PLY",
-      "MDFCA",
-      "MDF",
-      "HDFCA",
-      "HDF",
-      "PICOMAT",
-      "GOSOI",
-      "TANBI",
-      "GONHUA",
-      "WPB",
-      "GTN",
-      "PLY.AC",
-      "PLY.PANEL",
-      "PLY.DONGWA",
-      "PLY.VANDA",
-      "MDFCA.AC",
-      "MDFCA.PANEL",
-      "MDFCA.DONGWA",
-      "MDFCA.VANDA",
-      "MDF.AC",
-      "MDF.PANEL",
-      "MDF.DONGWA",
-      "MDF.VANDA",
-      "HDFCA.AC",
-      "HDFCA.PANEL",
-      "HDFCA.DONGWA",
-      "HDFCA.VANDA",
-      "HDF.AC",
-      "HDF.PANEL",
-      "HDF.DONGWA",
-      "HDF.VANDA",
-      "PICOMAT.AC",
-      "PICOMAT.PANEL",
-      "PICOMAT.DONGWA",
-      "PICOMAT.VANDA",
-      "GOSOI.AC",
-      "GOSOI.PANEL",
-      "GOSOI.DONGWA",
-      "GOSOI.VANDA",
-      "TANBI.AC",
-      "TANBI.PANEL",
-      "TANBI.DONGWA",
-      "TANBI.VANDA",
-      "GONHUA.AC",
-      "GONHUA.PANEL",
-      "GONHUA.DONGWA",
-      "GONHUA.VANDA",
-      "WPB.AC",
-      "WPB.PANEL",
-      "WPB.DONGWA",
-      "WPB.VANDA",
-      "GTN.AC",
-      "GTN.PANEL",
-      "GTN.DONGWA",
-      "GTN.VANDA",
-      "PLY.AC.SON",
-      "PLY.AC.LK",
-      "PLY.AC.VER",
-      "PLY.AC.VERKT",
-      "PLY.AC.MS",
-      "PLY.AC.VANDA",
-      "PLY.PANEL.SON",
-      "PLY.PANEL.LK",
-      "PLY.PANEL.VER",
-      "PLY.PANEL.VERKT",
-      "PLY.PANEL.MS",
-      "PLY.PANEL.VANDA",
-      "PLY.DONGWA.SON",
-      "PLY.DONGWA.LK",
-      "PLY.DONGWA.VER",
-      "PLY.DONGWA.VERKT",
-      "PLY.DONGWA.MS",
-      "PLY.DONGWA.VANDA",
-      "PLY.VANDA.SON",
-      "PLY.VANDA.LK",
-      "PLY.VANDA.VER",
-      "PLY.VANDA.VERKT",
-      "PLY.VANDA.MS",
-      "PLY.VANDA.VANDA",
-      "MDFCA.AC.SON",
-      "MDFCA.AC.LK",
-      "MDFCA.AC.VER",
-      "MDFCA.AC.VERKT",
-      "MDFCA.AC.MS",
-      "MDFCA.AC.VANDA",
-      "MDFCA.PANEL.SON",
-      "MDFCA.PANEL.LK",
-      "MDFCA.PANEL.VER",
-      "MDFCA.PANEL.VERKT",
-      "MDFCA.PANEL.MS",
-      "MDFCA.PANEL.VANDA",
-      "MDFCA.DONGWA.SON",
-      "MDFCA.DONGWA.LK",
-      "MDFCA.DONGWA.VER",
-      "MDFCA.DONGWA.VERKT",
-      "MDFCA.DONGWA.MS",
-      "MDFCA.DONGWA.VANDA",
-      "MDFCA.VANDA.SON",
-      "MDFCA.VANDA.LK",
-      "MDFCA.VANDA.VER",
-      "MDFCA.VANDA.VERKT",
-      "MDFCA.VANDA.MS",
-      "MDFCA.VANDA.VANDA",
-      "MDF.AC.SON",
-      "MDF.AC.LK",
-      "MDF.AC.VER",
-      "MDF.AC.VERKT",
-      "MDF.AC.MS",
-      "MDF.AC.VANDA",
-      "MDF.PANEL.SON",
-      "MDF.PANEL.LK",
-      "MDF.PANEL.VER",
-      "MDF.PANEL.VERKT",
-      "MDF.PANEL.MS",
-      "MDF.PANEL.VANDA",
-      "MDF.DONGWA.SON",
-      "MDF.DONGWA.LK",
-      "MDF.DONGWA.VER",
-      "MDF.DONGWA.VERKT",
-      "MDF.DONGWA.MS",
-      "MDF.DONGWA.VANDA",
-      "MDF.VANDA.SON",
-      "MDF.VANDA.LK",
-      "MDF.VANDA.VER",
-      "MDF.VANDA.VERKT",
-      "MDF.VANDA.MS",
-      "MDF.VANDA.VANDA",
-      "HDFCA.AC.SON",
-      "HDFCA.AC.LK",
-      "HDFCA.AC.VER",
-      "HDFCA.AC.VERKT",
-      "HDFCA.AC.MS",
-      "HDFCA.AC.VANDA",
-      "HDFCA.PANEL.SON",
-      "HDFCA.PANEL.LK",
-      "HDFCA.PANEL.VER",
-      "HDFCA.PANEL.VERKT",
-      "HDFCA.PANEL.MS",
-      "HDFCA.PANEL.VANDA",
-      "HDFCA.DONGWA.SON",
-      "HDFCA.DONGWA.LK",
-      "HDFCA.DONGWA.VER",
-      "HDFCA.DONGWA.VERKT",
-      "HDFCA.DONGWA.MS",
-      "HDFCA.DONGWA.VANDA",
-      "HDFCA.VANDA.SON",
-      "HDFCA.VANDA.LK",
-      "HDFCA.VANDA.VER",
-      "HDFCA.VANDA.VERKT",
-      "HDFCA.VANDA.MS",
-      "HDFCA.VANDA.VANDA",
-      "HDF.AC.SON",
-      "HDF.AC.LK",
-      "HDF.AC.VER",
-      "HDF.AC.VERKT",
-      "HDF.AC.MS",
-      "HDF.AC.VANDA",
-      "HDF.PANEL.SON",
-      "HDF.PANEL.LK",
-      "HDF.PANEL.VER",
-      "HDF.PANEL.VERKT",
-      "HDF.PANEL.MS",
-      "HDF.PANEL.VANDA",
-      "HDF.DONGWA.SON",
-      "HDF.DONGWA.LK",
-      "HDF.DONGWA.VER",
-      "HDF.DONGWA.VERKT",
-      "HDF.DONGWA.MS",
-      "HDF.DONGWA.VANDA",
-      "HDF.VANDA.SON",
-      "HDF.VANDA.LK",
-      "HDF.VANDA.VER",
-      "HDF.VANDA.VERKT",
-      "HDF.VANDA.MS",
-      "HDF.VANDA.VANDA",
-      "PICOMAT.AC.SON",
-      "PICOMAT.AC.LK",
-      "PICOMAT.AC.VER",
-      "PICOMAT.AC.VERKT",
-      "PICOMAT.AC.MS",
-      "PICOMAT.AC.VANDA",
-      "PICOMAT.PANEL.SON",
-      "PICOMAT.PANEL.LK",
-      "PICOMAT.PANEL.VER",
-      "PICOMAT.PANEL.VERKT",
-      "PICOMAT.PANEL.MS",
-      "PICOMAT.PANEL.VANDA",
-      "PICOMAT.DONGWA.SON",
-      "PICOMAT.DONGWA.LK",
-      "PICOMAT.DONGWA.VER",
-      "PICOMAT.DONGWA.VERKT",
-      "PICOMAT.DONGWA.MS",
-      "PICOMAT.DONGWA.VANDA",
-      "PICOMAT.VANDA.SON",
-      "PICOMAT.VANDA.LK",
-      "PICOMAT.VANDA.VER",
-      "PICOMAT.VANDA.VERKT",
-      "PICOMAT.VANDA.MS",
-      "PICOMAT.VANDA.VANDA",
-      "GOSOI.AC.SON",
-      "GOSOI.AC.LK",
-      "GOSOI.AC.VER",
-      "GOSOI.AC.VERKT",
-      "GOSOI.AC.MS",
-      "GOSOI.AC.VANDA",
-      "GOSOI.PANEL.SON",
-      "GOSOI.PANEL.LK",
-      "GOSOI.PANEL.VER",
-      "GOSOI.PANEL.VERKT",
-      "GOSOI.PANEL.MS",
-      "GOSOI.PANEL.VANDA",
-      "GOSOI.DONGWA.SON",
-      "GOSOI.DONGWA.LK",
-      "GOSOI.DONGWA.VER",
-      "GOSOI.DONGWA.VERKT",
-      "GOSOI.DONGWA.MS",
-      "GOSOI.DONGWA.VANDA",
-      "GOSOI.VANDA.SON",
-      "GOSOI.VANDA.LK",
-      "GOSOI.VANDA.VER",
-      "GOSOI.VANDA.VERKT",
-      "GOSOI.VANDA.MS",
-      "GOSOI.VANDA.VANDA",
-      "TANBI.AC.SON",
-      "TANBI.AC.LK",
-      "TANBI.AC.VER",
-      "TANBI.AC.VERKT",
-      "TANBI.AC.MS",
-      "TANBI.AC.VANDA",
-      "TANBI.PANEL.SON",
-      "TANBI.PANEL.LK",
-      "TANBI.PANEL.VER",
-      "TANBI.PANEL.VERKT",
-      "TANBI.PANEL.MS",
-      "TANBI.PANEL.VANDA",
-      "TANBI.DONGWA.SON",
-      "TANBI.DONGWA.LK",
-      "TANBI.DONGWA.VER",
-      "TANBI.DONGWA.VERKT",
-      "TANBI.DONGWA.MS",
-      "TANBI.DONGWA.VANDA",
-      "TANBI.VANDA.SON",
-      "TANBI.VANDA.LK",
-      "TANBI.VANDA.VER",
-      "TANBI.VANDA.VERKT",
-      "TANBI.VANDA.MS",
-      "TANBI.VANDA.VANDA",
-      "GONHUA.AC.SON",
-      "GONHUA.AC.LK",
-      "GONHUA.AC.VER",
-      "GONHUA.AC.VERKT",
-      "GONHUA.AC.MS",
-      "GONHUA.AC.VANDA",
-      "GONHUA.PANEL.SON",
-      "GONHUA.PANEL.LK",
-      "GONHUA.PANEL.VER",
-      "GONHUA.PANEL.VERKT",
-      "GONHUA.PANEL.MS",
-      "GONHUA.PANEL.VANDA",
-      "GONHUA.DONGWA.SON",
-      "GONHUA.DONGWA.LK",
-      "GONHUA.DONGWA.VER",
-      "GONHUA.DONGWA.VERKT",
-      "GONHUA.DONGWA.MS",
-      "GONHUA.DONGWA.VANDA",
-      "GONHUA.VANDA.SON",
-      "GONHUA.VANDA.LK",
-      "GONHUA.VANDA.VER",
-      "GONHUA.VANDA.VERKT",
-      "GONHUA.VANDA.MS",
-      "GONHUA.VANDA.VANDA",
-      "WPB.AC.SON",
-      "WPB.AC.LK",
-      "WPB.AC.VER",
-      "WPB.AC.VERKT",
-      "WPB.AC.MS",
-      "WPB.AC.VANDA",
-      "WPB.PANEL.SON",
-      "WPB.PANEL.LK",
-      "WPB.PANEL.VER",
-      "WPB.PANEL.VERKT",
-      "WPB.PANEL.MS",
-      "WPB.PANEL.VANDA",
-      "WPB.DONGWA.SON",
-      "WPB.DONGWA.LK",
-      "WPB.DONGWA.VER",
-      "WPB.DONGWA.VERKT",
-      "WPB.DONGWA.MS",
-      "WPB.DONGWA.VANDA",
-      "WPB.VANDA.SON",
-      "WPB.VANDA.LK",
-      "WPB.VANDA.VER",
-      "WPB.VANDA.VERKT",
-      "WPB.VANDA.MS",
-      "WPB.VANDA.VANDA",
-      "GTN.AC.SON",
-      "GTN.AC.LK",
-      "GTN.AC.VER",
-      "GTN.AC.VERKT",
-      "GTN.AC.MS",
-      "GTN.AC.VANDA",
-      "GTN.PANEL.SON",
-      "GTN.PANEL.LK",
-      "GTN.PANEL.VER",
-      "GTN.PANEL.VERKT",
-      "GTN.PANEL.MS",
-      "GTN.PANEL.VANDA",
-      "GTN.DONGWA.SON",
-      "GTN.DONGWA.LK",
-      "GTN.DONGWA.VER",
-      "GTN.DONGWA.VERKT",
-      "GTN.DONGWA.MS",
-      "GTN.DONGWA.VANDA",
-      "GTN.VANDA.SON",
-      "GTN.VANDA.LK",
-      "GTN.VANDA.VER",
-      "GTN.VANDA.VERKT",
-      "GTN.VANDA.MS",
-      "GTN.VANDA.VANDA"
-    ],
     "segment_separator": ".",
-    "semantic_aliases": {
-      "aliases": [
-        {
-          "alias": "SON",
-          "alias_key": "SON",
-          "group": "SON",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "SON"
-          ]
-        },
-        {
-          "alias": "Sơn",
-          "alias_key": "SON",
-          "group": "SON",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "SON"
-          ]
-        },
-        {
-          "alias": "SON",
-          "alias_key": "SON",
-          "group": "SON",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "SON"
-          ]
-        },
-        {
-          "alias": "VER",
-          "alias_key": "VER",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "Veneer",
-          "alias_key": "VENEER",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "VER",
-          "alias_key": "VER",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "VERKT",
-          "alias_key": "VERKT",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "VERSOI",
-          "alias_key": "VERSOI",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "VERKTSOI",
-          "alias_key": "VERKTSOI",
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "VER",
-            "VERKT",
-            "VERSOI",
-            "VERKTSOI"
-          ]
-        },
-        {
-          "alias": "LK",
-          "alias_key": "LK",
-          "group": "LK",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "LK"
-          ]
-        },
-        {
-          "alias": "Laminate",
-          "alias_key": "LAMINATE",
-          "group": "LK",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "LK"
-          ]
-        },
-        {
-          "alias": "LK",
-          "alias_key": "LK",
-          "group": "LK",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "LK"
-          ]
-        },
-        {
-          "alias": "MS",
-          "alias_key": "MS",
-          "group": "MS",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "MS"
-          ]
-        },
-        {
-          "alias": "Melamine",
-          "alias_key": "MELAMINE",
-          "group": "MS",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "MS"
-          ]
-        },
-        {
-          "alias": "MS",
-          "alias_key": "MS",
-          "group": "MS",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "members": [
-            "MS"
-          ]
-        },
-        {
-          "alias": "Sơn",
-          "alias_key": "SON",
-          "branch_index": 0,
-          "group": "SON",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "values": [
-            "SON"
-          ]
-        },
-        {
-          "alias": "Mã sơn",
-          "alias_key": "MA_SON",
-          "be_mat": [
-            "SON"
-          ],
-          "branch_index": 0,
-          "finish_kind": "paint_code",
-          "group": "SON",
-          "key": "finish_code",
-          "kind": "field",
-          "values": [
-            "string"
-          ]
-        },
-        {
-          "alias": "surface_variant 1",
-          "alias_key": "SURFACE_VARIANT_1",
-          "be_mat": [
-            "SON"
-          ],
-          "branch_index": 0,
-          "group": "SON",
-          "key": "surface_variant",
-          "kind": "field",
-          "values": [
-
-          ]
-        },
-        {
-          "alias": "Laminate",
-          "alias_key": "LAMINATE",
-          "branch_index": 1,
-          "group": "LK",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "values": [
-            "LK"
-          ]
-        },
-        {
-          "alias": "Mã vật liệu",
-          "alias_key": "MA_VAT_LIEU",
-          "be_mat": [
-            "LK"
-          ],
-          "branch_index": 1,
-          "finish_kind": "material_code",
-          "group": "LK",
-          "key": "finish_code",
-          "kind": "field",
-          "values": [
-            "string"
-          ]
-        },
-        {
-          "alias": "surface_variant 2",
-          "alias_key": "SURFACE_VARIANT_2",
-          "be_mat": [
-            "LK"
-          ],
-          "branch_index": 1,
-          "group": "LK",
-          "key": "surface_variant",
-          "kind": "field",
-          "values": [
-            "1M-BCT",
-            "2M"
-          ]
-        },
-        {
-          "alias": "Veneer",
-          "alias_key": "VENEER",
-          "branch_index": 2,
-          "group": "VER",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "values": [
-            "VER",
-            "VERKT"
-          ]
-        },
-        {
-          "alias": "Mã sơn",
-          "alias_key": "MA_SON",
-          "be_mat": [
-            "VER",
-            "VERKT"
-          ],
-          "branch_index": 2,
-          "finish_kind": "paint_code",
-          "group": "VER",
-          "key": "finish_code",
-          "kind": "field",
-          "values": [
-            "string"
-          ]
-        },
-        {
-          "alias": "surface_variant 3",
-          "alias_key": "SURFACE_VARIANT_3",
-          "be_mat": [
-            "VER",
-            "VERKT"
-          ],
-          "branch_index": 2,
-          "group": "VER",
-          "key": "surface_variant",
-          "kind": "field",
-          "values": [
-            "1M",
-            "2M"
-          ]
-        },
-        {
-          "alias": "Melamine",
-          "alias_key": "MELAMINE",
-          "branch_index": 3,
-          "group": "MS",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "values": [
-            "MS"
-          ]
-        },
-        {
-          "alias": "Mã vật liệu",
-          "alias_key": "MA_VAT_LIEU",
-          "be_mat": [
-            "MS"
-          ],
-          "branch_index": 3,
-          "finish_kind": "material_code",
-          "group": "MS",
-          "key": "finish_code",
-          "kind": "field",
-          "values": [
-            "string"
-          ]
-        },
-        {
-          "alias": "surface_variant 4",
-          "alias_key": "SURFACE_VARIANT_4",
-          "be_mat": [
-            "MS"
-          ],
-          "branch_index": 3,
-          "group": "MS",
-          "key": "surface_variant",
-          "kind": "field",
-          "values": [
-
-          ]
-        },
-        {
-          "alias": "Be_mat 5",
-          "alias_key": "BE_MAT_5",
-          "branch_index": 4,
-          "group": "",
-          "key": "be_mat",
-          "kind": "surface_group",
-          "values": [
-            "VANDA"
-          ]
-        },
-        {
-          "alias": "finish_code 5",
-          "alias_key": "FINISH_CODE_5",
-          "be_mat": [
-            "VANDA"
-          ],
-          "branch_index": 4,
-          "finish_kind": "material_code",
-          "group": "",
-          "key": "finish_code",
-          "kind": "field",
-          "values": [
-            "string"
-          ]
-        },
-        {
-          "alias": "surface_variant 5",
-          "alias_key": "SURFACE_VARIANT_5",
-          "be_mat": [
-            "VANDA"
-          ],
-          "branch_index": 4,
-          "group": "",
-          "key": "surface_variant",
-          "kind": "field",
-          "values": [
-
-          ]
-        }
-      ],
-      "by_alias": {
-        "BE_MAT_5": [
-          {
-            "alias": "Be_mat 5",
-            "alias_key": "BE_MAT_5",
-            "branch_index": 4,
-            "group": "",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "values": [
-              "VANDA"
-            ]
-          }
-        ],
-        "FINISH_CODE_5": [
-          {
-            "alias": "finish_code 5",
-            "alias_key": "FINISH_CODE_5",
-            "be_mat": [
-              "VANDA"
-            ],
-            "branch_index": 4,
-            "finish_kind": "material_code",
-            "group": "",
-            "key": "finish_code",
-            "kind": "field",
-            "values": [
-              "string"
-            ]
-          }
-        ],
-        "LAMINATE": [
-          {
-            "alias": "Laminate",
-            "alias_key": "LAMINATE",
-            "group": "LK",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "LK"
-            ]
-          },
-          {
-            "alias": "Laminate",
-            "alias_key": "LAMINATE",
-            "branch_index": 1,
-            "group": "LK",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "values": [
-              "LK"
-            ]
-          }
-        ],
-        "LK": [
-          {
-            "alias": "LK",
-            "alias_key": "LK",
-            "group": "LK",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "LK"
-            ]
-          },
-          {
-            "alias": "LK",
-            "alias_key": "LK",
-            "group": "LK",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "LK"
-            ]
-          }
-        ],
-        "MA_SON": [
-          {
-            "alias": "Mã sơn",
-            "alias_key": "MA_SON",
-            "be_mat": [
-              "SON"
-            ],
-            "branch_index": 0,
-            "finish_kind": "paint_code",
-            "group": "SON",
-            "key": "finish_code",
-            "kind": "field",
-            "values": [
-              "string"
-            ]
-          },
-          {
-            "alias": "Mã sơn",
-            "alias_key": "MA_SON",
-            "be_mat": [
-              "VER",
-              "VERKT"
-            ],
-            "branch_index": 2,
-            "finish_kind": "paint_code",
-            "group": "VER",
-            "key": "finish_code",
-            "kind": "field",
-            "values": [
-              "string"
-            ]
-          }
-        ],
-        "MA_VAT_LIEU": [
-          {
-            "alias": "Mã vật liệu",
-            "alias_key": "MA_VAT_LIEU",
-            "be_mat": [
-              "LK"
-            ],
-            "branch_index": 1,
-            "finish_kind": "material_code",
-            "group": "LK",
-            "key": "finish_code",
-            "kind": "field",
-            "values": [
-              "string"
-            ]
-          },
-          {
-            "alias": "Mã vật liệu",
-            "alias_key": "MA_VAT_LIEU",
-            "be_mat": [
-              "MS"
-            ],
-            "branch_index": 3,
-            "finish_kind": "material_code",
-            "group": "MS",
-            "key": "finish_code",
-            "kind": "field",
-            "values": [
-              "string"
-            ]
-          }
-        ],
-        "MELAMINE": [
-          {
-            "alias": "Melamine",
-            "alias_key": "MELAMINE",
-            "group": "MS",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "MS"
-            ]
-          },
-          {
-            "alias": "Melamine",
-            "alias_key": "MELAMINE",
-            "branch_index": 3,
-            "group": "MS",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "values": [
-              "MS"
-            ]
-          }
-        ],
-        "MS": [
-          {
-            "alias": "MS",
-            "alias_key": "MS",
-            "group": "MS",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "MS"
-            ]
-          },
-          {
-            "alias": "MS",
-            "alias_key": "MS",
-            "group": "MS",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "MS"
-            ]
-          }
-        ],
-        "SON": [
-          {
-            "alias": "SON",
-            "alias_key": "SON",
-            "group": "SON",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "SON"
-            ]
-          },
-          {
-            "alias": "Sơn",
-            "alias_key": "SON",
-            "group": "SON",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "SON"
-            ]
-          },
-          {
-            "alias": "SON",
-            "alias_key": "SON",
-            "group": "SON",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "SON"
-            ]
-          },
-          {
-            "alias": "Sơn",
-            "alias_key": "SON",
-            "branch_index": 0,
-            "group": "SON",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "values": [
-              "SON"
-            ]
-          }
-        ],
-        "SURFACE_VARIANT_1": [
-          {
-            "alias": "surface_variant 1",
-            "alias_key": "SURFACE_VARIANT_1",
-            "be_mat": [
-              "SON"
-            ],
-            "branch_index": 0,
-            "group": "SON",
-            "key": "surface_variant",
-            "kind": "field",
-            "values": [
-
-            ]
-          }
-        ],
-        "SURFACE_VARIANT_2": [
-          {
-            "alias": "surface_variant 2",
-            "alias_key": "SURFACE_VARIANT_2",
-            "be_mat": [
-              "LK"
-            ],
-            "branch_index": 1,
-            "group": "LK",
-            "key": "surface_variant",
-            "kind": "field",
-            "values": [
-              "1M-BCT",
-              "2M"
-            ]
-          }
-        ],
-        "SURFACE_VARIANT_3": [
-          {
-            "alias": "surface_variant 3",
-            "alias_key": "SURFACE_VARIANT_3",
-            "be_mat": [
-              "VER",
-              "VERKT"
-            ],
-            "branch_index": 2,
-            "group": "VER",
-            "key": "surface_variant",
-            "kind": "field",
-            "values": [
-              "1M",
-              "2M"
-            ]
-          }
-        ],
-        "SURFACE_VARIANT_4": [
-          {
-            "alias": "surface_variant 4",
-            "alias_key": "SURFACE_VARIANT_4",
-            "be_mat": [
-              "MS"
-            ],
-            "branch_index": 3,
-            "group": "MS",
-            "key": "surface_variant",
-            "kind": "field",
-            "values": [
-
-            ]
-          }
-        ],
-        "SURFACE_VARIANT_5": [
-          {
-            "alias": "surface_variant 5",
-            "alias_key": "SURFACE_VARIANT_5",
-            "be_mat": [
-              "VANDA"
-            ],
-            "branch_index": 4,
-            "group": "",
-            "key": "surface_variant",
-            "kind": "field",
-            "values": [
-
-            ]
-          }
-        ],
-        "VENEER": [
-          {
-            "alias": "Veneer",
-            "alias_key": "VENEER",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          },
-          {
-            "alias": "Veneer",
-            "alias_key": "VENEER",
-            "branch_index": 2,
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "values": [
-              "VER",
-              "VERKT"
-            ]
-          }
-        ],
-        "VER": [
-          {
-            "alias": "VER",
-            "alias_key": "VER",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          },
-          {
-            "alias": "VER",
-            "alias_key": "VER",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          }
-        ],
-        "VERKT": [
-          {
-            "alias": "VERKT",
-            "alias_key": "VERKT",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          }
-        ],
-        "VERKTSOI": [
-          {
-            "alias": "VERKTSOI",
-            "alias_key": "VERKTSOI",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          }
-        ],
-        "VERSOI": [
-          {
-            "alias": "VERSOI",
-            "alias_key": "VERSOI",
-            "group": "VER",
-            "key": "be_mat",
-            "kind": "surface_group",
-            "members": [
-              "VER",
-              "VERKT",
-              "VERSOI",
-              "VERKTSOI"
-            ]
-          }
-        ]
-      }
-    },
-    "single_segment_gloss_is_finish": true,
-    "surface_groups": {
-      "LK": {
-        "allow_gloss": false,
-        "allow_surface_variant": true,
-        "finish_kind": "material_code",
-        "finish_required": false,
-        "label": "Laminate",
-        "members": [
-          "LK"
-        ],
-        "tail_label": "mã vật liệu .1M/.2M"
-      },
-      "MS": {
-        "allow_gloss": false,
-        "allow_surface_variant": false,
-        "finish_kind": "material_code",
-        "finish_required": false,
-        "label": "Melamine",
-        "members": [
-          "MS"
-        ],
-        "tail_label": "mã vật liệu"
-      },
-      "SON": {
-        "allow_gloss": true,
-        "allow_surface_variant": false,
-        "finish_kind": "paint_code",
-        "finish_pattern": "\\A(?=.*[A-Z])(?=.*\\d)[A-Z0-9][A-Z0-9 _\\/.-]*\\z",
-        "finish_required": true,
-        "label": "Sơn",
-        "members": [
-          "SON"
-        ],
-        "tail_label": "mã sơn - độ bóng"
-      },
-      "VER": {
-        "allow_gloss": false,
-        "allow_surface_variant": true,
-        "finish_kind": "paint_code",
-        "finish_pattern": "\\A(?=.*[A-Z])(?=.*\\d)[A-Z0-9][A-Z0-9 _\\/.-]*\\z",
-        "finish_required": false,
-        "label": "Veneer",
-        "members": [
-          "VER",
-          "VERKT",
-          "VERSOI",
-          "VERKTSOI"
-        ],
-        "tail_label": "mã sơn .1M/.2M"
-      }
-    },
-    "surface_variant_regex": "\\.(?:1M|2M|1M-BCT|2M-BCT)\\z",
-    "test_branches": [
-      {
-        "be_mat": [
-          "SON"
-        ],
-        "be_mat_label": "Sơn",
-        "finish_code": [
-          "string"
-        ],
-        "finish_label": "Mã sơn",
-        "surface_variant": [
-
-        ],
-        "variant_label": "surface_variant 1"
-      },
-      {
-        "be_mat": [
-          "LK"
-        ],
-        "be_mat_label": "Laminate",
-        "finish_code": [
-          "string"
-        ],
-        "finish_label": "Mã vật liệu",
-        "surface_variant": [
-          "1M-BCT",
-          "2M"
-        ],
-        "variant_label": "surface_variant 2"
-      },
-      {
-        "be_mat": [
-          "VER",
-          "VERKT"
-        ],
-        "be_mat_label": "Veneer",
-        "finish_code": [
-          "string"
-        ],
-        "finish_label": "Mã sơn",
-        "surface_variant": [
-          "1M",
-          "2M"
-        ],
-        "variant_label": "surface_variant 3"
-      },
-      {
-        "be_mat": [
-          "MS"
-        ],
-        "be_mat_label": "Melamine",
-        "finish_code": [
-          "string"
-        ],
-        "finish_label": "Mã vật liệu",
-        "surface_variant": [
-
-        ],
-        "variant_label": "surface_variant 4"
-      },
-      {
-        "be_mat": [
-          "VANDA"
-        ],
-        "be_mat_label": "Be_mat 5",
-        "finish_code": [
-          "string"
-        ],
-        "finish_label": "finish_code 5",
-        "surface_variant": [
-
-        ],
-        "variant_label": "surface_variant 5"
-      }
+    "source_columns": [
+      "E",
+      "F",
+      "G"
     ],
     "trim_segments": true,
     "uppercase": true
@@ -1301,8 +333,7 @@
         "source": "pattern",
         "type": "text_number",
         "values": [
-          "SP",
-          "DW"
+          "SP"
         ],
         "virtual": false
       },
@@ -1736,178 +767,9 @@
     "trim_segments": true,
     "uppercase": true
   },
-  "material_code_mappings": [
-    {
-      "gia_tri": "Plywood",
-      "gia_tri_map": "PLY",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "MDF chống ẩm",
-      "gia_tri_map": "MDFCA",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "MDF",
-      "gia_tri_map": "MDF",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "HDF chống ẩm",
-      "gia_tri_map": "HDFCA",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "HDF",
-      "gia_tri_map": "HDF",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "Picomat",
-      "gia_tri_map": "PICOMAT",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "Gỗ sồi",
-      "gia_tri_map": "GOSOI",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "Tần bì",
-      "gia_tri_map": "TANBI",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "Ván nhựa",
-      "gia_tri_map": "GONHUA",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "Gỗ nhựa",
-      "gia_tri_map": "GONHUA",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "VÁN NHỰA AN CƯỜNG",
-      "gia_tri_map": "WPB",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "gỗ tự nhiên",
-      "gia_tri_map": "GTN",
-      "nhom": "chat_lieu",
-      "thu_tu": "1"
-    },
-    {
-      "gia_tri": "An Cường",
-      "gia_tri_map": "AC",
-      "nhom": "nha_cung_cap",
-      "thu_tu": "2"
-    },
-    {
-      "gia_tri": "Panel",
-      "gia_tri_map": "PANEL",
-      "nhom": "nha_cung_cap",
-      "thu_tu": "2"
-    },
-    {
-      "gia_tri": "DONGWA",
-      "gia_tri_map": "DONGWA",
-      "nhom": "nha_cung_cap",
-      "thu_tu": "2"
-    },
-    {
-      "gia_tri": "VÂN ĐÁ",
-      "gia_tri_map": "VANDA",
-      "nhom": "nha_cung_cap",
-      "thu_tu": "2"
-    },
-    {
-      "gia_tri": "Veneer",
-      "gia_tri_map": "VER",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "Veneer kỹ thuật",
-      "gia_tri_map": "VERKT",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "VENEER KỸ THUẬT SỒI",
-      "gia_tri_map": "VERKTSOI",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "Veneer sồi",
-      "gia_tri_map": "VERSOI",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "Laminate",
-      "gia_tri_map": "LK",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "Sơn",
-      "gia_tri_map": "SON",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    },
-    {
-      "gia_tri": "Melamine",
-      "gia_tri_map": "MS",
-      "nhom": "be_mat",
-      "thu_tu": "3"
-    }
-  ],
-  "module_templates": [
-    "Tấm Đứng",
-    "Tấm Ngang",
-    "Vách",
-    "Kệ",
-    "Ngăn Kéo",
-    "Cửa"
-  ],
-  "detail_aliases": {
-  },
-  "column_aliases": {
-    "Ma_SP": [
-      "Ma_SP",
-      "Mã SP",
-      "Product Code",
-      "SP"
-    ],
-    "Ma_vat_lieu": [
-      "Ma_vat_lieu",
-      "Mã vật liệu",
-      "Material Code",
-      "VL"
-    ],
-    "Ten_chi_tiet": [
-      "Ten_chi_tiet",
-      "Tên chi tiết",
-      "Detail Name"
-    ]
-  },
-  "header_columns": [
-    "Ma_SP",
-    "Ten_SP",
-    "Ma_vat_lieu"
-  ]
+  "name_read_rules": [],
+  "module_templates": [],
+  "detail_aliases": {},
+  "column_aliases": {},
+  "header_columns": []
 }

@@ -1715,6 +1715,9 @@ module MH_Thongke
 
             thickness = row[:thickness].to_s.strip
             thickness = row[:spec].to_s.strip if thickness.empty?
+            thickness = MH::MaterialCode.export_size(
+              row[:name], fallback: MH::MaterialCode.export_size(name, fallback: thickness)
+            )
             unit = row[:unit].to_s.strip
             key = [product, name, thickness, unit].join("\u0000")
 

@@ -75,6 +75,17 @@ module MH
       end
 
       def from_points(points)
+        if points.length == 4
+          vectors = points.each_index.map { |i| 2.times.map { |j| points[(i + 1) % 4][j] - points[i][j] } }
+          rectangle = vectors.each_index.all? do |i|
+            a = vectors[i]; b = vectors[(i + 1) % 4]
+            scale = Math.hypot(*a) * Math.hypot(*b)
+            scale > 0.001 && (a[0] * b[0] + a[1] * b[1]).abs <= scale * 0.00001
+          end
+          if rectangle
+            return { 'schema' => 1, 'segments' => points.each_index.map { |i| { 'type' => 'line', 'start' => points[i], 'end' => points[(i + 1) % 4] } } }
+          end
+        end
         # Start on a straight edge so a rounded corner cannot be split at the seam.
         count = points.length
         index = points.each_index.find do |i|

@@ -53,6 +53,10 @@ module MH
         end
         payload=JSON.parse(stored)
         raise Core::Error,payload['error'] if payload.key?('error')
+        if kind==:rule && !payload.key?('result')
+          job[:canonical_rules][payload]=stored unless raw.is_a?(String)
+          return payload
+        end
         result=payload.fetch('result')
         if kind==:rule
           job[:canonical_rules][result]=stored unless raw.is_a?(String)
@@ -220,7 +224,11 @@ module MH
             error=caught
             nil
           end
-          value=request.kind==:rule ? JSON.generate(result) : JSON.generate(error ? {'error'=>error.message} : {'result'=>result})
+          value=if request.kind==:rule
+            error ? JSON.generate('error'=>error.message) : JSON.generate(result)
+          else
+            JSON.generate(error ? {'error'=>error.message} : {'result'=>result})
+          end
           job[:result]=[request.key,value]
           nil
         end

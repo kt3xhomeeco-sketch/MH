@@ -78,7 +78,7 @@ def test_unidentified_scan_retains_edges_for_diagnostics(tmp_path):
     assert p['status']=='needs_review' and len(p['outlines'])==4
 
 
-def test_ai_can_search_and_decide_on_original_failed_shape(tmp_path,monkeypatch):
+def test_new_engine_keeps_stepped_shape_without_ai(tmp_path,monkeypatch):
     import local_ai
     source(tmp_path)
     runtime=FakeRuntime(dict(decision='choose',candidate_id='baseline',reason='Keep measured stepped rear.'))
@@ -86,12 +86,12 @@ def test_ai_can_search_and_decide_on_original_failed_shape(tmp_path,monkeypatch)
     request=packet(tmp_path);request['ai_enabled']=True
     p=product(request)
     assert p['status']=='ready',p.get('local_ai')
-    assert runtime.find_calls==runtime.calls==1
-    assert p['local_ai']['status']=='choose' and p['local_ai']['final_check']['passed']
+    assert runtime.find_calls==runtime.calls==0
+    assert p['local_ai']['status']=='not_used'
     assert p['modules'][0]['plan_profile']
 
 
-def test_unresolved_direct_plan_reaches_ai_search_instead_of_precondition_failure(tmp_path,monkeypatch):
+def test_unresolved_direct_plan_returns_preview_without_ai(tmp_path,monkeypatch):
     import local_ai
     source(tmp_path)
     runtime=FakeRuntime(error=ValueError('Search reached'))
@@ -99,5 +99,5 @@ def test_unresolved_direct_plan_reaches_ai_search_instead_of_precondition_failur
     request=packet(tmp_path);request['ai_enabled']=True
     request['geometry']['lines']=[l for l in request['geometry']['lines'] if l['handle']!='e23']
     p=product(request)
-    assert runtime.find_calls==1 and 'Search reached' in p['local_ai']['message']
+    assert runtime.find_calls==runtime.calls==0 and p['local_ai']['status']=='not_used'
     assert p['status']=='needs_review' and p['envelope_preview']

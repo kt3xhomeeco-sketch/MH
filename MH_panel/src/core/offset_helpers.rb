@@ -25,11 +25,13 @@ module MH::Panel
         offset_lines << [p1.offset(translation_vector), edge_vector]
       end
 
-      new_pts = []
       num_lines = offset_lines.length
+      # Keep each intersection aligned with the input vertex at the end of
+      # the current offset line so curved endpoints are not shifted by one.
+      new_pts = Array.new(num_lines)
       num_lines.times do |i|
         intersection = Geom.intersect_line_line(offset_lines[i], offset_lines[(i + 1) % num_lines])
-        new_pts << (intersection ? intersection : offset_lines[i][0])
+        new_pts[(i + 1) % num_lines] = (intersection ? intersection : offset_lines[i][0])
       end
       new_pts
     end

@@ -251,8 +251,7 @@ module MH::Stretch
     end
 
     def dimension_text(length)
-      text = length.to_mm.round(1).to_s
-      text.sub(/\.0$/, '')
+      Sketchup.format_length(length)
     end
 
     def screen_point(point)

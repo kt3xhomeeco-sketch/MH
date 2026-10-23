@@ -21,7 +21,7 @@ ghim trong `Gemfile.lock`. Các công cụ này không chạy trong SketchUp và
 Commit nguồn: `2c606141936f1eeef17fa3043a72095b4765b9c2`, cài ngày 14/10/2026.
 Giữ nguyên nội dung skill; metadata nguồn khai báo giấy phép MIT.
 
-`AGENTS.md` yêu cầu áp dụng bốn nguyên tắc khi phát triển: làm rõ giả định,
+[DEVELOPMENT.md](DEVELOPMENT.md) yêu cầu áp dụng bốn nguyên tắc khi phát triển: làm rõ giả định,
 chọn giải pháp đơn giản, chỉ sửa phần cần thiết và kiểm chứng theo yêu cầu.
 Spec Kit giữ đặc tả; skill hỗ trợ quyết định khi viết code; RuboCop và test
 kiểm tra kết quả. Áp dụng tương xứng với công việc; yêu cầu của người dùng và
@@ -32,7 +32,8 @@ Skill phục vụ Codex, không phải dependency của SketchUp. Không thêm c
 cài plugin Claude/Cursor của repo vào app. Khi cập nhật, đọc thay đổi ở nguồn,
 chọn commit cụ thể, cập nhật skill và commit ghi ở đây; không tự lấy `main`
 trong lúc build. Mở MH_Module_Studio làm dự án Codex để nhận skill ở lượt tiếp
-theo; các hướng dẫn trong AGENTS.md đã có thể áp dụng trong phiên hiện tại.
+theo. [AGENTS.md](AGENTS.md) là điểm vào ngắn cho tìm lỗi; chỉ đọc hướng dẫn
+phát triển trong DEVELOPMENT.md khi công việc triển khai được giao.
 
 ## Chạy kiểm tra
 

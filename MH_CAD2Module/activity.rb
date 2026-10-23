@@ -45,7 +45,10 @@ module MH
           product = products.first if products.length == 1
           code = last['code'] || product&.get_attribute('MH_CAD2Module', 'code')
           automatic = code.to_s.start_with?('SCAN-') || events.any? { |e| e['automatic_scan'] }
-          { 'key' => identity, 'code' => code, 'label' => automatic ? 'Vừa quét SP không có mã' : "Sản phẩm #{code}",
+          title = product&.get_attribute('MH_CAD2Module', 'plan_title') || last['plan_title']
+          label = automatic ? 'Vừa quét SP không có mã' : "Sản phẩm #{code}"
+          label += " · #{title}" if title && !title.empty?
+          { 'key' => identity, 'code' => code, 'label' => label,
             'automatic_scan' => automatic, 'time' => last['time'], 'status' => last['status'],
             'last_error' => events.reverse.find { |e| e['error'] }&.fetch('error'),
             'event_count' => events.length, 'product_id' => product&.persistent_id,
@@ -89,8 +92,13 @@ module MH
         analysis = event['analysis']
         if analysis
           result['analysis'] = analysis.slice('code', 'name', 'automatic_scan', 'status', 'error', 'source_path',
-                                             'source_hash', 'signature', 'bounds', 'build_stages', 'placement',
-                                             'plan_origin_offset_mm', 'envelope_preview', 'plan_evidence', 'learning', 'local_ai', 'explanation', 'modules', 'trim_parts', 'panel_parts')
+                                             'source_hash', 'signature', 'bounds', 'build_stages', 'placement', 'source_cache', 'worker_timing', 'processing_from_cache', 'current_replay_seconds',
+                                             'plan_origin_offset_mm', 'envelope_preview', 'plan_evidence', 'learning', 'local_ai', 'explanation', 'modules', 'trim_parts', 'panel_parts', 'plan_engine', 'processing_times', 'native_times', 'view_analysis')
+          result['analysis']['geometry_pipeline'] = analysis['geometry_pipeline'].slice('oy_sweep', 'directional_layout') if analysis['plan_engine'] == 'oy-stock-sweep-v1'
+          if analysis['plan_engine'] == 'section-first-v1'
+            result['analysis']['geometry_pipeline'] = analysis['geometry_pipeline'].slice('mode', 'order', 'horizontal')
+            result['analysis'].merge!(analysis.slice('height_source', 'elevation_pending', 'warnings'))
+          end
         end
         result
       end

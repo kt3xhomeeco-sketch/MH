@@ -10,8 +10,15 @@
   def self.copy_attributes(target, reference)
     (reference.attribute_dictionaries || []).each do |attr_dict|
       next if attr_dict.name == "GSU_ContributorsInfo"
-      attr_dict.each_pair { |k, v| target.set_attribute(attr_dict.name, k, v) }
-      copy_attributes(target.attribute_dictionaries[attr_dict.name], attr_dict)
+      copied_any = false
+      attr_dict.each_pair do |k, v|
+        # MH_panel không truyền metadata mã SP/vật liệu sang obj mới.
+        next if attr_dict.name == "MH_Registry" &&
+                ["product_code", "dc_material_code"].include?(k.to_s)
+        target.set_attribute(attr_dict.name, k, v)
+        copied_any = true
+      end
+      copy_attributes(target.attribute_dictionaries[attr_dict.name], attr_dict) if copied_any
     end
   end
   def self.component_to_group(comp)

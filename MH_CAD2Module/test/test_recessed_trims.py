@@ -32,7 +32,7 @@ def test_real_recessed_trim_covers_front_return_without_blocking_modules(tmp_pat
     assert physical_check(p,state,[0,0],features(p))['passed']
 
 
-def test_ai_search_evaluation_and_final_choice_accept_recessed_trim_source(tmp_path,monkeypatch):
+def test_new_engine_builds_recessed_trim_source_without_ai(tmp_path,monkeypatch):
     import local_ai
     source(tmp_path)
     ai=FakeRuntime(dict(decision='choose',candidate_id='baseline',reason='Measured three bays and full-depth returns.'))
@@ -40,6 +40,6 @@ def test_ai_search_evaluation_and_final_choice_accept_recessed_trim_source(tmp_p
     lines=json.loads((Path(__file__).parent/'fixtures/recessed_trim_plan_edges.json').read_text())
     p=run(dict(action='geometry',library=str(tmp_path),ai_enabled=True,geometry=dict(hash='b'*64,lines=lines)))['analyses'][0]['products'][0]
     assert p['status']=='ready',p.get('local_ai')
-    assert ai.calls==ai.find_calls==1
-    assert p['local_ai']['status']=='choose' and p['local_ai']['final_check']['passed']
+    assert ai.calls==ai.find_calls==0
+    assert p['local_ai']['status']=='not_used'
     assert len(p['modules'])==3 and len(p['trim_parts'])==2

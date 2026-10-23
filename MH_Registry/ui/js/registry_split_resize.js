@@ -6,10 +6,6 @@
     {
       gridId: 'superimpCardList',
       storageKey: 'mh_registry_superimp_split_ratio'
-    },
-    {
-      gridId: 'materialAssignCardGrid',
-      storageKey: 'mh_registry_material_assign_split_ratio'
     }
   ];
 

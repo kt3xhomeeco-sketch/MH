@@ -13,6 +13,9 @@ module MH
       'gloss_suffix_regex' => '-(\d+)\z',
       'single_segment_gloss_is_finish' => true,
       'paint_surface_token' => 'SON',
+      # Không tự suy đoán Sơn chỉ từ token lẫn chữ và số. PP21/PVC21 cũng có
+      # dạng đó nhưng là mã vật liệu, không phải bề mặt Sơn.
+      'infer_paint_surface' => false,
       'paint_code_regex' => '\A(?=.*[A-Z])(?=.*\d)[A-Z0-9][A-Z0-9 _\/.\-]*\z',
       'surface_variant_regex' => '\.(?:1M|2M|1M-BCT|2M-BCT)\z',
       'surface_groups' => {
@@ -82,11 +85,10 @@ module MH
              else
                {}
              end
-      merged = deep_merge(DEFAULT_RULES, base.is_a?(Hash) ? base : {})
-      if defined?(MH::Registry) && MH::Registry.respond_to?(:material_code_mappings)
-        merged['mappings'] = MH::Registry.material_code_mappings
-      end
-      merged
+      # Runtime reads one contract only: material_code_rules in the Registry
+      # JSON.  In particular, do not overlay the legacy material_code_mappings
+      # table here: that made the UI rule cards and the parser disagree.
+      deep_merge(DEFAULT_RULES, base.is_a?(Hash) ? base : {})
     rescue
       @rules_override || DEFAULT_RULES
     end
@@ -121,6 +123,13 @@ module MH
       sep = rules['segment_separator'].to_s
       sep = '.' if sep.empty?
       segments = normalized.split(sep).map { |part| normalize_segment(part) }.reject(&:empty?)
+      # Một số vật liệu cũ do MH_panel tạo đã có token bề mặt bị chèn sai
+      # trước lớp tiêu chuẩn, ví dụ:
+      # MDFCA.18.SON.E1.AC.LAM.LK2001E.2M
+      # SON ở đây không phải bề mặt thực (LAM mới là bề mặt), làm mã tiếp tục
+      # bị sai mỗi lần Panel tạo tấm mới. Chỉ loại token lạc chỗ nếu cấu trúc
+      # cấu hình còn có cả lớp tiêu chuẩn VÀ một bề mặt hợp lệ ở phía sau.
+      segments = repair_misplaced_surface_token(segments)
       segments = expand_implicit_paint_surface(segments)
       result[:segments] = segments
 
@@ -147,6 +156,19 @@ module MH
 
     def canonical(value)
       compose_code(parse(value), include_thickness: true, include_finish: true)
+    end
+
+    # Purchase exports use the nominal thickness encoded immediately after
+    # the material family, not the measured geometry or a later color number.
+    def export_size(material_code, fallback: '')
+      return fallback if material_code.to_s.include?('&')
+      match = material_code.to_s.strip.match(/\A[^.&\s]+\.(\d+(?:[.,]\d+)?)(?=\.|\z)/)
+      return fallback unless match && match[1].tr(',', '.').to_f.positive?
+
+      whole, fraction = match[1].tr(',', '.').split('.', 2)
+      whole = whole.sub(/\A0+(?=\d)/, '')
+      fraction = fraction.to_s.sub(/0+\z/, '')
+      fraction.empty? ? whole : "#{whole}.#{fraction}"
     end
 
     def without_finish(value)
@@ -404,15 +426,17 @@ module MH
       group = result[:surface_group].to_s
       finish = result[:finish_code].to_s
       finish_base = result[:finish_base].to_s
+      configured_groups = surface_group_rules.keys.join('/')
+      configured_groups = '(chưa cấu hình)' if configured_groups.empty?
 
       if be_mat.empty?
-        warnings << 'Thiếu be_mat: không phân loại được nhóm SON/LK/VER/MS.'
+        warnings << "Thiếu be_mat: không phân loại được nhóm #{configured_groups}."
         result[:valid] = errors.empty?
         return result
       end
 
       if group.empty?
-        errors << "be_mat \"#{be_mat}\" chưa thuộc nhóm SON/LK/VER/MS."
+        errors << "be_mat \"#{be_mat}\" chưa thuộc nhóm #{configured_groups}."
         result[:valid] = false
         return result
       end
@@ -502,14 +526,68 @@ module MH
       value.to_s.strip
     end
 
+    # Sửa tương thích cho material name cũ bị lẫn một token be_mat trước
+    # tieu_chuan. Hoàn toàn dựa theo mappings trong material_code_rules, không
+    # hard-code SON/E1/LAM; vì vậy các lớp do người dùng đổi trong Excel vẫn
+    # được tôn trọng.
+    def repair_misplaced_surface_token(segments)
+      parts = Array(segments).map { |part| normalize_segment(part) }.reject(&:empty?)
+      return parts.length < 4 ? parts : parts.dup unless rules['mappings'].is_a?(Array)
+
+      groups_by_code = {}
+      Array(rules['mappings']).each do |mapping|
+        row = stringify_keys(mapping || {})
+        code = normalize_segment(row['gia_tri_map'].to_s)
+        group = row['nhom'].to_s.strip.downcase
+        next if code.empty? || group.empty?
+
+        groups_by_code[code] ||= group
+      end
+      return parts if groups_by_code.empty?
+
+      first_payload_index = 1
+      first_payload_index += 1 if parts[1].to_s =~ /\A\d+(?:[,.]\d+)?\z/
+      misplaced = parts[first_payload_index].to_s
+      return parts unless groups_by_code[misplaced] == 'be_mat'
+
+      standard_after = parts[(first_payload_index + 1)..-1].to_a.any? do |part|
+        groups_by_code[part] == 'tieu_chuan'
+      end
+      later_surface = parts[(first_payload_index + 1)..-1].to_a.any? do |part|
+        groups_by_code[part] == 'be_mat'
+      end
+      return parts unless standard_after && later_surface
+
+      repaired = parts.dup
+      repaired.delete_at(first_payload_index)
+      repaired
+    rescue
+      Array(segments)
+    end
+
     def expand_implicit_paint_surface(segments)
       parts = Array(segments).map(&:to_s)
       return parts if parts.empty?
 
+      # Sơn phải được khai tường minh bằng token SON trong mã/Excel. Chỉ giữ
+      # suy đoán tương thích cũ nếu dự án chủ động bật cờ cấu hình này.
+      return parts unless truthy?(rules['infer_paint_surface'])
+
       token = normalize_segment(rules['paint_surface_token'].to_s)
       return parts if token.empty? || parts.include?(token)
 
-      index = parts.find_index { |part| paint_code?(part) }
+      # A face-count suffix such as .1M-BCT is not an implicit paint code,
+      # even though it contains both letters and digits. Inserting SON here
+      # corrupts finishes such as P7013(KEDING).1M-BCT during HUD matching.
+      surface_variant = surface_variant_from_finish(parts.join(segment_separator))
+
+      # A generic paint-code pattern also matches structured tokens such as
+      # E0/E1 standards and supplier or surface codes. Only infer SON from a
+      # paint-looking token that is not already recognized by a configured
+      # non-finish layer.
+      index = parts.find_index do |part|
+        part != surface_variant && paint_code?(part) && !configured_non_finish_layer_token?(part)
+      end
       return parts unless index && index >= 2
 
       previous = parts[index - 1].to_s
@@ -539,6 +617,43 @@ module MH
       !surface_group_for_token(value).to_s.empty? || mapped_values_for_layer('be_mat').include?(token)
     end
 
+    def configured_non_finish_layer_token?(value)
+      token = comparable_text(value)
+      return false if token.empty?
+
+      # Các lớp trong Excel có thể nhiều hơn bộ layer UI mặc định (điển hình
+      # tieu_chuan: E0/E1/E2). Nếu chỉ duyệt rules['layers'], E1 sau token độ
+      # dày bị hiểu nhầm là mã sơn và SON bị chèn vào trước nó. Mọi mapping
+      # không phải be_mat/finish đều là token cấu trúc, không được suy đoán
+      # thành màu sơn.
+      mapped_non_finish = Array(rules['mappings']).any? do |row|
+        row = stringify_keys(row || {})
+        group = comparable_text(row['nhom'] || row['layer'] || row['key'] || row['group'])
+        next false if group.empty? || %w[be mat be_mat finish finish_code].include?(group)
+
+        %w[gia_tri gia_tri_map mapped canonical map].any? do |key|
+          comparable_text(row[key]) == token
+        end
+      end
+      return true if mapped_non_finish
+
+      configured = Array(rules['layers']).any? do |layer|
+        layer = stringify_keys(layer)
+        key = layer['key'].to_s
+        next false if key.empty? || layer['role'].to_s == 'finish' || truthy?(layer['capture_rest'])
+
+        if mapped_values_for_layer(key).include?(token)
+          true
+        else
+          pattern = layer['pattern'].to_s
+          !pattern.empty? && !!(value.to_s =~ Regexp.new(pattern))
+        end
+      end
+      configured || !surface_group_for_token(value).to_s.empty?
+    rescue
+      false
+    end
+
     def mapped_values_for_layer(layer_key)
       key = comparable_text(layer_key)
       values = []
@@ -553,7 +668,7 @@ module MH
         values << comparable_text(row['canonical'])
         values << comparable_text(row['map'])
       end
-      values << comparable_text(rules['paint_surface_token'])
+      values << comparable_text(rules['paint_surface_token']) if key == 'be_mat'
       values.reject(&:empty?).uniq
     rescue
       []
@@ -644,6 +759,10 @@ module MH
     end
 
     def matches_layer?(value, layer)
+      if layer['role'].to_s == 'mapped'
+        return mapped_values_for_layer(layer['key']).include?(comparable_text(value))
+      end
+
       pattern = layer['pattern'].to_s
       return true if pattern.empty?
 

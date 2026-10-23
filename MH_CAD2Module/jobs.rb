@@ -29,14 +29,49 @@ module MH
         python = Settings.python(settings)
         windowless = python.sub(/python\.exe\z/i, 'pythonw.exe')
         python = windowless if File.file?(windowless)
-        script = File.join(Settings::ROOT, 'worker', 'main.py')
-        log = File.join(directory, 'worker.log')
-        pid = Process.spawn(python, '-X', 'utf8', script, '--request', request, '--response', response,
-                            out: log, err: [:child, :out], chdir: Settings::ROOT)
-        @job = { id: id, pid: pid, response: response, model: model, root: root,
-                 started: Time.now, log: log, python: python, completion: completion, progress: progress }
-        @timer = UI.start_timer(0.3, true) { poll }
+        worker = ensure_worker(python, root)
+        ticket = File.join(worker[:queue], "#{id}.json")
+        Storage.write_json(ticket, 'request' => request, 'response' => response)
+        @job = { id: id, pid: worker[:pid], response: response, model: model, root: root,
+                 started: Time.now, log: worker[:log], python: python, completion: completion, progress: progress, ticket: ticket }
+        @timer = UI.start_timer(0.1, true) { poll }
         id
+      end
+
+      def worker_alive?(worker)
+        worker && Process.waitpid2(worker[:pid], Process::WNOHANG).nil?
+      rescue Errno::ECHILD
+        false
+      end
+
+      def ensure_worker(python, root)
+        fingerprint = Dir.glob(File.join(Settings::ROOT, 'worker', '*.py')).sort.map { |path| [path, File.mtime(path).to_f, File.size(path)] }
+        return @worker if @worker && @worker[:root] == root && @worker[:python] == python && @worker[:fingerprint] == fingerprint && worker_alive?(@worker)
+        stop_worker
+        directory = File.join(root, 'jobs', ".resident-#{Ids.uuid}")
+        queue = File.join(directory, 'queue')
+        FileUtils.mkdir_p(queue)
+        log = File.join(directory, 'worker.log')
+        pid = Process.spawn(python, '-X', 'utf8', File.join(Settings::ROOT, 'worker', 'resident.py'), '--queue', queue, '--parent', Process.pid.to_s,
+                            out: log, err: [:child, :out], chdir: Settings::ROOT)
+        @worker = { pid: pid, root: root, python: python, queue: queue, log: log, fingerprint: fingerprint }
+      end
+
+      def stop_worker
+        worker = @worker
+        @worker = nil
+        terminate(worker[:pid], worker[:python]) if worker && worker_alive?(worker)
+      end
+
+      def terminate(pid, python)
+        if RUBY_PLATFORM.include?('mingw') || RUBY_PLATFORM.include?('mswin')
+          code = "import subprocess,sys; s=subprocess.STARTUPINFO(); s.dwFlags|=subprocess.STARTF_USESHOWWINDOW; s.wShowWindow=0; subprocess.run(['taskkill','/PID',sys.argv[1],'/T','/F'],startupinfo=s,creationflags=subprocess.CREATE_NO_WINDOW,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)"
+          killer = Process.spawn(python, '-c', code, pid.to_s, out: File::NULL, err: File::NULL)
+          Process.detach(killer)
+        else
+          Process.kill('KILL', pid) rescue nil
+        end
+        Process.detach(pid) rescue nil
       end
 
       def poll
@@ -44,6 +79,8 @@ module MH
         return unless job
         if File.file?(job[:response])
           result = JSON.parse(File.read(job[:response], encoding: 'UTF-8'))
+          result['worker'] ||= {}
+          result['worker']['roundtrip_seconds'] = (Time.now - job[:started]).round(6)
           finish(job, result)
         elsif Time.now - job[:started] > 600
           cancel
@@ -92,7 +129,6 @@ module MH
         UI.stop_timer(@timer) if @timer
         @timer = nil
         @job = nil
-        Process.detach(job[:pid]) rescue nil
         job[:completion].call(result, job)
       rescue StandardError => error
         CAD2Module.report_error("Không áp dụng được kết quả tác vụ: #{error.message}")
@@ -104,15 +140,9 @@ module MH
         UI.stop_timer(@timer) if @timer
         @job = nil
         @timer = nil
-        if RUBY_PLATFORM.include?('mingw') || RUBY_PLATFORM.include?('mswin')
-          # A windowless helper stops ODA descendants as well as the worker itself.
-          code = "import subprocess,sys; s=subprocess.STARTUPINFO(); s.dwFlags|=subprocess.STARTF_USESHOWWINDOW; s.wShowWindow=0; subprocess.run(['taskkill','/PID',sys.argv[1],'/T','/F'],startupinfo=s,creationflags=subprocess.CREATE_NO_WINDOW,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)"
-          killer = Process.spawn(job[:python], '-c', code, job[:pid].to_s, out: File::NULL, err: File::NULL)
-          Process.detach(killer)
-        else
-          Process.kill('KILL', job[:pid]) rescue nil
-        end
-        Process.detach(job[:pid]) rescue nil
+        File.delete(job[:ticket]) if job[:ticket] && File.file?(job[:ticket])
+        @worker = nil
+        terminate(job[:pid], job[:python])
       end
     end
   end

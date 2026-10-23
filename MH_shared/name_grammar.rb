@@ -59,11 +59,19 @@ module MH
     end
 
     def module_separator
+      if grammar[:product_rule_active]
+        value = grammar[:product_rule_separator].to_s
+        return value unless value.empty?
+      end
       value = grammar[:separators]['sep_prefix'].to_s
       value.empty? ? '.' : value
     end
 
     def part_separator
+      if grammar[:product_rule_active]
+        value = grammar[:product_rule_separator].to_s
+        return value unless value.empty?
+      end
       value = grammar[:separators]['sep_suffix'].to_s
       value.empty? ? '_' : value
     end
@@ -82,6 +90,20 @@ module MH
       result[:sys_id] = sys[:id]
       result[:numbered] = !sys[:id].nil?
       result[:body] = sys[:body]
+
+      # The Registry product-code card is the authoritative read contract
+      # when product_code_rules.layers is present.  In that mode names are
+      # segmented only by the configured product-rule separator and are
+      # validated against the configured layer order.  This deliberately
+      # avoids the legacy "text-before-hyphen is sub_prefix" heuristic.
+      if grammar[:product_rule_active]
+        parsed = parse_product_rule_name(result, sys[:body])
+        return parsed if parsed[:recognized]
+
+        extended = parse_extended_read_rules(result, sys[:body])
+        return extended if extended[:recognized]
+        return parsed
+      end
 
       split = split_part(sys[:body])
       head = split[:head].strip
@@ -131,6 +153,20 @@ module MH
     end
 
     def build_name(product:, part: nil, module_raw: nil, sub_prefix: nil, suffix: nil, sys_id: nil)
+      if grammar[:product_rule_active]
+        code = build_code(product: product, module_raw: module_raw, pad_numeric: false)
+        return '' if code.empty?
+
+        # The current Registry contract has no sub_prefix/part layers.  Keep
+        # the old part argument usable for callers by treating it as the
+        # configured final suffix when an explicit suffix was not supplied.
+        final_suffix = suffix.to_s.strip
+        final_suffix = part.to_s.strip if final_suffix.empty?
+        name = final_suffix.empty? ? code : "#{code}#{module_separator}#{final_suffix}"
+        id = sys_id.to_s.strip
+        return id.empty? ? name : "__#{id}. #{name}"
+      end
+
       code = build_code(product: product, module_raw: module_raw, pad_numeric: false)
       return '' if code.empty?
 
@@ -296,12 +332,20 @@ module MH
       default = seps['default_prefix'].to_s.strip
       default = DEFAULT_PREFIX if default.empty?
 
+      product_rules = product_rule_config(config)
+      product_rule_layers = Array(product_rules['layers'] || product_rules[:layers]).map { |row| row.is_a?(Hash) ? row.dup : {} }
+      product_rule_separator = (product_rules['segment_separator'] || product_rules[:segment_separator]).to_s.strip
+      product_rule_separator = seps['sep_prefix'].to_s.strip if product_rule_separator.empty?
+      product_rule_active = product_rule_layers.any? do |row|
+        (row['key'] || row[:key]).to_s.strip == 'product_code'
+      end
+
       active_prefixes = clean_list(config['prefix'] || config[:prefix])
       all_prefixes = clean_list(config['all_prefix'] || config[:all_prefix])
       rule_product_codes = product_code_rule_values(config)
       rule_product_families = product_code_rule_family_values(config)
       rule_product_family_order = clean_list(rule_product_families)
-      rules_active = !rule_product_codes.empty? || !rule_product_families.empty?
+      rules_active = product_rule_active || !rule_product_codes.empty? || !rule_product_families.empty?
       if rules_active
         active_product_codes = clean_list(rule_product_codes)
         all_product_codes = clean_list(rule_product_codes)
@@ -340,6 +384,11 @@ module MH
         active_product_family_order: rule_product_family_order,
         all_product_family_order: rule_product_family_order,
         product_rules_active: rules_active,
+        product_rule_active: product_rule_active,
+        product_rule_layers: product_rule_layers,
+        product_rule_separator: product_rule_separator,
+        product_rule_suffixes: product_rule_suffix_values(product_rules),
+        read_rules: read_rule_config(config),
         active_sub_prefixes: sort_longest(active_sub),
         all_sub_prefixes: sort_longest(all_sub),
         active_modules: sort_longest(active_modules),
@@ -424,6 +473,170 @@ module MH
       parsed[:sub_prefix] = sub_prefix
       parsed[:sub_prefix_declared] = sub_declared
       parsed
+    end
+
+    # Parse using the exact layer contract shown by Registry's
+    # product_code_rules card.  The current UI contract is normally:
+    # product_code _ module_no _ suffix.
+    def parse_product_rule_name(result, body)
+      separator = grammar[:product_rule_separator].to_s
+      separator = '_' if separator.empty?
+      layers = Array(grammar[:product_rule_layers])
+      segments = body.to_s.split(separator, -1).map { |value| value.to_s.strip }
+      return result.merge(unmatched_reason: 'empty_name') if segments.empty? || segments.all?(&:empty?)
+
+      fields = {}
+      layers.each_with_index do |layer, index|
+        key = (layer['key'] || layer[:key]).to_s.strip
+        next if key.empty?
+        value = segments[index]
+        if value.nil? || value.empty?
+          required = layer['required'] == true || layer['required'].to_s.downcase == 'true'
+          return result.merge(unmatched_reason: "missing_#{key}") if required
+          next
+        end
+
+        case key
+        when 'product_code'
+          match = match_product_code(value)
+          return result.merge(unmatched_reason: 'invalid_product_code') unless match && match.length == value.length
+
+          product = value.upcase
+          parts = product.match(/\A([A-Za-z]+)(\d+[A-Za-z]?)\z/)
+          fields[key] = product
+          result[:prefix] = parts ? parts[1].upcase : product
+          result[:product_no_raw] = parts ? parts[2] : ''
+          result[:product_no] = parts ? parts[2].to_i : nil
+          result[:sp_no] = result[:product_no]
+          result[:product] = product
+          result[:product_code] = product
+        when 'module_no'
+          type = (layer['type'] || layer[:type]).to_s
+          if type == 'number' || key == 'module_no'
+            return result.merge(unmatched_reason: 'invalid_module_no') unless value.match?(/\A\d+\z/)
+          end
+          fields[key] = value
+          result[:module_raw] = value
+          result[:module_kind] = module_kind(value)
+          result[:has_modul] = true
+          result[:modul] = numeric_module_value(value)
+        when 'suffix'
+          configured = Array(grammar[:product_rule_suffixes]).map(&:to_s).reject(&:empty?)
+          canonical = configured.find { |candidate| candidate.casecmp?(value) }
+          return result.merge(unmatched_reason: 'invalid_suffix') if configured.any? && canonical.nil?
+
+          fields[key] = canonical || value
+          result[:suffix] = canonical || value
+        else
+          # Preserve extra UI-defined fields for consumers that need them,
+          # while keeping the standard result keys stable.
+          fields[key] = value
+        end
+      end
+
+      if segments.length > layers.length
+        return result.merge(unmatched_reason: 'extra_segments')
+      end
+
+      result[:fields] = fields
+      result[:module_no] = result[:module_raw].to_s.empty? ? nil : module_label(result[:module_raw])
+      result[:modul_label] = module_label(result[:module_raw])
+      result[:module_code] = build_code(product: result[:product], module_raw: result[:module_raw], pad_numeric: true)
+      result[:full_module_code] = result[:module_code]
+      result[:part] = ''
+      result[:sub_prefix] = nil
+      result[:recognized] = true
+      result[:unmatched_reason] = nil
+      result
+    rescue => e
+      result.merge(unmatched_reason: "#{e.class}: #{e.message}")
+    end
+
+    def parse_extended_read_rules(result, body)
+      Array(grammar[:read_rules]).each do |rule|
+        next if rule['enabled'] == false || rule['enabled'].to_s.downcase == 'false'
+        parsed = parse_extended_read_rule(result, body, rule)
+        return parsed if parsed[:recognized]
+      end
+      result.merge(unmatched_reason: 'no_extended_read_rule')
+    end
+
+    def parse_extended_read_rule(result, body, rule)
+      groups = Array(rule['groups'] || rule[:groups])
+      return result.merge(unmatched_reason: 'empty_read_rule') if groups.empty?
+
+      text = body.to_s.strip
+      values = []
+      groups.each_with_index do |group, index|
+        if index == groups.length - 1
+          values << text
+          text = ''
+          next
+        end
+        separator_after = group['separator_after'] || group[:separator_after]
+        separator_after = rule['segment_separator'] || rule[:segment_separator] if separator_after.to_s.empty?
+        separator_after = rule['separator'] || rule[:separator] if separator_after.to_s.empty?
+        separator_after = separator_after.to_s
+        return result.merge(unmatched_reason: 'read_rule_separator_missing') if separator_after.empty?
+        marker = text.index(separator_after)
+        return result.merge(unmatched_reason: 'read_rule_separator_mismatch') unless marker
+        values << text[0...marker].to_s.strip
+        text = text[(marker + separator_after.length)..-1].to_s.strip
+      end
+      return result.merge(unmatched_reason: 'read_rule_extra_text') unless text.empty?
+
+      fields = {}
+      parsed = result.dup
+      groups.each_with_index do |group, index|
+        value = values[index].to_s.strip
+        key = (group['key'] || group[:key] || group['source'] || group[:source]).to_s.strip
+        target = (group['target'] || group[:target] || key).to_s.strip
+        required = group['required'] == true || group['required'].to_s.downcase == 'true'
+        return result.merge(unmatched_reason: 'missing_read_group') if required && value.empty?
+        next if value.empty?
+
+        case key
+        when 'product_code', 'product'
+          match = match_product_code(value)
+          return result.merge(unmatched_reason: 'invalid_read_product') unless match && match.length == value.length
+          product = value.upcase
+          parts = product.match(/\A([A-Za-z]+)(\d+[A-Za-z]?)\z/)
+          parsed[:product] = product
+          parsed[:product_code] = product
+          parsed[:prefix] = parts ? parts[1].upcase : product
+          parsed[:product_no_raw] = parts ? parts[2] : ''
+          parsed[:product_no] = parts ? parts[2].to_i : nil
+          parsed[:sp_no] = parsed[:product_no]
+        when 'module_no', 'modul_no', 'module', 'modul'
+          type = (group['type'] || group[:type]).to_s
+          return result.merge(unmatched_reason: 'invalid_read_module') if (type.empty? || type == 'number') && value !~ /\A\d+\z/
+          parsed[:module_raw] = value
+          parsed[:module_kind] = module_kind(value)
+          parsed[:has_modul] = true
+          parsed[:modul] = numeric_module_value(value)
+        when 'suffix'
+          configured = Array(grammar[:product_rule_suffixes]).map(&:to_s).reject(&:empty?)
+          canonical = configured.find { |candidate| candidate.casecmp?(value) }
+          return result.merge(unmatched_reason: 'invalid_read_suffix') if configured.any? && canonical.nil?
+          value = canonical || value
+          parsed[:suffix] = value
+        when 'part'
+          parsed[:part] = value
+        end
+        fields[target] = value
+      end
+
+      parsed[:fields] = fields
+      parsed[:module_no] = parsed[:module_raw].to_s.empty? ? nil : module_label(parsed[:module_raw])
+      parsed[:modul_label] = module_label(parsed[:module_raw])
+      parsed[:module_code] = build_code(product: parsed[:product], module_raw: parsed[:module_raw], pad_numeric: true)
+      parsed[:full_module_code] = parsed[:module_code]
+      parsed[:sub_prefix] = nil
+      parsed[:recognized] = true
+      parsed[:unmatched_reason] = nil
+      parsed
+    rescue => e
+      result.merge(unmatched_reason: "#{e.class}: #{e.message}")
     end
 
     def parse_product_segment(segment)
@@ -604,13 +817,7 @@ module MH
     end
 
     def product_code_rule_values(config = nil)
-      rules = nil
-      if config
-        rules = config['product_code_rules'] || config[:product_code_rules]
-      end
-      if (!rules || rules.empty?) && defined?(MH::Registry) && MH::Registry.respond_to?(:product_code_rules)
-        rules = MH::Registry.product_code_rules
-      end
+      rules = product_rule_config(config)
       layers = Array((rules || {})['layers'] || (rules || {})[:layers])
       layer = layers.find { |row| (row['key'] || row[:key]).to_s == 'product_code' }
       product_code_values(layer ? (layer['values'] || layer[:values]) : [])
@@ -619,13 +826,7 @@ module MH
     end
 
     def product_code_rule_family_values(config = nil)
-      rules = nil
-      if config
-        rules = config['product_code_rules'] || config[:product_code_rules]
-      end
-      if (!rules || rules.empty?) && defined?(MH::Registry) && MH::Registry.respond_to?(:product_code_rules)
-        rules = MH::Registry.product_code_rules
-      end
+      rules = product_rule_config(config)
       layers = Array((rules || {})['layers'] || (rules || {})[:layers])
       layer = layers.find { |row| (row['key'] || row[:key]).to_s == 'product_code' }
       product_code_family_values(layer ? (layer['values'] || layer[:values]) : [])
@@ -634,18 +835,44 @@ module MH
     end
 
     def product_code_rule_suffix_values(config = nil)
-      rules = nil
-      if config
-        rules = config['product_code_rules'] || config[:product_code_rules]
-      end
-      if (!rules || rules.empty?) && defined?(MH::Registry) && MH::Registry.respond_to?(:product_code_rules)
-        rules = MH::Registry.product_code_rules
-      end
+      rules = product_rule_config(config)
       layers = Array((rules || {})['layers'] || (rules || {})[:layers])
       layer = layers.find { |row| (row['key'] || row[:key]).to_s == 'suffix' }
       Array(layer ? (layer['values'] || layer[:values]) : []).map do |item|
         item.is_a?(Hash) ? (item['value'] || item[:value]).to_s.strip : item.to_s.strip
       end
+    rescue
+      []
+    end
+
+    def product_rule_config(config = nil)
+      rules = if config
+        config['product_code_rules'] || config[:product_code_rules]
+      end
+      if (!rules || rules.empty?) && defined?(MH::Registry) && MH::Registry.respond_to?(:product_code_rules)
+        rules = MH::Registry.product_code_rules
+      end
+      rules.is_a?(Hash) ? rules : {}
+    end
+
+    def product_rule_suffix_values(rules)
+      layers = Array((rules || {})['layers'] || (rules || {})[:layers])
+      layer = layers.find { |row| (row['key'] || row[:key]).to_s == 'suffix' }
+      Array(layer ? (layer['values'] || layer[:values]) : []).map do |item|
+        item.is_a?(Hash) ? (item['value'] || item[:value]).to_s.strip : item.to_s.strip
+      end.reject(&:empty?).uniq
+    rescue
+      []
+    end
+
+    def read_rule_config(config = nil)
+      rules = if config
+        config['name_read_rules'] || config[:name_read_rules]
+      end
+      if (!rules || rules.empty?) && defined?(MH::Registry) && MH::Registry.respond_to?(:global)
+        rules = MH::Registry.global['name_read_rules']
+      end
+      Array(rules).select { |rule| rule.is_a?(Hash) }
     rescue
       []
     end

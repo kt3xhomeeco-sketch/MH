@@ -1,9 +1,10 @@
 class MH::Panel::CatVan
   VK_TAB = 9
+  VK_SHIFT = 16
   AXES = [
-    [:x, 'X', Geom::Vector3d.new(1, 0, 0)],
-    [:y, 'Y', Geom::Vector3d.new(0, 1, 0)],
-    [:z, 'Z', Geom::Vector3d.new(0, 0, 1)]
+    [:x, 'YOZ', Geom::Vector3d.new(1, 0, 0)],
+    [:z, 'XOY', Geom::Vector3d.new(0, 0, 1)],
+    [:y, 'XOZ', Geom::Vector3d.new(0, 1, 0)]
   ].freeze
 
   def initialize
@@ -11,6 +12,7 @@ class MH::Panel::CatVan
     @axis_index = 0
     @targets = []
     @hover_target = nil
+    @cut_scope = :all_selected
     @drag_start = nil
     @drag_end = nil
     @cut_mode = :axis
@@ -41,6 +43,7 @@ class MH::Panel::CatVan
 
     @input.pick(view, x, y)
     @hover_target = pick_solid(view, x, y)
+    sync_cut_scope_selection if @cut_scope == :hovered_only && @hover_target
     return unless @input.valid? && active_targets.any?
 
     if @cut_mode == :axis
@@ -92,7 +95,16 @@ class MH::Panel::CatVan
     view.invalidate
   end
 
-  def onKeyDown(key, _repeat, _flags, view)
+  def onKeyDown(key, repeat, _flags, view)
+    if key == VK_SHIFT
+      return if repeat.to_i > 1
+
+      @cut_scope = @cut_scope == :all_selected ? :hovered_only : :all_selected
+      sync_cut_scope_selection
+      update_status
+      view.invalidate
+      return
+    end
     return unless key == VK_TAB
     return if @cut_mode == :points
 
@@ -201,6 +213,7 @@ class MH::Panel::CatVan
   def cut_targets
     model = Sketchup.active_model
     original_targets = active_targets.select(&:valid?)
+    preserved = @targets.select { |target| target && target.valid? && !original_targets.include?(target) }
     created = []
     unchanged = []
     model.start_operation('Cat van', true)
@@ -216,10 +229,11 @@ class MH::Panel::CatVan
         target.erase!
         created.concat(pieces)
       end
+      result_targets = (preserved + unchanged + created).uniq
       model.selection.clear
-      model.selection.add(unchanged + created)
+      model.selection.add(result_targets)
       model.commit_operation
-      @targets = unchanged + created
+      @targets = result_targets
     rescue => e
       model.abort_operation
       UI.beep
@@ -295,6 +309,12 @@ class MH::Panel::CatVan
   end
 
   def active_targets
+    if @cut_scope == :hovered_only
+      return [@hover_target] if @hover_target && @hover_target.valid? && MH::Geo::Solid.solid?(@hover_target)
+
+      return []
+    end
+
     selected = @targets.select { |target| target && target.valid? }
     selected.empty? && @hover_target && @hover_target.valid? ? [@hover_target] : selected
   end
@@ -450,10 +470,30 @@ class MH::Panel::CatVan
   def pick_solid(view, x, y)
     helper = view.pick_helper
     helper.do_pick(x, y)
-    path = helper.path_at(0)
-    Array(path).reverse.find { |entity| MH::Geo::Solid.solid?(entity) }
+    hits = helper.count.times.filter_map do |index|
+      path = helper.path_at(index)
+      Array(path).reverse.select { |entity| MH::Geo::Solid.solid?(entity) }
+    end.flatten.uniq
+    hits.find { |entity| @targets.include?(entity) } || hits.first
   rescue
     nil
+  end
+
+  def sync_cut_scope_selection
+    targets = if @cut_scope == :hovered_only
+                [@hover_target].compact.select { |target| target.valid? && MH::Geo::Solid.solid?(target) }
+              else
+                @targets.select { |target| target && target.valid? }
+              end
+    return if targets.empty? && @cut_scope == :hovered_only
+
+    selection = Sketchup.active_model.selection
+    return if selection.to_a == targets
+
+    selection.clear
+    selection.add(targets)
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::CatVan] sync selection error: #{e.class}: #{e.message}")
   end
 
   def ctrl_down?(flags)
@@ -520,14 +560,15 @@ class MH::Panel::CatVan
 
   def update_status
     if active_targets.empty?
-      Sketchup.set_status_text('Hover vao tam de cat. Ctrl+click hoac Ctrl+quet de chon nhieu tam.', SB_PROMPT)
+      Sketchup.set_status_text('Di chuột lên tấm để cắt. Ctrl+click hoặc Ctrl+quét để chọn nhiều tấm. Shift đổi phạm vi cắt.', SB_PROMPT)
     else
+      scope = @cut_scope == :hovered_only ? 'chỉ khối dưới chuột' : 'tất cả khối đang chọn'
       prompt = if @cut_mode == :axis
-                 "Cắt theo trục #{axis[1]}. Tab: X / Y / Z."
+                 "Cắt mặt #{axis[1]}. Tab: YOZ / XOY / XOZ."
                else
                  'Cắt theo 2 điểm. Mặt cắt xoay qua điểm 1 và luôn song song trục Z.'
                end
-      Sketchup.set_status_text("#{prompt} Ctrl: chọn thêm hoặc quét chọn.", SB_PROMPT)
+      Sketchup.set_status_text("#{prompt} Shift: đổi phạm vi (#{scope}). Ctrl: chọn thêm hoặc quét chọn.", SB_PROMPT)
     end
   end
 end

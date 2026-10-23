@@ -10,5 +10,10 @@ def test_real_sketchup_split_edge_fixture(tmp_path):
                 'geometry':{'hash':'e'*64,'lines':lines}})
     product=result['analyses'][0]['products'][0]
     assert product['status']=='ready',product.get('error')
-    assert [m['size'] for m in product['modules']]==[[860,600,2110],[860,600,2110],[1720,600,432]]
-    assert len(product['geometry_pipeline']['vertical']['columns'])==2
+    assert len(product['plan_results'])==2
+    assert sorted([m['size'][0] for m in child['modules']] for child in product['plan_results'])==[[860,860],[1720]]
+    for child in product['plan_results']:
+        expected=2542 if child.get('height_source')=='product_elevation_bounds' else 1600
+        assert all(m['size'][1:]==[600,expected] for m in child['modules'])
+        assert child['elevation_pending']
+    assert sorted(c['bounds'][2] for c in product['plan_results'])==[1600,2592]

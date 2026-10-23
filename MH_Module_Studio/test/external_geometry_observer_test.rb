@@ -5,6 +5,34 @@ require 'rbconfig'
 require 'json'
 
 class ModuleStudioExternalGeometryObserverTest < Minitest::Test
+  def test_deleted_door_uses_direct_restore_without_solving_unrelated_links
+    script=<<~'RUBY'
+      module Sketchup
+        class ModelObserver;end
+        class AppObserver;end
+      end
+      require ARGV.fetch(0)
+      s=MH::ModuleStudio;model=Object.new;rows=[{'id'=>'unrelated'}];events=[]
+      model.define_singleton_method(:start_operation) { |*| }
+      model.define_singleton_method(:commit_operation) { events << 'commit' }
+      s::Runtime.define_singleton_method(:ensure_assembly_context) { |_| }
+      s::Assembly.define_singleton_method(:fingerprint) { |_| 'after' }
+      s::Assembly.define_singleton_method(:records) { |_| rows }
+      s::Assembly.define_singleton_method(:transact) { |*| raise 'Unrelated graph solved' }
+      s::ImportLinks.define_singleton_method(:detached_targets?) { |*| true }
+      s::ImportLinks.define_singleton_method(:apply_reservations) { |_,records,**| raise 'Other links lost' unless records==rows;events << 'restore' }
+      s::AssemblyContainers.define_singleton_method(:store) { |_,records| raise 'Other links lost' unless records==rows;events << 'store' }
+      observer=s::Assembly::AssemblyModelObserver.allocate
+      observer.instance_variable_set(:@model,model)
+      observer.instance_variable_set(:@fingerprint,'before')
+      observer.instance_variable_set(:@pending_reservation_targets,{[nil,'host','1:0']=>600})
+      observer.synchronize_external
+      raise 'Wrong restore sequence' unless events==%w[restore store commit]
+    RUBY
+    _output,error,status=Open3.capture3(RbConfig.ruby,'-e',script,File.expand_path('../assembly.rb',__dir__))
+    assert status.success?,error
+  end
+
   def test_thickness_recovery_and_links_share_one_transaction_and_do_not_double_undo
     script=<<~'RUBY'
       module Sketchup
@@ -149,6 +177,7 @@ class ModuleStudioExternalGeometryObserverTest < Minitest::Test
       s::Assembly.define_singleton_method(:fingerprint) { |_model| $fingerprint }
       s::Assembly.define_singleton_method(:records) { |_model| [{'id'=>'real-link'}] }
       s::AssemblyContainers.define_singleton_method(:containers) { |_model| [] }
+      s::AssemblyContainers.define_singleton_method(:dangling_door_links) { |_model| [] }
       s::ImportLinks.define_singleton_method(:root_frames) { |_model| {'host'=>'before-frame'} }
       s::ScaleRedraw.define_singleton_method(:pending?) { |_model| $scale_pending }
       captures=[]
@@ -196,5 +225,44 @@ class ModuleStudioExternalGeometryObserverTest < Minitest::Test
     %w[changed_context undo cancelled abort_no_pending].each { |key| assert_empty result[key]['applied'],key }
     assert result['scale_redraw_settles_first']['deferred']
     assert_equal 1,result['scale_redraw_settles_first']['applied'].length
+  end
+
+  def test_erasing_last_linked_door_restores_host_without_full_assembly_solve
+    script=<<~'RUBY'
+      module Sketchup
+        class ModelObserver;end
+        class AppObserver;end
+      end
+      require ARGV.fetch(0)
+      s=MH::ModuleStudio
+      model=Object.new;events=[]
+      model.define_singleton_method(:start_operation) { |*args| events << [:start,*args] }
+      model.define_singleton_method(:commit_operation) { events << [:commit] }
+      model.define_singleton_method(:abort_operation) { events << [:abort] }
+      s::Runtime.define_singleton_method(:ensure_assembly_context) { |_model| }
+      s::Assembly.define_singleton_method(:fingerprint) { |_model| 'after-delete' }
+      s::Assembly.define_singleton_method(:records) { |_model| [] }
+      s::Assembly.define_singleton_method(:transact) { |*| raise 'Unexpected full constraint solve' }
+      s::ImportLinks.define_singleton_method(:reservation_fingerprint) { |_model| [['host','saved-span']] }
+      targets={['host','1:0']=>600}
+      s::ImportLinks.define_singleton_method(:apply_reservations) do |_model,rows,**options|
+        events << [:restore,rows,options];raise 'Door row survived' unless rows.empty?
+      end
+      s::AssemblyContainers.define_singleton_method(:store) { |_model,rows| events << [:store,rows] }
+      observer=s::Assembly::AssemblyModelObserver.allocate
+      observer.instance_variable_set(:@model,model)
+      observer.instance_variable_set(:@fingerprint,'before-delete')
+      observer.instance_variable_set(:@pending_reservation_targets,targets)
+      observer.synchronize_external
+      puts JSON.generate(events)
+    RUBY
+    output,error,status=Open3.capture3(RbConfig.ruby,'-e',script,File.expand_path('../assembly.rb',__dir__))
+    assert status.success?,error
+    events=JSON.parse(output)
+    assert_equal 1,(events.count { |event| event[0]=='restore' })
+    assert_equal 1,(events.count { |event| event[0]=='store' })
+    assert_equal [],events.find { |event| event[0]=='store' }[1]
+    assert_equal 1,(events.count { |event| event[0]=='commit' })
+    refute(events.any? { |event| event[0]=='abort' })
   end
 end

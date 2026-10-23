@@ -21,16 +21,19 @@ class ModuleStudioHUDBoardsTest < Minitest::Test
     assert_raises(S::Core::Error) { S::HUDBoards.put(config,'A',8,'one') }
     assert_raises(S::Core::Error) { S::HUDBoards.put(config,'A',0,'missing') }
   end
-  def test_board_edit_requires_name_unique_letter_and_pages_are_explicit
-    state=S::HUDBoards.edit(config,'create',{'id'=>'two','name'=>'Tủ dưới','key'=>'T'})
+  def test_board_edit_needs_no_alphabet_key_and_pages_are_explicit
+    state=S::HUDBoards.edit(config,'create',{'id'=>'two','name'=>'Tủ dưới'})
     assert_equal 'two',state['hud_board']
+    refute S::HUDBoards.current(state).key?('key')
     assert_equal 8,S::HUDBoards.current(state)['slots'].length
     state=S::HUDBoards.edit(state,'page',{'id'=>'two'})
     assert_equal 16,S::HUDBoards.current(state)['slots'].length
-    assert_raises(S::Core::Error) { S::HUDBoards.edit(state,'update',{'id'=>'two','name'=>'Tủ','key'=>'D'}) }
-    assert_raises(S::Core::Error) { S::HUDBoards.edit(state,'create',{'id'=>'three','name'=>'Tủ','key'=>''}) }
-    assert_raises(S::Core::Error) { S::HUDBoards.edit(state,'create',{'id'=>'three','name'=>' ','key'=>'R'}) }
-    state=S::HUDBoards.edit(state,'delete',{'id'=>'two'})
+    assert_raises(S::Core::Error) { S::HUDBoards.edit(state,'update',{'id'=>'two','name'=>'Tấm đứng'}) }
+    assert_raises(S::Core::Error) { S::HUDBoards.edit(state,'create',{'id'=>'three','name'=>' '}) }
+    state=S::HUDBoards.edit(state,'create',{'id'=>'three','name'=>'Tủ trên'})
+    refute S::HUDBoards.current(state,'three').key?('key')
+    assert_equal 3,state['hud_boards'].length
+    state=S::HUDBoards.edit(state,'delete',{'id'=>'three'})
     assert_equal 'one',state['hud_board']
   end
   def test_new_folders_never_create_boards_or_icons_and_search_keeps_positions
@@ -42,7 +45,7 @@ class ModuleStudioHUDBoardsTest < Minitest::Test
     assert_equal entries.first,S::HUDBoards.entries(entries,state,'đứng')[6]
     assert_equal 1,S::HUDBoards.entries(entries,state).compact.length
   end
-  def test_legacy_explicit_order_migrates_once_and_remap_keeps_holes_name_and_key
+  def test_legacy_explicit_order_migrates_once_and_remap_keeps_holes_and_name
     old=S::LibraryCatalog.settings('hud_orders'=>{'Old'=>['A','B']},'folder_keys'=>{'Old'=>'O'})
     assert_equal ['A','B',nil,nil,nil,nil,nil,nil],S::HUDBoards.current(old)['slots']
     old=S::HUDBoards.put(old,'A',5,old['hud_board'])
@@ -51,7 +54,7 @@ class ModuleStudioHUDBoardsTest < Minitest::Test
     mapped,missing=S::HUDConfig.remap(old,previous,catalog)
     assert_equal [nil,nil,nil,nil,nil,'New',nil,nil],S::HUDBoards.current(mapped)['slots']
     assert_equal 'Old',S::HUDBoards.current(mapped)['name']
-    assert_equal 'O',S::HUDBoards.current(mapped)['key']
+    refute S::HUDBoards.current(mapped).key?('key')
     assert_includes missing,'B'
     roundtrip=S::HUDConfig.parse(JSON.generate(S::HUDConfig.document(mapped,catalog)))['settings']
     assert_equal mapped.slice(*S::HUDConfig::KEYS),roundtrip

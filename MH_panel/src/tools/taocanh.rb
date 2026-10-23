@@ -145,7 +145,9 @@ class MH::Panel::TaoCanh
     @face_pick_first = nil
     @face_pick_second = nil
     @face_pick_info = nil
-    @face_pick_error = nil
+    @face_pick_candidates = []
+    @face_pick_candidate_hover = nil
+    @face_pick_choose_surface = false
     @box_pick_hover = nil
     @box_pick_error = nil
     @tam_error = nil
@@ -181,6 +183,8 @@ class MH::Panel::TaoCanh
       end
     elsif edge_pick_mode? && @state < 2
       update_edge_pick_hover(x, y, view)
+    elsif face_pick_mode? && @face_pick_choose_surface
+      update_face_pick_candidate_hover(x, y, view)
     elsif face_pick_mode? && @state < 2
       update_face_pick_hover(x, y, view)
     elsif tam_mode? && @state == 0
@@ -226,7 +230,10 @@ class MH::Panel::TaoCanh
         return
       end
       if face_pick_mode?
-        if @state < 2
+        if @face_pick_choose_surface
+          handle_face_pick_candidate_click(x, y, view)
+          return
+        elsif @state < 2
           handle_face_pick_click(view)
           return
         end
@@ -572,7 +579,7 @@ class MH::Panel::TaoCanh
     end
     if face_pick_mode?
       draw_face_pick(view)
-      if @state < 2
+      if @state < 2 || @face_pick_choose_surface
         @da_ve = true
         return
       end
@@ -644,7 +651,9 @@ class MH::Panel::TaoCanh
         text = if edge_pick_mode?
                  "Chọn cạnh thứ nhất để lấy chiều dài cánh."
                elsif face_pick_mode?
-                 "Chọn mặt thứ nhất."
+                 @face_pick_choose_surface ?
+                   "Đã chọn 2 mặt. Di chuột xem trước 4 mặt ảo, click mặt muốn tạo cánh." :
+                   "Chọn mặt thứ nhất."
                elsif bounding_box_mode?
                  count = bounding_box_selection_count(Sketchup.active_model.active_view)
                  if count > 0
@@ -679,7 +688,11 @@ class MH::Panel::TaoCanh
              end
     when 2
       MH::Panel.vcb("Độ dày ván", Sketchup.format_length(@do_day))
-      text = "Nhấn Tab để đảo mặt."
+      text = if @face_pick_choose_surface
+               "Di chuột xem trước 4 mặt ảo, click chọn mặt cần tạo cánh. Nhấn Tab để đảo chiều dày."
+             else
+               "Nhấn Tab để đảo mặt."
+             end
     when 3
       if pick_pair_inout_stage?
         MH::Panel.vcb("Độ dày ván", Sketchup.format_length(@do_day))
@@ -992,6 +1005,7 @@ class MH::Panel::TaoCanh
         material_name: (orig_material.respond_to?(:name) ? orig_material.name : nil),
         product_code: orig_sp
       )
+      apply_two_sided_source_material(b)
       MH::Panel::Group.reset_axes(b)
       MH::Panel::Group.center_origin(b)
       MH::Panel.commit
@@ -1628,16 +1642,18 @@ class MH::Panel::TaoCanh
       view.invalidate
     elsif @state == 1
       second = @face_pick_hover.dup
-      if build_face_pair_info(@face_pick_first, second, view) && build_rect_from_face_view_boundary(view)
+      if build_face_pair_info(@face_pick_first, second, view)
         @face_pick_second = second
-        @state = 3
-        @batch_stage = nil
-        @che_do_chia = :khoang
-        clear_division_preview_state
-        @diem_neo = @pts[1]
-        @ds_o = compute_global_cells if @noi_bo
-        @face_pick_error = nil
-        update_mode_buttons
+        @face_pick_candidates = face_pick_candidate_rects(@face_pick_info)
+        if @face_pick_candidates.length == 4
+          @face_pick_choose_surface = true
+          @face_pick_candidate_hover = nil
+          @state = 2
+          @face_pick_error = nil
+          update_mode_buttons
+        else
+          @face_pick_error = "Không dựng được 4 mặt ảo từ 2 mặt đã chọn."
+        end
       end
       update_status
       view.invalidate
@@ -1725,6 +1741,121 @@ class MH::Panel::TaoCanh
     @face_pick_error = "Không xác định được biên phía view: #{e.message}" if set_error
     nil
   end
+  def face_pick_candidate_rects(info)
+    return [] unless info && info[:first]
+
+    points = info[:first][:points]
+    gap_axis = info[:gap_axis]
+    axes = [X_AXIS, Y_AXIS, Z_AXIS].reject do |axis|
+      axis.parallel?(gap_axis) || axis.reverse.parallel?(gap_axis)
+    end
+    return [] unless axes.length == 2
+
+    gap_coord = points.map { |point| (point - ORIGIN).dot(gap_axis) }.sum / points.length.to_f
+    axis_bounds = axes.to_h do |axis|
+      [axis, points.map { |point| (point - ORIGIN).dot(axis) }.minmax]
+    end
+    candidates = []
+    axes.each_with_index do |length_axis, index|
+      placement_axis = axes[1 - index]
+      length_min, length_max = axis_bounds[length_axis]
+      placement_min, placement_max = axis_bounds[placement_axis]
+      next if (length_max - length_min).abs <= 0.001.mm
+
+      [placement_min, placement_max].each_with_index do |placement_coord, side_index|
+        origin = ORIGIN.offset(gap_axis, gap_coord)
+                       .offset(length_axis, length_min)
+                       .offset(placement_axis, placement_coord)
+        p0 = origin
+        p1 = origin.offset(gap_axis, info[:gap])
+        p2 = p1.offset(length_axis, length_max - length_min)
+        p3 = p0.offset(length_axis, length_max - length_min)
+        cell = [p0, p1, p2, p3]
+        normal = normal_from_points(cell)
+        next unless normal && normal.length > 0.001
+
+        candidates << {
+          cell: cell,
+          normal: normal,
+          length_axis: length_axis,
+          placement_axis: placement_axis,
+          side: side_index
+        }
+      end
+    end
+    candidates
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoCanh] tạo 4 mặt chọn cánh lỗi: #{e.class}: #{e.message}")
+    []
+  end
+  def update_face_pick_candidate_hover(x, y, view)
+    @face_pick_candidate_hover = face_pick_candidate_at(x, y, view)
+    view.tooltip = @face_pick_candidate_hover ? "Click để tạo cánh ở mặt này" : "Chọn một trong 4 mặt ảo"
+    update_status
+    view.invalidate
+  rescue => e
+    @face_pick_candidate_hover = nil
+    @face_pick_error = "Không xác định được mặt ảo: #{e.message}"
+    view.invalidate
+  end
+  def face_pick_candidate_at(x, y, view)
+    ray = view.pickray(x, y)
+    return nil unless ray && ray.length >= 2
+
+    ray_origin, ray_direction = ray
+    hits = Array(@face_pick_candidates).filter_map do |candidate|
+      cell = candidate[:cell]
+      normal = candidate[:normal]
+      denominator = ray_direction.dot(normal)
+      next if denominator.abs <= 1.0e-9
+
+      distance = (cell[0] - ray_origin).dot(normal) / denominator
+      next if distance < 0
+
+      point = ray_origin.offset(ray_direction, distance)
+      next unless point_in_face_pick_candidate?(point, cell)
+
+      [distance, candidate]
+    end
+    hits.min_by(&:first)&.last
+  end
+  def point_in_face_pick_candidate?(point, cell)
+    edge_a = cell[0].vector_to(cell[1])
+    edge_b = cell[0].vector_to(cell[3])
+    relative = cell[0].vector_to(point)
+    return false if edge_a.length <= 0.001.mm || edge_b.length <= 0.001.mm
+
+    a = relative.dot(edge_a) / edge_a.dot(edge_a)
+    b = relative.dot(edge_b) / edge_b.dot(edge_b)
+    a >= -0.001 && a <= 1.001 && b >= -0.001 && b <= 1.001
+  rescue
+    false
+  end
+  def handle_face_pick_candidate_click(x, y, view)
+    candidate = face_pick_candidate_at(x, y, view)
+    unless candidate
+      @face_pick_error = "Click vào một trong 4 mặt ảo để chọn vị trí tạo cánh."
+      update_status
+      view.invalidate
+      return
+    end
+
+    @face_pick_candidate_hover = candidate
+    @pts[0], @pts[1], @pts[2], @pts[3] = candidate[:cell]
+    @face_pick_choose_surface = false
+    @face_pick_candidates = []
+    @face_pick_candidate_hover = nil
+    @face_pick_error = nil
+    @state = 3
+    @batch_stage = nil
+    @che_do_chia = :khoang
+    clear_division_preview_state
+    @diem_neo = @pts[1]
+    @ds_o = compute_global_cells if @noi_bo
+    update_mode_buttons
+    update_status
+    view.invalidate
+  end
   def face_pick_length_axis(face_pick, gap_axis)
     bounds = face_pick[:bounds]
     candidates = [
@@ -1782,7 +1913,20 @@ class MH::Panel::TaoCanh
     draw_face_pick_group(view, @face_pick_first, Sketchup::Color.new(0, 180, 255, 80), Sketchup::Color.new(0, 180, 255, 255))
     draw_face_pick_group(view, @face_pick_second, Sketchup::Color.new(0, 255, 120, 80), Sketchup::Color.new(0, 180, 90, 255))
     draw_face_pick_group(view, @face_pick_hover, Sketchup::Color.new(255, 200, 0, 80), Sketchup::Color.new(255, 200, 0, 255))
-    draw_face_pick_live_preview(view)
+    if @face_pick_choose_surface
+      draw_face_pick_candidates(view)
+    else
+      draw_face_pick_live_preview(view)
+    end
+  end
+  def draw_face_pick_candidates(view)
+    Array(@face_pick_candidates).each do |candidate|
+      selected = candidate.equal?(@face_pick_candidate_hover)
+      fill = selected ? Sketchup::Color.new(255, 190, 0, 110) : Sketchup::Color.new(70, 180, 255, 45)
+      line = selected ? Sketchup::Color.new(255, 140, 0, 255) : Sketchup::Color.new(40, 130, 220, 220)
+      draw_face_pick_group(view, { points: candidate[:cell] }, fill, line)
+      draw_box(candidate[:cell], candidate[:normal], @dao_chieu ? @do_day : -@do_day, view, faded: true)
+    end
   end
   def draw_face_pick_live_preview(view)
     return unless @state == 1 && @face_pick_first && @face_pick_hover
@@ -1809,6 +1953,13 @@ class MH::Panel::TaoCanh
   def add_face_pick_extents(bb)
     [@face_pick_hover, @face_pick_first, @face_pick_second].compact.each do |pick|
       Array(pick[:points]).each { |point| bb.add(point) }
+    end
+    Array(@face_pick_candidates).each do |candidate|
+      Array(candidate[:cell]).each { |point| bb.add(point) }
+      normal = candidate[:normal]
+      depth = @dao_chieu ? @do_day : -@do_day
+      vec = make_depth_vec(normal, depth) rescue nil
+      Array(candidate[:cell]).each { |point| bb.add(point.offset(vec)) } if vec
     end
   end
   def measurement_live_preview_rect(view)
@@ -2441,9 +2592,11 @@ class MH::Panel::TaoCanh
     normal = axes[:normal]
 
     x_min, x_max = corners.map { |point| (point - ORIGIN).dot(x_axis) }.minmax
-    length = [tam_entity_length(first, corners1), tam_entity_length(second, corners2)].compact.max
-    z_min = corners.map(&:z).min
-    z_max = z_min + length
+    # The Tấm method creates a vertical panel. Its height must come from the
+    # real Z projection of the source panels, not their largest X/Y/Z extent.
+    z_values = corners.map { |point| (point - ORIGIN).dot(z_axis) }
+    z_min, z_max = z_values.minmax
+    length = z_max - z_min
     return nil if (x_max - x_min).abs <= 0.001.mm || length <= 0.001.mm
 
     n_values = corners.map { |point| (point - ORIGIN).dot(normal) }
@@ -2734,9 +2887,9 @@ class MH::Panel::TaoCanh
     z_axis = axes[:z_axis]
     normal = axes[:normal]
     x_min, x_max = corners.map { |point| (point - ORIGIN).dot(x_axis) }.minmax
-    length = tam_entity_length(entity, corners)
-    z_min = corners.map(&:z).min
-    z_max = z_min + length
+    z_values = corners.map { |point| (point - ORIGIN).dot(z_axis) }
+    z_min, z_max = z_values.minmax
+    length = z_max - z_min
     n_values = corners.map { |point| (point - ORIGIN).dot(normal) }
     camera_coord = (view.camera.eye - ORIGIN).dot(normal)
     n_coord = n_values.min_by { |value| (camera_coord - value).abs }
@@ -3173,6 +3326,7 @@ class MH::Panel::TaoCanh
     )
     apply_material_to_board(board, material) if material && !board.material
     sync_material_appearance(board.material, material) if material && board.material
+    apply_two_sided_source_material(board)
     MH::Panel::Group.reset_axes(board)
     MH::Panel::Group.center_origin(board)
     MH::Panel.commit
@@ -3714,7 +3868,6 @@ class MH::Panel::TaoCanh
       MH::Panel.start
       b.name = @instance
       b.layer = layer
-      apply_source_material(b)
       MH::Panel.apply_mh_codes(
         b,
         detail_name: @instance,
@@ -3722,6 +3875,8 @@ class MH::Panel::TaoCanh
         material_name: (@source_material_name || (@material.respond_to?(:name) ? @material.name : nil)),
         source: @source_entity
       )
+      # Cánh chỉ dùng .1M/.2M khi đúng rule phủ mặt của Material Assign.
+      apply_two_sided_source_material(b)
       MH::Panel::Group.reset_axes(b)
       MH::Panel::Group.center_origin(b)
       MH::Panel.commit
@@ -3729,6 +3884,58 @@ class MH::Panel::TaoCanh
   end
   def apply_source_material(board)
     apply_material_to_board(board, @source_material)
+  end
+  def apply_two_sided_source_material(board)
+    return unless board && board.valid?
+
+    material_name = board.material.respond_to?(:name) ? board.material.name.to_s.strip : ''
+    material_name = @source_material_name.to_s.strip if material_name.empty?
+    return apply_source_material(board) if material_name.empty?
+
+    creator = defined?(MH::MaterialApp::MaterialCreator) ? MH::MaterialApp::MaterialCreator : nil
+    assigner = defined?(MH::MaterialApp::MaterialAssigner) ? MH::MaterialApp::MaterialAssigner : nil
+    unless creator && creator.respond_to?(:load_material_from_file)
+      MH::Panel.dbg('[MH::Panel::TaoCanh] MH_Material_Assign MaterialCreator unavailable; keep coded material')
+      return
+    end
+
+    # Trước đây hàm này luôn nối .2M cho Cánh, kể cả mã SON. Điều đó tạo ra
+    # các mã sai như MDFCA.17.E1.TL.SON.2M.  Quyết định hậu tố phải đi qua
+    # cùng rule LAM/LK/VENE/VER mà Material Assign đang dùng.
+    base_name = assigner && assigner.respond_to?(:strip_face_suffix) ?
+      assigner.strip_face_suffix(material_name).to_s :
+      material_name.sub(/\.(?:1M|2M)(?:-BCT)?\z/i, '')
+    rule = assigner && assigner.respond_to?(:surface_face_rule_for) ?
+      assigner.surface_face_rule_for(base_name) : nil
+
+    unless rule
+      # Nếu đây là mã sơn/vật liệu không được phép có biến thể mặt phủ, bỏ
+      # suffix .1M/.2M cũ (nếu có) thay vì giữ lỗi lại trên tấm vừa tạo.
+      return if base_name.empty? || base_name == material_name
+
+      target = creator.load_material_from_file(board.model, base_name)
+      creator.ensure_visible_color(target, base_name, board.model, force: true) if target && creator.respond_to?(:ensure_visible_color)
+      apply_material_to_board(board, target)
+      return
+    end
+
+    # apply_mh_codes đã gắn đúng suffix cho luồng mới. Chỉ tính lại khi cần
+    # tương thích với một material nguồn cũ chưa có suffix.
+    target_name = material_name
+    unless material_name.match?(/\.(?:1M|2M)(?:-BCT)?\z/i)
+      thickness = if defined?(MH::MaterialApp::MaterialCodeBuilder)
+                    MH::MaterialApp::MaterialCodeBuilder.get_dimensions(board).first.to_f
+                  else
+                    0.0
+                  end
+      parsed = { detail_name: board.name.to_s }
+      target_name = assigner.apply_surface_face_suffix(base_name, board, thickness, parsed).to_s if assigner && assigner.respond_to?(:apply_surface_face_suffix)
+    end
+    target = creator.load_material_from_file(board.model, target_name)
+    creator.ensure_visible_color(target, target_name, board.model, force: true) if target && creator.respond_to?(:ensure_visible_color)
+    apply_material_to_board(board, target)
+  rescue => e
+    MH::Panel.dbg("[MH::Panel::TaoCanh] apply .2M material error: #{e.class}: #{e.message}")
   end
   def apply_material_to_board(board, material)
     return unless board && board.valid? && material

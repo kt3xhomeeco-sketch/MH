@@ -224,8 +224,8 @@ def test_full_line_scan_keeps_two_bays_with_recovered_36mm_envelope(tmp_path,mon
                geometry=dict(hash='e'*64,lines=lines,plane='XY',plane_offset_mm=73)))
     product=r['analyses'][0]['products'][0]
     assert product['status']=='ready',product.get('local_ai')
-    assert product['local_ai']['status']=='choose',product.get('local_ai')
-    assert product['local_ai']['final_check']['passed']
+    assert product['local_ai']['status']=='not_used',product.get('local_ai')
+    assert product['plan_engine']=='oy-stock-sweep-v1'
     assert [m['size'] for m in product['modules']]==[[1110,705,1600],[450,705,1600]]
     assert product['placement']['origin_mm']==[30000,40000]
     from plan_search import target_card

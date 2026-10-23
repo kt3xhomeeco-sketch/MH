@@ -68,6 +68,22 @@ class ModuleStudioLibraryAdapterTest < Minitest::Test
       require ARGV.fetch(0)
       studio = MH::ModuleStudio
       raise 'Shortcut command missing' unless $commands == ['MH Module Studio · Parametric','MH Module Studio · Redraw','MH Module Studio · Mở HUD', 'MH Module Studio · Liên kết module HUD']
+      Sketchup.define_singleton_method(:active_model) { Object.new }
+      UI::Command.class_eval do
+        attr_accessor :menu_text
+        def menu_text; @menu_text || @name; end
+        def set_validation_proc(&block); @validation=block; end
+        def validation; @validation; end
+      end
+      UI::Menu.class_eval do
+        attr_reader :items
+        def initialize; @items=[]; @submenus={}; end
+        def add_item(command); @items << command; command; end
+        def add_submenu(name); @submenus[name] ||= UI::Menu.new; end
+      end
+      UI.define_singleton_method(:menu) { |name| (@menus||={})[name] ||= UI::Menu.new }
+      MF_ENABLED=1 unless defined?(MF_ENABLED)
+      MF_GRAYED=0 unless defined?(MF_GRAYED)
       fake_panel=Object.new
       fake_panel.instance_variable_set(:@draft,'preserve formulas')
       fake_panel.define_singleton_method(:show_parametric) { @opened=true }
@@ -76,6 +92,26 @@ class ModuleStudioLibraryAdapterTest < Minitest::Test
       raise 'Shortcut lost existing workspace' unless fake_panel.instance_variable_get(:@opened) && fake_panel.instance_variable_get(:@draft)=='preserve formulas'
       replies = []
       library = studio::Library.new { |receiver, value| replies << [receiver, value] }
+      studio.instance_variable_set(:@library,library)
+      board_tool=Object.new
+      board_tool.define_singleton_method(:editing) { true }
+      board_tool.define_singleton_method(:active) { true }
+      board_tool.define_singleton_method(:catalog_changed) {}
+      board_tool.define_singleton_method(:refresh) {}
+      library.instance_variable_set(:@tool,board_tool)
+      library.edit_hud_board('create',{'name'=>'Tủ dưới'})
+      board_id=library.config['hud_board']
+      board_menu=studio.instance_variable_get(:@hud_board_menu)
+      board_command=board_menu.items.first
+      raise 'HUD board is missing from the SketchUp command menu' unless board_command.menu_text=='MH Module Studio · Bảng icon · Tủ dưới'
+      raise 'HUD board shortcut command is disabled' unless board_command.validation.call==MF_ENABLED
+      library.edit_hud_board('update',{'id'=>board_id,'name'=>'Tủ bếp'})
+      raise 'HUD board shortcut label did not follow rename' unless board_command.menu_text.end_with?('Tủ bếp')
+      library.edit_hud_board('delete',{'id'=>board_id})
+      raise 'Deleted HUD board shortcut remained enabled' unless board_command.validation.call==MF_GRAYED
+      library.instance_variable_set(:@tool,nil)
+      Sketchup.define_singleton_method(:active_model) { nil }
+      replies.clear
       library.request('action' => 'library_choose')
       raise 'Cancel did not acknowledge' unless replies.length == 1 && !replies.last[1]['error']
       library.config['root'] = 'D:/Thư viện có "quote"'

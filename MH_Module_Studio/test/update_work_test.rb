@@ -25,7 +25,11 @@ class ModuleStudioUpdateWorkTest < Minitest::Test
       end
     end
     require ARGV[0]
+    require File.join(File.dirname(ARGV[0]), 'core')
     W=MH::ModuleStudio::UpdateWork
+    Studio=MH::ModuleStudio
+    RuleSystem=Studio::RuleSystem
+    Core=Studio::Core
     class TestModel
       attr_reader :observer,:events
       attr_accessor :value
@@ -46,12 +50,28 @@ class ModuleStudioUpdateWorkTest < Minitest::Test
     end
     $model=TestModel.new
     $worker_threads=[]
+    snapshot=JSON.parse(File.read(File.join(File.dirname(ARGV[0]),'test','fixtures','readable_nested_dc.json'),encoding:'UTF-8'))
+    $rule=RuleSystem.build(snapshot)
     W.define_singleton_method(:dispatch) do |kind,args|
       $worker_threads << !Thread.current.equal?(Thread.main)
       # Enough pure work to exercise yielding under Ruby's shared GVL.
       5000.times { |i| Math.sqrt(i) }
+      if kind==:rule
+        raise 'Rule formula failed' if args.first['bad']
+        return args.first
+      end
       raise 'Invalid formula' if args.first=='bad'
       args.first*2
+    end
+    def rule_action(rule)
+      lambda do
+        $model.start
+        $model.value=W.calculate(:rule,rule)
+        W.commit($model)
+      rescue W::Deferred,W::Prepared,StandardError
+        $model.abort_operation
+        raise
+      end
     end
     def action(value)
       lambda do
@@ -174,5 +194,29 @@ class ModuleStudioUpdateWorkTest < Minitest::Test
     assert_equal 'Dữ liệu dựng đã thay đổi. Đọc lại module rồi thử lại.',result['error']
     assert_equal 10,result['value']
     assert_empty result['events']
+  end
+
+  def test_async_rule_payloads_survive_the_worker_but_errors_report_their_message
+    result=run_case(<<~'RUBY')
+      completed=[];labels=[]
+      W.submit($model,key: :rule,complete:->(s,e) { completed << [s,e&.message] }) do
+        value=W.calculate(:rule,$rule)
+        $model.value=value
+        canonical=W.canonical_rule($rule)
+        labels << (canonical && 'cached')
+        raise 'Canonical rule changed' unless Core.rule!(JSON.parse(canonical))==$rule
+      end
+      UI.drain
+      rule_result=$model.value
+      $model.value=11
+      W.submit($model,key: :bad_rule,complete:->(s,e) { completed << [s,e&.message] },&rule_action({'bad'=>true}))
+      UI.drain
+      puts JSON.generate(value:$model.value,rule:rule_result,completed:completed,labels:labels,workers:$worker_threads)
+    RUBY
+    assert_equal 'module_rule_system',result.dig('rule','kind')
+    assert_equal 11,result['value']
+    assert_equal [['done',nil],['error','Rule formula failed']],result['completed']
+    assert_equal ['cached'],result['labels']
+    assert result['workers'].all?
   end
 end

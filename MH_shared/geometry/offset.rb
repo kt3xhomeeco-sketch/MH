@@ -5,29 +5,92 @@
   end
   def self.moffset_old(face, dist, ent)
     return nil unless dist.is_a?(Numeric) && dist != 0
-    pts = []
-    verts = face.outer_loop.vertices
-    n = verts.length
     plane_normal = face.normal
-    n.times do |i|
-      a = verts[i].position
-      b = verts[(i + 1) % n].position
-      c = verts[(i + 2) % n].position
-      ab = (b - a).normalize
-      bc = (c - b).normalize
-      offset_dir1 = ab.cross(plane_normal).normalize
-      offset_dir2 = bc.cross(plane_normal).normalize
-      line1 = [a.offset(offset_dir1, dist), ab]
-      line2 = [b.offset(offset_dir2, dist), bc]
-      ip = Geom.intersect_line_line(line1, line2)
-      pts << ip if ip
+    verts = face.outer_loop.vertices.map(&:position)
+    # Use the indexed offset path so each point stays paired with its source
+    # vertex. The old loop shifted the arc start to the end of the polygon.
+    pts = offset_pts(verts, plane_normal, dist)
+    pts = snap_offset_arc_vertices(pts, face, dist)
+    unless offset_points_valid?(face, pts)
+      pts = peo_offset_pts(verts, plane_normal, dist)
+      return nil unless offset_points_valid?(face, pts)
     end
-    return fallback_offset_face(face, dist) unless offset_points_valid?(face, pts)
 
     new_face = create_face_preserving_curves(ent, pts, face)
     return new_face if new_face && new_face.valid?
 
-    fallback_offset_face(face, dist)
+    nil
+  end
+
+  def self.snap_offset_arc_vertices(points, face, distance)
+    return points unless points && face && face.valid?
+
+    loop_edges = face.outer_loop.edges
+    source_vertices = face.outer_loop.vertices
+    curves = loop_edges.map(&:curve).compact.uniq
+    curves.each do |curve|
+      next unless curve.respond_to?(:center) && curve.respond_to?(:radius)
+
+      curve_vertices = curve.vertices
+      indices = curve_vertices.map do |vertex|
+        found = nil
+        source_vertices.each_with_index do |item, candidate_index|
+          if item.position.distance(vertex.position) <= 0.001.mm
+            found = candidate_index
+            break
+          end
+        end
+        found
+      end
+      next if indices.empty? || indices.any?(&:nil?)
+
+      target_radius = offset_arc_radius(
+        curve.center, curve.radius, source_vertices.map(&:position), face.normal,
+        indices.first, curve.edges.length, distance
+      )
+      next if target_radius <= 0.001.mm
+
+      curve_vertices.each_with_index do |vertex, curve_index|
+        index = indices[curve_index]
+        next unless index
+
+        radial = curve.center.vector_to(vertex.position)
+        next if radial.length <= 0.001.mm
+
+        radial.normalize!
+        target = curve.center.offset(radial, target_radius)
+        edge_index = nil
+        if curve_index == 0
+          candidate = (indices.first - 1) % loop_edges.length
+          edge_index = candidate unless loop_edges[candidate].curve
+        elsif curve_index == curve_vertices.length - 1
+          candidate = (indices.last) % loop_edges.length
+          edge_index = candidate unless loop_edges[candidate].curve
+        end
+        if edge_index
+          edge = loop_edges[edge_index]
+          edge_vector = edge.start.position.vector_to(edge.end.position)
+          if edge_vector.length > 0.001.mm
+            translation = edge_vector.cross(face.normal).normalize
+            translation.length = distance.abs
+            translation.reverse! if distance < 0
+            line_start = edge.start.position.offset(translation)
+            line_end = line_start.offset(edge_vector)
+            target = circle_line_intersection_near(
+              curve.center,
+              target_radius,
+              line_start,
+              line_end,
+              target
+            ) || target
+          end
+        end
+        points[index] = target
+      end
+    end
+    points
+  rescue
+    points
   end
   def self.moffset(face, dist, ent)
     return nil unless dist.is_a?(Numeric) && dist != 0

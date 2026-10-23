@@ -67,7 +67,10 @@ module MH
         roots = selected.select { |e| Model.container?(e) && e != product && root_ids.include?(e.persistent_id) }
         boxes = roots.filter_map do |entity|
           next if entity.get_attribute(Model::DICT, 'role') == 'product'
-          next if product.is_a?(Assembly) && product.members.include?(entity)
+          role = entity.get_attribute(Model::DICT, 'role')
+          next if %w[plan_reference panel_reference].include?(role) || entity.get_attribute('MH_CAD2Module_Label', 'code')
+          owner = entity.get_attribute(Model::DICT, 'assembly_id')
+          raise ArgumentError, 'Vùng chọn có box của sản phẩm khác; chỉ chọn box thuộc SP đang sửa hoặc box tự vẽ.' if owner && owner != product.persistent_id
           edges = []
           collect_edges(entity.definition.entities, entity.transformation, edges)
           next if edges.empty?
@@ -104,9 +107,12 @@ module MH
             part.merge!('id' => "M#{modules.length + 1}", 'name' => 'Module từ box đúng', 'scope' => 'carcass_and_doors')
             modules << part
           end
-          if analysis.dig('build_stages', 'elevation') == false
-            raise ArgumentError, 'Đang ở giai đoạn Mặt bằng: các box cần cùng mặt đáy, chưa chia tầng đứng.' if part['origin'][2] > TOLERANCE
-            part['height_source'] = 'provisional_default'
+          if plan_frame?(analysis)
+            part['height_source'] = 'user_confirmed' if analysis['plan_engine'] == 'section-first-v1'
+            if analysis.dig('build_stages', 'elevation') == false
+              raise ArgumentError, 'Đang ở giai đoạn Mặt bằng: các box cần cùng mặt đáy, chưa chia tầng đứng.' if part['origin'][2] > TOLERANCE
+              part['height_source'] = 'provisional_default'
+            end
             if analysis['envelope']
               x, y = analysis.fetch('source_plan_envelope', analysis['envelope'])
               part['source_box'] = [x + part['origin'][0], y + part['origin'][1],
@@ -118,7 +124,7 @@ module MH
         raise ArgumentError, 'Chưa có box module; vùng chọn chỉ có phần phụ mỏng.' if modules.empty?
         all = modules + trims
         bounds = 3.times.map { |i| all.map { |p| p['origin'][i] + p['size'][i] }.max.round(4) }
-        if analysis.dig('build_stages', 'elevation') == false && analysis['envelope']
+        if plan_frame?(analysis) && analysis['envelope']
           envelope = analysis.fetch('source_plan_envelope', analysis['envelope'])
           measured = [envelope[2] - envelope[0], envelope[3] - envelope[1]]
           # Two exterior stock panels are the allowed auxiliary extent change.
@@ -131,7 +137,7 @@ module MH
 
       def plan_offset(parts, analysis, capture = nil)
         previous = analysis.fetch('plan_origin_offset_mm', [0, 0])
-        return previous unless analysis.dig('build_stages', 'elevation') == false
+        return previous unless plan_frame?(analysis)
         base = analysis.fetch('source_plan_envelope', analysis.fetch('envelope', [0, 0]))
         # Box origins are normalised as a set. Put that measured minimum back
         # when the user drew on the source; changed module widths must not lose Y.
@@ -157,6 +163,10 @@ module MH
         first = offsets.first
         return previous unless offsets.all? { |row| 2.times.all? { |i| (row[i] - first[i]).abs <= TOLERANCE && row[i].abs <= 2 * STOCK.max } }
         2.times.map { |i| (previous[i] + first[i]).round(4) }
+      end
+
+      def plan_frame?(analysis)
+        analysis.dig('build_stages', 'elevation') == false || analysis['plan_engine'] == 'section-first-v1'
       end
     end
   end

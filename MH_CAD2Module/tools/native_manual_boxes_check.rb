@@ -63,7 +63,7 @@ begin
   raise 'Explicit target lost' unless app.correction_target == product
   model.selection.clear
   app::Corrections.begin_manual(product)
-  raise 'Wrong result not hidden' unless product.hidden?
+  raise 'Wrong result hidden' if product.hidden?
   app::Corrections.cancel_manual
   raise 'Cancel failed' if product.hidden? || app::Corrections.active?
   app::Corrections.begin_manual(product)
@@ -72,7 +72,7 @@ begin
     app.accept_manual_boxes('native-empty-selection')
     raise 'Empty selection accepted'
   rescue ArgumentError
-    raise 'Empty selection closed correction' unless app::Corrections.active? && product.hidden?
+    raise 'Empty selection closed correction' unless app::Corrections.active? && !product.hidden?
     raise 'Missing selection error acknowledgement' unless app.instance_variable_get(:@manual_acceptance)['status'] == 'error'
   end
   cad_reference = model.entities.add_group
@@ -82,7 +82,7 @@ begin
     app.accept_manual_boxes('native-stale-session', 'a-different-session')
     raise 'Stale session accepted'
   rescue ArgumentError
-    raise 'Stale session changed correction' unless app::Corrections.active? && product.hidden?
+    raise 'Stale session changed correction' unless app::Corrections.active? && !product.hidden?
   end
   event = app.accept_manual_boxes('native-selected-boxes', app::Corrections.status['id'])
   acknowledgement = app.instance_variable_get(:@manual_acceptance)

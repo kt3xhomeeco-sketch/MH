@@ -181,6 +181,7 @@ module MH
       def finish
         return unless @active
         @pending = nil
+        @fit_requested = false
         @model.select_tool(nil) if Sketchup.active_model.equal?(@model)
         deactivate(@model.active_view) if @active
       end
@@ -196,6 +197,7 @@ module MH
       def cancel_placement(view)
         @pending = nil
         @replace_mode = false
+        @fit_requested = false
         @placement = nil
         @placement_mouse = nil
         @placement_error = nil
@@ -208,6 +210,7 @@ module MH
 
       def onKeyDown(key, repeat, flags, view)
         return true unless @active
+        return false if key.between?(65, 90)
         if [16,17].include?(key)
           mask=key==17 ? COPY_MODIFIER_MASK : CONSTRAIN_MODIFIER_MASK
           update_placement(view,*@last_mouse,flags|mask) if @pending && @last_mouse
@@ -224,17 +227,7 @@ module MH
           return true
         end
         return true if @pending || repeat > 1
-        if key.between?(65, 90)
-          letter = key.chr
-          board = @library.config.fetch('hud_boards',[]).find { |row| row['key']==letter }
-          if board
-            choose_folder(board['id'])
-          else
-            @query += letter.downcase if @query.length < 80
-            @page = 0
-            refresh
-          end
-        elsif key.between?(48,57) || key.between?(96,105)
+        if key.between?(48,57) || key.between?(96,105)
           unless @editing || @folders
             digit=(key>=96 ? key-96 : key-48).to_s
             id=HUDBoards.current(hud_settings)&.fetch('shortcuts',{})&.key(digit)
@@ -263,6 +256,7 @@ module MH
       end
 
       def onKeyUp(key, _repeat, flags, view)
+        return false if key.between?(65, 90)
         if [16,17].include?(key)
           mask=key==17 ? COPY_MODIFIER_MASK : CONSTRAIN_MODIFIER_MASK
           update_placement(view,*@last_mouse,flags&~mask) if @pending && @last_mouse
@@ -304,6 +298,7 @@ module MH
             @library.publish("Đã Replace #{result.length} đối tượng. Esc: về Library.")
           end
           @placement = nil
+          @fit_requested = false
           @placement_mouse = nil
           @input.clear
           @error = nil
@@ -410,12 +405,14 @@ module MH
 
       def update_placement(view,x,y,flags)
         @placement_error = nil
+        @error = nil
+        @fit_requested = (flags & CONSTRAIN_MODIFIER_MASK) != 0 && !replacement?(flags)
         @placement_data=@pending
         template=@pending && @pending['import_template']
         @placement = if replacement?(flags)
                        LibraryPlacement.detect(view,x,y,replace:true)
                      elsif (flags&CONSTRAIN_MODIFIER_MASK)!=0
-                       LibraryPlacement.detect(view,x,y,cache:(@link_cache||={}))
+                       LibraryPlacement.detect(view,x,y,cache:(@link_cache||={}),source:@pending)
                      elsif template && template['enabled']
                        ImportLinks.detect(@pending,view,x,y,cache:(@link_cache||={}))
                      end
@@ -424,6 +421,9 @@ module MH
           if @placement['mode']=='template' && @placement_data['entry_id']!=@pending['entry_id']
             @placement=ImportLinks.detect(@placement_data,view,x,y,cache:(@link_cache||={}))
           end
+        end
+        if @fit_requested && !%w[free_fit cavity].include?(@placement&.fetch('mode',nil))
+          @placement_error='Shift + rê lên mặt hoặc khung bao có giới hạn để xem vùng Fit.'
         end
       rescue Core::Error => detail
         @placement = nil
@@ -445,7 +445,7 @@ module MH
             update_placement(view,x,y,flags)
             @placement_mouse = [x,y,flags&(COPY_MODIFIER_MASK|CONSTRAIN_MODIFIER_MASK)]
           end
-          view.tooltip = @placement_error || (@placement ? (@placement['mode']=='replace' ? 'Ctrl + click: thay module này' : @placement['mode']=='template' ? "#{@placement['kind']=='inside' ? 'Lọt trong' : 'Đối mặt'} · #{@placement['matches'].length} mặt liên kết" : 'Click: Fit vừa khoang, không tạo liên kết') : ((flags&CONSTRAIN_MODIFIER_MASK)!=0 ? 'Shift: ngoài khoang, giữ kích thước mẫu' : 'Không có liên kết: giữ kích thước mẫu'))
+          view.tooltip = @placement_error || (@placement ? (@placement['mode']=='replace' ? 'Ctrl + click: thay module này' : @placement['mode']=='template' ? "#{@placement['kind']=='inside' ? 'Lọt trong' : 'Đối mặt'} · #{@placement['matches'].length} mặt liên kết" : 'Click: Fit vừa khoang, không tạo liên kết') : ((flags&CONSTRAIN_MODIFIER_MASK)!=0 ? 'Shift: rê lên mặt hoặc khung bao để Fit' : 'Không có liên kết: giữ kích thước mẫu'))
         else
           @input.clear
           item = target_item(@hover)
@@ -480,8 +480,22 @@ module MH
         elsif @pending && !@editing
           @input.pick(view, x, y)
           update_placement(view,x,y,flags)
-          raise Core::Error,@placement_error if @placement_error
+          if @placement_error
+            if (flags&CONSTRAIN_MODIFIER_MASK)!=0 && !replacement?(flags)
+              @error=@placement_error
+              refresh
+              view.invalidate
+              return
+            end
+            raise Core::Error,@placement_error
+          end
           raise Core::Error,'Ctrl + click lên module cần thay.' if replacement?(flags) && !@placement
+          if (flags&CONSTRAIN_MODIFIER_MASK)!=0 && !replacement?(flags) && !@placement
+            @error='Không bắt được vùng Fit. Rê chuột lên mặt hoặc khung bao rồi click lại.'
+            refresh
+            view.invalidate
+            return
+          end
           return unless @input.valid? || @placement
           replacing=@placement && @placement['mode']=='replace'
           @library.place(@placement_data || @pending,@input.valid? ? @input.position : ORIGIN,placement:@placement)
@@ -538,6 +552,7 @@ module MH
       end
 
       def set_editing(enabled)
+        MH::ModuleStudio.show_library_tab if enabled && !@editing
         @edit_folder = @library.config['hud_board'] if enabled && !@editing
         @editing = enabled == true
         @pending = nil
@@ -748,20 +763,36 @@ module MH
       end
 
       def draw_preview(view)
+        if @fit_requested && !@placement
+          text(view,18,view.vpheight-38,'Không bắt được vùng Fit · rê chuột lên mặt hoặc khung bao','#b34b35',12,center:false)
+          return
+        end
         if @placement
           ImportLinks.draw(view,@placement) if @placement['mode']=='template'
           frame = Geom::Transformation.new(@placement['frame'])
           corners = Frames.corners(@placement['bounds']).map { |point| Geom::Point3d.new(point.map { |v| v/25.4 }).transform(frame) }
           segments = (0...8).to_a.combination(2).select { |a,b| [1,2,4].include?(a^b) }.flat_map { |a,b| [corners[a],corners[b]] }
           view.drawing_color = @placement['mode']=='replace' ? '#d08c21' : @placement['mode']=='template' ? '#626d73' : '#008b90'
-          view.line_width = @placement['mode']=='template' ? 1 : 3
+          if %w[free_fit cavity].include?(@placement['mode'])
+            faces=[[0,1,3,2],[4,5,7,6],[0,1,5,4],[1,3,7,5],[3,2,6,7],[2,0,4,6]]
+            view.drawing_color=Sketchup::Color.new(0,139,144,65)
+            faces.each { |face| view.draw(GL_POLYGON,face.map { |index| corners[index] }) }
+          end
+          view.line_width = @placement['mode']=='template' ? 1 : 1.5
+          view.drawing_color = @placement['mode']=='replace' ? '#d08c21' : @placement['mode']=='template' ? '#626d73' : '#008b90'
           view.draw(GL_LINES,segments)
           scales=Frames.scale_frame(frame.to_a).values_at(0,5,10)
           size = Core.dimensions(@placement['bounds']).each_with_index.map { |v,i| (v*scales[i]).round(1) }
           label = if @placement['mode']=='template'
                     "#{@placement['kind']=='inside' ? 'Lọt trong' : 'Đối mặt'} · #{@placement['matches'].length}/#{@placement['template']['faces'].count { |face| face['enabled'] }} mặt"
                   else
-                    @placement['mode']=='replace' ? 'Thay module' : 'Lọt lòng'
+                    if @placement['mode']=='replace'
+                      'Thay module'
+                    elsif @placement['mode']=='free_fit'
+                      @placement['target_kind']=='face' ? 'Fit mặt' : 'Fit vùng'
+                    else
+                      'Lọt lòng'
+                    end
                   end
           virtual=@placement.fetch('matches',[]).count { |match| match['target']['virtual'] }
           label+=" · #{virtual} mốc phủ bì" if virtual.positive?

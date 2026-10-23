@@ -336,8 +336,12 @@ module MH
 
     def self.redraw_selected
       root=Runtime.selected_root
-      done=lambda do |_status,error|
-        error ? UI.messagebox(error.message) : Sketchup.status_text='MH: Đã Redraw module.'
+      done=lambda do |status,error|
+        if error
+          UI.messagebox(error.message)
+        elsif status==:done
+          Sketchup.status_text='MH: Đã Redraw module.'
+        end
         @module_options&.schedule_refresh
       end
       UpdateWork.submit(root.model,key: :redraw,complete:done) { Assembly.redraw(root) }

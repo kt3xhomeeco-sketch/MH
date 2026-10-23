@@ -5,7 +5,7 @@ require 'extensions.rb'
 
 module MH
   module CAD2Module
-    VERSION = '0.10.1'
+    VERSION = '0.25.1'
 
     unless file_loaded?(__FILE__)
       extension = SketchupExtension.new('MH CAD2Module', 'MH_CAD2Module/main')

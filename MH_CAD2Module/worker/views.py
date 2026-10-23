@@ -19,7 +19,7 @@ def normalise(text):
 def section_symbol(entity):
     """Match callout attributes/names, never anonymous furniture blocks in general."""
     attrs = {a.dxf.tag: a.dxf.text.strip() for a in entity.attribs}
-    paired = (all(k in attrs and re.fullmatch(r'\d+',attrs[k]) for k in ('1','2','4','5'))
+    paired = (all(k in attrs and re.fullmatch(r'[A-Z0-9]+',attrs[k],re.I) for k in ('1','2','4','5'))
               and attrs['1']==attrs['2'] and attrs['4']==attrs['5'])
     name = normalise(entity.dxf.name)
     named = any(s in name for s in ('SECTION MARK','SECTION SYMBOL','KY HIEU MAT CAT','KY HIEU MC'))
@@ -39,7 +39,7 @@ def title_role(text):
     return None
 
 
-def split_views(regions, annotations, rects, outlines):
+def split_views(regions, annotations, rects, outlines, classify_geometry=True):
     """Use title centres for columns and title baselines for drawing rows."""
     views=[]
     for region in regions:
@@ -79,7 +79,7 @@ def split_views(regions, annotations, rects, outlines):
                               'region':box,'title_handle':title['handle'],'rects':r,'outlines':o,
                               'section_markers':[m for m in markers if m['axis']=='vertical' and
                               set(re.findall(r'(\d+)\s*[-–]\s*\1',title['text'])).intersection(m['numbers'])] if role=='section_vertical' else []})
-    return geometry_roles(views)
+    return geometry_roles(views) if classify_geometry else views
 
 
 def construction_extent(rects):

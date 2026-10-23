@@ -4,3 +4,9 @@
 - [x] Resolve preview/click and each replacement target, with bounded JSON reuse and atomic batch operations.
 - [x] Test real drawer files, generic Fit, rotated/mirrored Scale, checked contacts, Undo and failed-batch rollback in SketchUp.
 - [x] Complete final scoped gate, runtime package byte verification and live reload.
+- [x] Extend Shift free Fit to ordinary group/component/DC/module bounds and loose planar faces; preserve face-target depth/T.
+- [x] Add portable face-region geometry tests and label generic Fit previews.
+- [x] Fill and outline the full Shift Fit target region; prevent raw-point fallback when no target is detected.
+- [x] Add HUD regression coverage that Shift Fit cannot place without a detected region.
+- [x] Rerun the scoped RuboCop and Ruby test gate after the extension.
+- [ ] Verify translucent region preview and cavity, ordinary container, DC/module and face placement in SketchUp; verify Ctrl Replace priority and Undo.

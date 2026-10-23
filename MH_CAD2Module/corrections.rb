@@ -83,12 +83,8 @@ module MH
       end
 
       def begin_manual(product)
-        begin_session(product, 'Người dùng đánh dấu Sai và vẽ lại các box đúng')
+        begin_session(product, 'Người dùng đánh dấu Sai, sửa trực tiếp hoặc vẽ các box đúng')
         @session[:manual] = true
-        @session[:original_hidden] = product.hidden?
-        product.model.start_operation('CAD2Module: Sai', true)
-        product.hidden = true
-        product.model.commit_operation
       end
 
       def accept_manual
@@ -105,16 +101,21 @@ module MH
           part['plan_box'] = part['source_box'].dup
         end
         analysis = JSON.parse(JSON.generate(session[:analysis])).merge(replacement)
-        analysis['plan_origin_offset_mm'] = offset if analysis.dig('build_stages', 'elevation') == false
-        analysis['plan_origin_basis'] = 'source_plan_envelope' if analysis.dig('build_stages', 'elevation') == false
+        analysis['plan_origin_offset_mm'] = offset if ManualBoxes.plan_frame?(analysis)
+        analysis['plan_origin_basis'] = 'source_plan_envelope' if ManualBoxes.plan_frame?(analysis)
         analysis.merge!('status' => 'ready', 'manual_boxes' => true)
         analysis.delete('envelope_preview')
         analysis['learning'] = { 'mode' => 'user_confirmed', 'message' => 'Bố trí từ các box người dùng đã xác nhận.' }
+        if analysis['plan_engine'] == 'section-first-v1'
+          analysis['height_source'] = 'user_confirmed'
+          analysis['elevation_pending'] = false
+          analysis['geometry_pipeline']['horizontal'].merge!('status' => 'user_confirmed', 'modules' => [], 'issues' => [])
+        end
         analysis.delete('error')
         analysis['explanation'] = ['Kết quả do người dùng vẽ và xác nhận. Đo các đỉnh thực, chuẩn hóa cả bộ box, giữ vị trí tương đối; không phụ thuộc gốc/trục riêng.']
         transform = Geom::Transformation.new(capture['basis_transform'])
         if analysis.dig('placement', 'mode') == 'source_plan'
-          if analysis.dig('build_stages', 'elevation') == false && analysis['envelope']
+          if ManualBoxes.plan_frame?(analysis) && analysis['envelope']
             anchor = analysis.fetch('source_plan_envelope', analysis['envelope'])
             analysis['placement']['origin_mm'] = 2.times.map { |i| anchor[i] + offset[i] }
             transform = Geom::Transformation.new(Placement.source_matrix(analysis['placement']))
@@ -127,7 +128,7 @@ module MH
         else
           labels = Model.labels(model).select { |label| label['code'] == analysis['code'] }
           raise ArgumentError, 'Nhãn SP bị mất hoặc trùng; khôi phục nhãn trước khi nhận box.' unless labels.length == 1
-          transform = Geom::Transformation.translation([Placement.base_x(labels.first['center_x'], analysis['bounds'][0]).mm, 0, 0])
+          transform = Geom::Transformation.translation([*Placement.named_origin(analysis, labels.first['center_x']).map(&:mm), 0])
         end
         model.start_operation('CAD2Module: Nhận Box', true)
         operation = true
@@ -140,8 +141,8 @@ module MH
         old.each(&:erase!)
         product.transformation = transform
         product.set_attribute(Model::DICT, 'analysis', JSON.generate(analysis))
-        product.hidden = session[:original_hidden]
-        inputs.each { |e| e.hidden = true }
+        product.hidden = false
+        inputs.each { |e| e.hidden = true if e.valid? }
         after = Model.state(product)
         snapshot = Storage.snapshot(session[:root], product, "#{session[:id]}-manual-accepted")
         event = Storage.event(session[:root], 'kind' => 'correction', 'status' => 'accepted',
@@ -169,9 +170,6 @@ module MH
       def cancel_manual
         raise ArgumentError, 'Chưa có phiên Sai đang mở.' unless active? && @session[:manual]
         session = @session
-        session[:model].start_operation('CAD2Module: Hủy Sửa', true)
-        session[:product].hidden = session[:original_hidden]
-        session[:model].commit_operation
         session[:model].remove_observer(@observer)
         @session = nil
       end
@@ -203,7 +201,8 @@ module MH
           product.transformation = if on_source
                                      product.transformation * Geom::Transformation.translation([minimum_x.mm, 0, 0])
                                    else
-                                     Geom::Transformation.translation([Placement.base_x(label.first['center_x'], bounds[0]).mm, 0, 0])
+                                     placed = session[:analysis].merge('bounds' => bounds)
+                                     Geom::Transformation.translation([*Placement.named_origin(placed, label.first['center_x']).map(&:mm), 0])
                                    end
           analysis = JSON.parse(product.get_attribute(Model::DICT, 'analysis'))
           analysis['placement']['origin_mm'][0] += minimum_x if on_source

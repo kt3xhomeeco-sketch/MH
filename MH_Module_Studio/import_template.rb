@@ -103,7 +103,11 @@ module MH
           boundary=front['coordinate'] if front
           wanted_normal=mode=='inside' || is_mount ? 1-side : side
           options=candidates.select do |face|
-            facing=face['virtual'] ? mode=='inside' && face['side']==side : face['side']==wanted_normal
+            facing=if face['module_envelope']
+                     face['side']==wanted_normal
+                   else
+                     face['virtual'] ? mode=='inside' && face['side']==side : face['side']==wanted_normal
+                   end
             face['axis']==axis && facing && (face['coordinate']-boundary).abs<0.02 &&
               ([0,1,2]-[axis]).all? { |other| [face['bounds'][1][other],region[1][other]].min-[face['bounds'][0][other],region[0][other]].max>0.001 }
           end
@@ -114,7 +118,7 @@ module MH
           end
           gap=(slot['gap']+(is_mount && template['role']=='door' ? template['door_gap'] : 0.0))/scales[axis]
           coordinate=boundary+(is_mount ? (mount[1].zero? ? -gap : gap) : (side.zero? ? gap : -gap))
-          signed=target['virtual'] ? -gap : mode=='inside' || is_mount ? gap : -gap
+          signed=target['virtual'] && !target['module_envelope'] ? -gap : mode=='inside' || is_mount ? gap : -gap
           {'slot'=>[axis,side],'target'=>target,'coordinate'=>coordinate,'gap'=>signed,'mount'=>!!is_mount}
         end
         return if matches.empty?

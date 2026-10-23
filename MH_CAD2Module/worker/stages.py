@@ -4,6 +4,7 @@ from materials import BOARD_MM
 from views import plan_columns
 from plan_profiles import curved_ends, stepped_bay
 import math
+from cad_style import structural_rows
 
 PLAN_HEIGHT_MM = 1600
 
@@ -14,7 +15,7 @@ def source_placement(product,geometry):
     offset=geometry.get('plane_offset_mm',0)
     if plane not in ('XY','XZ','YZ') or not isinstance(offset,(float,int)) or not math.isfinite(offset):
         raise ValueError('Mặt phẳng/vị trí nguồn quét không hợp lệ.')
-    if product['geometry_pipeline']['mode']=='plan_only':
+    if product['geometry_pipeline']['mode'] in ('plan_only','plan_and_elevation'):
         offset_xy=product.get('plan_origin_offset_mm',[0,0])
         anchor=product.get('source_plan_envelope',product['envelope']) if product.get('plan_origin_basis')=='source_plan_envelope' else product['envelope']
         origin=[anchor[i]+offset_xy[i] for i in (0,1)]
@@ -42,7 +43,10 @@ def envelope_preview(product,geometry):
     """A selectable correction target, explicitly not a recognised module layout."""
     if product.get('status')=='ready' or product.get('build_stages',{}).get('elevation') is not False:return False
     box=selected_envelope(geometry)
+    from plan_depth import preview as measured_depth
+    depth=measured_depth(product,box)
     size=[round(box[2]-box[0],6),round(box[3]-box[1],6),PLAN_HEIGHT_MM]
+    if depth:size[1]=round(depth['high_mm']-depth['low_mm'],6)
     offset=geometry.get('plane_offset_mm',0)
     if (any(not .1<v<100000 for v in size[:2]) or geometry.get('plane','XY') not in ('XY','XZ','YZ')
             or type(offset) not in (float,int) or not math.isfinite(offset)):return False
@@ -55,7 +59,16 @@ def envelope_preview(product,geometry):
             rule='source-envelope-preview-v1',height_source='provisional_default',envelope_preview=True,
             explanation='Chỉ là khung bao vùng CAD đã quét để chọn và sửa; chưa xác nhận module đúng.')],
         trim_parts=[],panel_parts=[])
-    product['outlines']=[dict(handle=l['handle'],layer=l.get('layer',''),points=[l['a'],l['b']]) for l in geometry['lines']]
+    from cad_style import metadata
+    product['outlines']=[dict(handle=l['handle'],layer=l.get('layer',''),points=[l['a'],l['b']],**metadata(l)) for l in geometry['lines']]
+    if depth:
+        product['bounds']=list(product['bounds'])
+        product['envelope_preview'].update(dimensions_from='closed_stock_depth',depth_evidence=depth)
+        product['modules'][0]['origin'][1]=round(depth['low_mm']-box[1],6)
+        product['modules'][0]['source_box']=[box[0],depth['low_mm'],box[2],depth['high_mm']]
+        product['modules'][0]['plan_box']=list(product['modules'][0]['source_box'])
+        product['bounds'][1]=round(depth['high_mm']-box[1],6)
+        product['modules'][0]['explanation']='Chiều sâu từ các cặp ván kín cùng kiểu nét; chưa xác nhận cách chia module.'
     product['views']=[dict(id='PREVIEW',role='plan',title='Khung bao vùng quét — chưa phân tích',region=box,unresolved_bays=True)]
     product['geometry_pipeline']=dict(mode='plan_only',order=['source_envelope_preview'],default_height_mm=PLAN_HEIGHT_MM,
         vertical=dict(view_id='PREVIEW',columns=[]))
@@ -92,12 +105,12 @@ def infer_plan_views(rects,outlines,allow_unresolved=False):
 
 def plan_frontage(view,bays):
     profiles=list(view['rects'])
-    for outline in view['outlines']:
+    for outline in structural_rows(view['outlines']):
         pts=outline['points']
         if len(pts)<4 or not all(near(a,b) for a,b in zip(pts[0],pts[-1])):continue
         profiles.append(Rect(*union([[*p,*p] for p in pts]),outline['handle'],outline.get('layer','')))
     return [r for r in profiles if 3<=r.h<=60 and r.w>r.h and
-            any(near(r.y1,b['box'][1]) for b in bays)]
+            any(near(r.y1,b['box'][1]) or near(r.y1,b.get('core_box',b['box'])[1]) for b in bays)]
 
 
 def plan_runs(bays):
@@ -136,6 +149,11 @@ def recognise_plan(views,pipeline):
         return [[round(v,1) for v in (b['box'][0]-left,b['box'][1]-front,b['box'][2]-left,b['box'][3]-front)] for b in run]
     if any(near(other[0],score) and len(other[2])==len(bays) and shape(other[2])!=shape(bays) for other in layouts[1:]):
         raise ValueError('Các mặt bằng cùng mức bằng chứng có khoang khác nhau; quét riêng mặt bằng cần dựng.')
+    return finish_plan(plan,bays,pipeline)
+
+
+def finish_plan(plan,bays,pipeline):
+    """Shared measured footprint/trim/curve construction, independent of selector."""
     frontage=plan_frontage(plan,bays)
     footprints=[]
     for i,bay in enumerate(bays):
@@ -143,8 +161,10 @@ def recognise_plan(views,pipeline):
         x0,y0,x1,y1=bay['box']
         doors=[r for r in frontage if max(r.x0,x0)<min(r.x1,x1)-TOL and x0-TOL<=r.x0 and r.x1<=x1+TOL and near(r.y1,y0)]
         # The closed door contour gives the forward extent, including framed doors.
-        front=min([y0]+[r.y0 for r in doors])
-        footprint={'box':[x0,front,x1,y1],'carcass_box':bay['box'],'handles':bay['handles']+[r.handle for r in doors]}
+        # A short perpendicular return/trim is not a door across this bay.
+        spans_ends=doors and min(r.x0 for r in doors)<=x0+max(BOARD_MM) and max(r.x1 for r in doors)>=x1-max(BOARD_MM)
+        front=min([y0]+[r.y0 for r in doors]) if spans_ends else y0
+        footprint={'box':[x0,front,x1,y1],'carcass_box':bay.get('core_box',bay['box']),'handles':bay['handles']+[r.handle for r in doors]}
         if bay.get('stepped_rear'):
             footprint.update(plan_profile=bay['plan_profile'],stepped_rear=True)
         footprints.append(footprint)
@@ -154,7 +174,10 @@ def recognise_plan(views,pipeline):
     extras=[]
     for r in plan['rects']:
         stock=next((s for s in BOARD_MM if s>=12 and near(r.w,s)),None)
-        if not stock or not stock<=r.h<=envelope[3]-envelope[1]+60:continue
+        if not stock or r.h<stock:continue
+        longer_end=r.h>envelope[3]-envelope[1]+60
+        if longer_end and not (r.h<=1200 and any((near(r.x1,p['box'][0]) or near(r.x0,p['box'][2])) and
+                r.y0<=p['box'][1]+TOL and r.y1>=p['box'][3]-TOL for p in footprints)):continue
         if any(min(r.x1,p['box'][2])-max(r.x0,p['box'][0])>TOL and
                min(r.y1,p['box'][3])-max(r.y0,p['box'][1])>TOL for p in footprints):continue
         if not any(near(r.x1,p['box'][0]) or near(r.x0,p['box'][2]) for p in footprints):continue
@@ -192,6 +215,9 @@ def recognise_plan(views,pipeline):
     for i,r in enumerate(extras):
         trim=dict(part(r.box(),f'T{i+1:02}',[r.handle]),role='plan_auxiliary',solid_proxy=True,face_width_mm=round(r.w,3),
                   stock_thickness_mm=round(r.w,3),explanation='Phần phụ đo từ mặt bằng; cao tạm 1600 mm.')
+        if r.h>max(p['box'][3]-p['box'][1] for p in footprints)+60:
+            trim.update(name=f'Tấm ngoài đo được {i+1:02}',rule='plan-measured-end-panel-v1',
+                explanation=f'Tấm ngoài khép kín dày {r.w:g} mm, sâu {r.h:g} mm; giữ chiều sâu riêng, không kéo sâu khoang bên trong; cao tạm 1600 mm.')
         if near(r.h,50):
             adjacent=[(j,p) for j,p in enumerate(footprints) if
                       (near(r.x1,p['box'][0]) or near(r.x0,p['box'][2])) and

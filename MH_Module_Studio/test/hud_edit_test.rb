@@ -6,6 +6,14 @@ COPY_MODIFIER_MASK=8 unless defined?(COPY_MODIFIER_MASK)
 CONSTRAIN_MODIFIER_MASK=4 unless defined?(CONSTRAIN_MODIFIER_MASK)
 
 class ModuleStudioHUDEditTest < Minitest::Test
+  class << MH::ModuleStudio
+    attr_accessor :library_tab_requests
+
+    def show_library_tab
+      self.library_tab_requests = library_tab_requests.to_i + 1
+    end
+  end
+
   class LibraryStub
     attr_reader :config, :catalog
 
@@ -28,6 +36,7 @@ class ModuleStudioHUDEditTest < Minitest::Test
   end
 
   def setup
+    MH::ModuleStudio.library_tab_requests = 0
     @library = LibraryStub.new
     @hud = MH::ModuleStudio::LibraryHUD.allocate
     @hud.instance_variable_set(:@library, @library)
@@ -35,11 +44,13 @@ class ModuleStudioHUDEditTest < Minitest::Test
 
   def test_library_browsing_during_edit_does_not_change_destination_board
     @hud.set_editing(true)
+    assert_equal 1, MH::ModuleStudio.library_tab_requests
     @library.save_settings('folder' => 'source')
     assert_equal 'source', @library.config['folder']
     assert_equal 'board-1', @hud.hud_folder
     assert_equal 'board-1', @hud.hud_settings['hud_board']
     @hud.set_editing(true)
+    assert_equal 1, MH::ModuleStudio.library_tab_requests
     assert_equal 'board-1', @hud.hud_folder
     @hud.set_editing(false)
     assert_equal 'source', @library.config['folder']
@@ -75,11 +86,24 @@ class ModuleStudioHUDEditTest < Minitest::Test
     @hud.instance_variable_set(:@pending, pending)
     @hud.instance_variable_set(:@active, true)
     @hud.instance_variable_set(:@query, 'cabinet')
-    [65, 49, 9, 13, 8, 39].each do |key|
+    refute @hud.onKeyDown(65, 1, 0, Object.new), 'Letters must pass through to SketchUp shortcuts.'
+    assert_same pending, @hud.pending
+    assert_equal 'cabinet', @hud.query
+    [49, 9, 13, 8, 39].each do |key|
       assert @hud.onKeyDown(key, 1, 0, Object.new)
       assert_same pending, @hud.pending
       assert_equal 'cabinet', @hud.query
     end
+  end
+
+  def test_alphabet_keys_are_not_consumed_by_hud
+    @hud.instance_variable_set(:@active, true)
+    @hud.instance_variable_set(:@query, 'cabinet')
+    ('A'..'Z').each do |letter|
+      refute @hud.onKeyDown(letter.ord, 1, 0, Object.new)
+      refute @hud.onKeyUp(letter.ord, 1, 0, Object.new)
+    end
+    assert_equal 'cabinet', @hud.query
   end
 
   def test_escape_cancels_preview_and_keeps_current_library_context
@@ -188,5 +212,33 @@ class ModuleStudioHUDEditTest < Minitest::Test
         refute @hud.instance_variable_get(:@unexpected_refresh)
       end
     end
+  end
+
+  def test_shift_fit_does_not_fall_back_to_raw_input_point_when_no_region_is_found
+    data={'name'=>'Cabinet'}
+    point=Object.new
+    input=Object.new
+    input.define_singleton_method(:pick) { |_view,_x,_y| }
+    input.define_singleton_method(:valid?) { true }
+    input.define_singleton_method(:position) { point }
+    input.define_singleton_method(:clear) {}
+    calls=[]
+    @library.define_singleton_method(:place) { |*args,**kwargs| calls << [args,kwargs] }
+    @hud.instance_variable_set(:@input,input)
+    @hud.instance_variable_set(:@pending,data)
+    @hud.define_singleton_method(:hit) { |_x,_y,_view| nil }
+    @hud.define_singleton_method(:refresh) {}
+    @hud.define_singleton_method(:update_placement) do |_view,_x,_y,_flags|
+      @placement=nil
+      @placement_error=nil
+    end
+    view=Object.new
+    view.define_singleton_method(:invalidate) {}
+
+    @hud.onLButtonDown(CONSTRAIN_MODIFIER_MASK,10,20,view)
+
+    assert_empty calls
+    assert_same data,@hud.pending
+    assert_match(/Không bắt được vùng Fit/,@hud.error)
   end
 end

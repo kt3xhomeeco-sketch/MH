@@ -72,7 +72,7 @@ def test_previous_recognizer_cache_does_not_preserve_the_old_failure(tmp_path,mo
     target_key=hashlib.sha256(json.dumps(targets,ensure_ascii=False).encode()).hexdigest()[:12]
     old=tmp_path/f'analysis-{main.VERSION}-{target_key}.json'
     old.write_text(json.dumps({'products':[{'code':'SP30','status':'needs_review'}]}),encoding='utf8')
-    monkeypatch.setattr(main,'archive_source',lambda source,root:{'folder':str(tmp_path)})
+    monkeypatch.setattr(main,'archive_source',lambda source,root:{'folder':str(tmp_path),'hash':'a'*64})
     def reparse(*args):
         raise RuntimeError('new recognizer must reparse')
     monkeypatch.setattr(main,'dxf_for_revision',reparse)

@@ -7,3 +7,4 @@ outputs/
 .env*
 library/
 local_ai.json
+archives/*.zip

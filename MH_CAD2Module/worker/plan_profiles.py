@@ -3,6 +3,7 @@ import math
 from collections import defaultdict
 from geometry import TOL, union, gap_boxes, near, inside, covers
 from materials import BOARD_MM
+from cad_style import structural_rows
 
 
 def axis_edge(a,b):
@@ -68,6 +69,7 @@ def profile_from_points(points):
 
 def arc_runs(outlines):
     """Recover circular runs from un-welded LINEs, including axial chords."""
+    outlines=structural_rows(outlines)
     graph=defaultdict(set);coords={};handles=defaultdict(set)
     for outline in outlines:
         for a,b in zip(outline['points'],outline['points'][1:]):
@@ -186,6 +188,7 @@ def exterior_loop(lines):
 
 def stepped_bay(rects,outlines):
     """Unequal-depth sides need a connected stepped rear, not an invented rectangle."""
+    outlines=structural_rows(outlines)
     sides=[r for r in rects if 12<=r.w<=40 and r.h>=100 and r.h>5*r.w]
     if len(sides)<3:return []
     left=min(sides,key=lambda r:(r.x0,-r.h));right=max(sides,key=lambda r:(r.x1,r.h))
@@ -216,6 +219,34 @@ def stepped_bay(rects,outlines):
     if len(profile['segments'])<=4:return []
     return [dict(box=box,core_box=box,handles=sorted({o['handle'] for o in selected}),
                  plan_profile=profile,stepped_rear=True)]
+
+
+def stepped_regions(rects,outlines,claimed):
+    """Prove each unclaimed connected stock region independently."""
+    pending=sorted((r for r in rects if not any(inside(r.box(),c['box']) for c in claimed)),
+                   key=lambda r:(r.x0,r.y0))
+    parents=list(range(len(pending)))
+    def root(i):
+        while parents[i]!=i:
+            parents[i]=parents[parents[i]];i=parents[i]
+        return i
+    active=[]
+    for i,r in enumerate(pending):
+        active=[j for j in active if pending[j].x1>=r.x0-TOL]
+        for j in active:
+            if max(gap_boxes(r.box(),pending[j].box()))<=TOL:
+                parents[root(i)]=root(j)
+        active.append(i)
+    regions=defaultdict(list)
+    for i,r in enumerate(pending):regions[root(i)].append(r)
+    result=[]
+    for region in regions.values():
+        for candidate in stepped_bay(region,outlines):
+            b=candidate['box']
+            if any(all(min(b[i+2],c['box'][i+2])-max(b[i],c['box'][i])>TOL
+                       for i in (0,1)) for c in claimed+result):continue
+            result.append(candidate)
+    return result
 
 
 def point_in_polygon(point,polygon):
@@ -255,7 +286,7 @@ def curved_ends(plan,footprints):
     for side,boundary in (('left',base[0]),('right',base[2])):
         sign=-1 if side=='left' else 1
         lines=[];handles=[]
-        for outline in plan['outlines']:
+        for outline in structural_rows(plan['outlines']):
             for a,b in zip(outline['points'],outline['points'][1:]):
                 if min(sign*(a[0]-boundary),sign*(b[0]-boundary)) < -TOL:continue
                 if min(a[1],b[1])<base[1]-60 or max(a[1],b[1])>base[3]+60:continue

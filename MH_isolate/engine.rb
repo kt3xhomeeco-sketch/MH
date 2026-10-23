@@ -56,7 +56,10 @@ module MH
           ui_selection = model.selection.to_a if ui_selection.nil?
           selection_to_keep = Array(ui_selection).select { |entity| entity && entity.valid? }
           source_selection = selected_entities.nil? ? model.selection.to_a : Array(selected_entities)
-          selected = source_selection.select { |entity| entity && entity.valid? && container?(entity) }
+          # 2D details in SketchUp are commonly loose Faces and Edges. They
+          # used to be discarded here, which meant the command silently did
+          # nothing whenever the user selected a 2D detail.
+          selected = source_selection.select { |entity| entity && entity.valid? && isolatable?(entity) }
 
           if State.active?(model)
             data = State.fetch(model)
@@ -92,11 +95,16 @@ module MH
           end
 
           if selected.empty?
-            Sketchup.status_text = 'MH Isolate: Select at least one Group or Component.'
+            Sketchup.status_text = 'MH Isolate: Select at least one Group, Component, Face, or Edge.'
             return false
           end
 
           selected_set = selected.to_set
+          # MH_DWG normally remains visible so technical drawings survive a
+          # 3D-only isolate. If the user selected an MH_DWG detail, that
+          # policy must be reversed: its sibling drawings are the isolate
+          # targets too.
+          include_protected_tags = selected.any? { |entity| protected_tag?(entity) }
           objects = []
           loose = []
           restore_entity_refs = {}
@@ -118,7 +126,7 @@ module MH
             candidates = container_candidates(model, active_entities).reject { |entity| selected_set.include?(entity) }
 
             movable = candidates.reject do |entity|
-              if protected_tag?(entity)
+              if protected_tag?(entity) && !include_protected_tags
                 skipped_protected += 1
                 true
               elsif locked?(entity)
@@ -148,11 +156,16 @@ module MH
               temp_layer.visible = false unless objects.empty?
             end
 
-            if include_loose_geometry?
+            # A loose 2D selection must always hide its loose peers, even if
+            # the optional global loose-geometry mode is off. Retain a
+            # selected Face's boundary Edges so its outline remains visible.
+            isolate_loose_geometry = include_loose_geometry? || selected.any? { |entity| loose_geometry?(entity) }
+            retained_loose = loose_entities_to_retain(selected)
+            if isolate_loose_geometry
               model.active_entities.each do |entity|
                 next unless loose_geometry?(entity)
-                next if model.selection.include?(entity)
-                next if protected_tag?(entity)
+                next if retained_loose.include?(entity)
+                next if protected_tag?(entity) && !include_protected_tags
                 next if pre_hidden?(entity)
                 begin
                   entity.hidden = true
@@ -179,6 +192,7 @@ module MH
               'selected_pids' => selected.map { |entity| entity.persistent_id.to_i },
               'ui_selection_pids' => selection_to_keep.map { |entity| entity.persistent_id.to_i },
               'selected_records' => selected_records,
+              'include_protected_tags' => include_protected_tags,
               'soft_unisolated' => false,
               'objects' => objects,
               'loose' => loose
@@ -209,6 +223,9 @@ module MH
           data = State.fetch(model, reload: true)
           unless data
             cleanup_orphan_tags(model) if force
+            # A broken/legacy state must not keep the command disabled or
+            # leave stale model attributes behind after cleanup.
+            State.clear(model) if force
             Sketchup.status_text = 'MH Isolate: Nothing to restore.' unless silent
             return false
           end
@@ -248,7 +265,10 @@ module MH
 
               target_layer = State.layer(model, record['tag_pid'], record['tag_name']) || model.layers[0]
               begin
-                if locked?(entity)
+                # Force Restore is the recovery path: it must be able to move
+                # a locked Group/Component back to its original Tag. Normal
+                # Unisolate keeps the safer locked-object behavior.
+                if !force && locked?(entity)
                   pending << record
                 else
                   entity.layer = target_layer
@@ -319,7 +339,7 @@ module MH
         end
 
         def force_restore(model = Sketchup.active_model)
-          unisolate(model, force: true)
+          cleanup_all_temp_caches(model, silent: false)
         end
 
         # Used only when SketchUp exits or when a saved model containing temp
@@ -425,7 +445,11 @@ module MH
         end
 
         def cleanup_orphan_tags(model, except: nil)
-          State.orphan_temp_layers(model).each do |layer|
+          orphan_layers = model.layers.to_a.select do |layer|
+            State.marked_temp_layer?(layer) ||
+              layer.name.to_s.start_with?(TEMP_PREFIX)
+          end
+          orphan_layers.each do |layer|
             next if except && layer == except
             begin
               layer.visible = true
@@ -521,7 +545,7 @@ module MH
             entity = State.entity(model, pid)
             record = visible_by_pid[pid]
             return false unless entity && !locked?(entity)
-            return false if protected_tag?(entity) || protected_record?(model, record)
+            return false if !include_protected_tags?(data) && (protected_tag?(entity) || protected_record?(model, record))
             [entity, record]
           end
           show_items = show_pids.map do |pid|
@@ -583,7 +607,7 @@ module MH
 
           container_candidates(model, model.active_entities).each do |entity|
             next if mapped_pids.include?(entity.persistent_id.to_i)
-            next if protected_tag?(entity) || locked?(entity) || pre_hidden?(entity)
+            next if (protected_tag?(entity) && !include_protected_tags?(data)) || locked?(entity) || pre_hidden?(entity)
             return false
           end
           true
@@ -592,6 +616,8 @@ module MH
         end
 
         def release_protected_cached_objects(model, data, temp_layer)
+          return true if include_protected_tags?(data)
+
           hidden_records = Array(data['objects'])
           protected, keep = hidden_records.partition { |record| protected_record?(model, record) }
           return true if protected.empty?
@@ -711,8 +737,24 @@ module MH
           entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
         end
 
+        def isolatable?(entity)
+          container?(entity) || loose_geometry?(entity)
+        end
+
         def loose_geometry?(entity)
           entity.is_a?(Sketchup::Edge) || entity.is_a?(Sketchup::Face)
+        end
+
+        def loose_entities_to_retain(selected)
+          retained = Set.new(Array(selected).select { |entity| loose_geometry?(entity) })
+          Array(selected).each do |entity|
+            next unless entity.is_a?(Sketchup::Face)
+
+            entity.edges.each { |edge| retained.add(edge) if edge && edge.valid? }
+          end
+          retained
+        rescue StandardError
+          Set.new(Array(selected).select { |entity| loose_geometry?(entity) })
         end
 
         def locked?(entity)
@@ -726,6 +768,10 @@ module MH
           protected_layer?(layer)
         rescue StandardError
           false
+        end
+
+        def include_protected_tags?(data)
+          data.is_a?(Hash) && data['include_protected_tags'] == true
         end
 
         def protected_record?(model, record)

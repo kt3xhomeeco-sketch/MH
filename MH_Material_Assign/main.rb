@@ -76,7 +76,18 @@ module MH
 
     def self.notify(message)
       Sketchup.status_text = message.to_s rescue nil
+      if file_load_error_message?(message)
+        @hud_tool.set_file_error(message) if @hud_tool && @hud_tool.respond_to?(:set_file_error)
+      end
       dbg(message)
+    end
+
+    def self.file_load_error_message?(message)
+      text = message.to_s.downcase
+      text.include?('❌') ||
+        text.match?(/(?:lỗi|loi|error|failed).{0,50}(?:import|load|file|json|excel|csv|config)|(?:import|load).{0,50}(?:lỗi|loi|error|failed)|không tìm thấy dòng header|khong tim thay dong header|chưa có file excel|chua co file excel|định dạng file không hỗ trợ|dinh dang file khong ho tro/)
+    rescue
+      false
     end
 
     # ========== CONFIG LOADER ==========
@@ -827,7 +838,7 @@ module MH
       end
       
       # Lấy kích thước 3 chiều thực của instance [min, mid, max]
-      def self.get_dimensions(instance)
+      def self.get_dimensions(instance, parent_transform: nil)
         begin
           if instance.is_a?(Sketchup::Group)
             bounds = instance.local_bounds
@@ -839,7 +850,7 @@ module MH
             corner_y = Geom::Point3d.new(min_pt.x, max_pt.y, min_pt.z)
             corner_z = Geom::Point3d.new(min_pt.x, min_pt.y, max_pt.z)
             
-            transform = instance.transformation
+            transform = parent_transform ? parent_transform * instance.transformation : instance.transformation
             pt_0 = corner_0.transform(transform)
             pt_x = corner_x.transform(transform)
             pt_y = corner_y.transform(transform)
@@ -859,7 +870,7 @@ module MH
             corner_y = Geom::Point3d.new(min_pt.x, max_pt.y, min_pt.z)
             corner_z = Geom::Point3d.new(min_pt.x, min_pt.y, max_pt.z)
             
-            transform = instance.transformation
+            transform = parent_transform ? parent_transform * instance.transformation : instance.transformation
             pt_0 = corner_0.transform(transform)
             pt_x = corner_x.transform(transform)
             pt_y = corner_y.transform(transform)
@@ -985,8 +996,35 @@ module MH
 
     # ========== MATERIAL CREATOR ==========
     module MaterialCreator
-      # Các độ dày và biến thể phủ mặt cùng nhóm dùng chung hue.
+      # Màu được cấp theo NHÓM vật liệu (mã bỏ độ dày), không theo từng tên.
+      # Ví dụ MDF.9 và MDF.17 cùng hue, chỉ khác lightness.
       @generated_family_hues ||= {}
+      COLOR_RULE_VERSION = '20261020-family-thickness-v2'.freeze
+      # Cache này chỉ chứa material đã resolve trong đúng SketchUp model. Lượt
+      # gán nhiều object thường dùng lặp lại vài mã VL; không cần tra lại thư
+      # viện/.skm hay chạy palette màu cho từng object.
+      @resolved_materials ||= {}
+
+      def self.material_cache_key(model, material_name)
+        [model.object_id, material_name.to_s]
+      end
+
+      def self.cached_material(model, material_name)
+        material = @resolved_materials[material_cache_key(model, material_name)]
+        return nil unless material
+        return material unless material.respond_to?(:valid?)
+
+        return nil unless material.valid?
+        ensure_visible_color(material, material_name, model)
+        material
+      rescue
+        nil
+      end
+
+      def self.cache_material(model, material_name, material)
+        @resolved_materials[material_cache_key(model, material_name)] = material if material
+        material
+      end
 
       def self.color_seed(name)
         name.to_s.each_byte.reduce(0) { |seed, byte| ((seed * 33) + byte) & 0xffffffff }
@@ -1058,8 +1096,8 @@ module MH
         return 0.50 if value <= 0
         # Bắt đầu ở 3 mm để các tấm mỏng cũng có từng màu nhận biết được:
         # 3 mm = 0.84, 8 mm = 0.64, 9 mm = 0.60, 17 mm = 0.28, 18 mm = 0.24.
-        # Không được tăng giới hạn trên: trước đây 3 và 8 mm từng cùng chạm
-        # trần 0.84, dẫn tới đúng cùng một màu.
+        # Sau 20 mm tiếp tục giảm nhẹ, tránh gộp 21/25/30 mm cùng một màu.
+        return 0.08 + 0.08 * Math.exp(-(value - 20.0) / 12.0) if value > 20.0
         lightness = 0.84 - ((value - 3.0) * 0.04)
         [[lightness, 0.16].max, 0.84].min
       end
@@ -1068,14 +1106,19 @@ module MH
       # 1M sáng hơn một chút, 2M đậm hơn một chút. Biên độ 0.012 nhỏ hơn
       # 1/2 bước 1 mm (0.04), nên 8 mm.2M vẫn sáng hơn 9 mm.1M; quy luật
       # "độ dày tăng => màu đậm" luôn đúng cho mọi tổ hợp.
-      def self.surface_variant_lightness_offset(variant)
-        case variant.to_s.upcase
+      def self.surface_variant_lightness_offset(variant, thickness = nil)
+        offset = case variant.to_s.upcase
         when '1M'     then 0.012
         when '2M'     then -0.012
         when '1M-BCT' then 0.006
         when '2M-BCT' then -0.006
         else 0.0
         end
+        if thickness.to_f > 19.0
+          step = lightness_for_thickness(thickness.to_f) - lightness_for_thickness(thickness.to_f + 1.0)
+          offset *= [step * 0.3 / 0.012, 1.0].min
+        end
+        offset
       end
 
       def self.color_candidates_for_family(family, lightness)
@@ -1086,127 +1129,142 @@ module MH
         end
       end
 
-      # Chọn hue có khoảng cách RGB lớn nhất với mọi material có sẵn. Nhờ vậy
-      # material MH mới không bị giống/gần giống màu đã tồn tại trong model.
-      def self.family_hue(family, lightness, forbidden_colors)
-        cached = @generated_family_hues[family]
-        return cached if cached
-
-        used = forbidden_colors.keys.filter_map do |rgb|
-          values = rgb.to_s.split(',').map(&:to_i)
-          Sketchup::Color.new(*values) if values.length == 3
+      def self.hue_from_color(color)
+        r, g, b = [color.red, color.green, color.blue].map { |v| v.to_f / 255.0 }
+        high, low = [r, g, b].max, [r, g, b].min
+        delta = high - low
+        return nil if delta < 0.05
+        sector = if high == r
+          ((g - b) / delta) % 6.0
+        elsif high == g
+          (b - r) / delta + 2.0
+        else
+          (r - g) / delta + 4.0
         end
-        candidate = color_candidates_for_family(family, lightness).each_with_index.max_by do |pair, index|
-          color = pair[1]
-          nearest = used.map { |other| color_distance_sq(color, other) }.min || Float::INFINITY
-          [nearest, (color_seed(family) + index * 7919) % 104_729]
-        end
-        @generated_family_hues[family] = candidate ? candidate.first[0] : 0.0
+        (sector * 60.0) % 360.0
       end
 
-      def self.generated_color_for_name(name, forbidden_colors = nil)
+      # Giữ tông chủ đạo của nhóm cũ và lưu trong model để import/reload không
+      # đổi tông theo thứ tự tạo vật liệu. Nhóm mới dùng hash cố định của family.
+      def self.family_hue(family, _lightness = nil, _forbidden_colors = nil, model: nil)
+        cache_key = [model && model.object_id, family]
+        cached = @generated_family_hues[cache_key]
+        return cached if cached
+        saved = model && model.get_attribute('MH_MaterialAppColors', family)
+        if saved.is_a?(Numeric)
+          return @generated_family_hues[cache_key] = saved.to_f % 360.0
+        end
+        candidates = model ? model.materials.filter_map do |other|
+          next if other.texture || color_profile(other.name)[:family] != family
+          hue_from_color(other.color)
+        end : []
+        buckets = candidates.group_by { |hue| (hue / 5.0).round % 72 }
+        members = buckets.max_by { |bucket, hues| [hues.length, -bucket] }
+        hue = members ? members[1].first : color_seed(family) % 360.0
+        model.set_attribute('MH_MaterialAppColors', family, hue) if model
+        @generated_family_hues[cache_key] = hue
+      end
+
+      def self.managed_color_material?(material, name = nil)
+        return false if !material || material.texture
+        key = name.to_s.strip
+        key = material.name.to_s if key.empty?
+        generated_key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey')
+        return true unless generated_key.to_s.strip.empty?
+        # Bao gồm mã vật liệu cũ trong DC chưa từng được MH đánh dấu.
+        key.match?(/\A[^.\s]+\.\d+(?:,\d+)?(?=\.|\z)/) && color_profile(key)[:thickness] > 0
+      end
+
+      def self.color_current?(material, key, model)
+        family = material.get_attribute('MH_MaterialApp', 'GeneratedColorFamily')
+        saved_hue = model && model.get_attribute('MH_MaterialAppColors', family.to_s)
+        material.get_attribute('MH_MaterialApp', 'GeneratedColorVersion') == COLOR_RULE_VERSION &&
+          material.get_attribute('MH_MaterialApp', 'GeneratedColorKey') == key &&
+          material.get_attribute('MH_MaterialApp', 'GeneratedColorRGB') == color_key(material.color) &&
+          saved_hue.is_a?(Numeric) &&
+          material.get_attribute('MH_MaterialApp', 'GeneratedColorHue') == saved_hue
+      end
+
+      def self.generated_color_for_name(name, forbidden_colors = nil, model: nil)
         profile = color_profile(name)
         # Hue nhận theo family; độ sáng theo độ dày là trục chính và 1M/2M
         # chỉ tách nhẹ trong từng nấc độ dày. Vì vậy mọi mã của cùng family
         # đọc được theo thứ tự đậm dần khi độ dày tăng.
         base_lightness = lightness_for_thickness(profile[:thickness])
-        lightness = base_lightness + surface_variant_lightness_offset(profile[:surface_variant])
+        lightness = base_lightness + surface_variant_lightness_offset(profile[:surface_variant], profile[:thickness])
         lightness = [[lightness, 0.06].max, 0.94].min
-        hue = family_hue(profile[:family], lightness, forbidden_colors || {})
+        hue = family_hue(profile[:family], lightness, forbidden_colors, model: model)
         hsl_color(hue, 0.90, lightness)
       end
 
       # Tạo hoặc lấy vật liệu trong model
       def self.get_or_create_material(model, name)
         materials = model.materials
+        cached = cached_material(model, name)
+        return cached if cached
         
         existing = materials[name]
         if existing
-          return existing
+          ensure_visible_color(existing, name, model)
+          return cache_material(model, name, existing)
         end
         
         mat = materials.add(name)
         ensure_visible_color(mat, name, model, force: true)
         
         puts "[MH::MaterialApp] Created material: #{name}" if DEBUG
-        mat
+        cache_material(model, name, mat)
       end
 
       # Load vật liệu từ file .skm
       def self.ensure_visible_color(material, material_name = nil, model = nil, force: false)
         return unless material
         return if material.texture
-        return unless force
 
         key = material_name.to_s.strip
         key = material.name.to_s.strip if key.empty?
+        return material unless force || managed_color_material?(material, key)
         profile = color_profile(key)
         model ||= material.model if material.respond_to?(:model)
         model ||= Sketchup.active_model if defined?(Sketchup)
-        forbidden = {}
-        if model && model.respond_to?(:materials)
-          model.materials.each do |other|
-            next if other == material || other.texture
-            other_family = other.get_attribute('MH_MaterialApp', 'GeneratedColorFamily') rescue nil
-            if other_family.to_s.strip.empty?
-              other_key = other.get_attribute('MH_MaterialApp', 'GeneratedColorKey') rescue nil
-              other_family = color_profile(other_key)[:family] unless other_key.to_s.strip.empty?
-            end
-            # Các độ dày cùng nhóm được phép cùng hue, chỉ khác sắc độ.
-            next if other_family.to_s.strip.upcase == profile[:family]
-            forbidden[color_key(other.color)] = other.name.to_s
-          end
-        end
-        material.color = generated_color_for_name(key, forbidden)
-        begin
-          material.set_attribute('MH_MaterialApp', 'GeneratedColorKey', key)
-          material.set_attribute('MH_MaterialApp', 'GeneratedColorFamily', profile[:family])
-        rescue
-        end
+        return material if !force && color_current?(material, key, model)
+        alpha = material.alpha
+        material.color = generated_color_for_name(key, model: model)
+        material.alpha = alpha
+        material.set_attribute('MH_MaterialApp', 'GeneratedColorKey', key)
+        material.set_attribute('MH_MaterialApp', 'GeneratedColorFamily', profile[:family])
+        material.set_attribute('MH_MaterialApp', 'GeneratedColorVersion', COLOR_RULE_VERSION)
+        material.set_attribute('MH_MaterialApp', 'GeneratedColorRGB', color_key(material.color))
+        material.set_attribute('MH_MaterialApp', 'GeneratedColorHue', family_hue(profile[:family], model: model))
+        material
       end
 
       def self.recolor_generated_materials(model = nil)
         model ||= Sketchup.active_model if defined?(Sketchup)
         return 0 unless model && model.respond_to?(:materials)
 
-        generated = model.materials.select do |material|
-          next false if material.texture
-          key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey') rescue nil
-          !key.to_s.strip.empty?
-        end
-
+        generated = model.materials.select { |material| managed_color_material?(material) }
         @generated_family_hues = {}
-        forbidden = {}
-        # Chỉ các material không do MH tạo mới là màu cần tránh ngay từ đầu.
-        model.materials.each do |material|
-          next if material.texture || generated.include?(material)
-          forbidden[color_key(material.color)] = material.name.to_s
+        @resolved_materials = {}
+        # Chốt tông tất cả nhóm trước khi đổi màu, tránh phụ thuộc thứ tự quét.
+        generated.map { |material| color_profile(material.name)[:family] }.uniq.each do |family|
+          family_hue(family, model: model)
         end
-
-        generated.group_by do |material|
-          key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey').to_s.strip
-          color_profile(key.empty? ? material.name : key)[:family]
-        end.sort_by { |family, _| family }.each do |family, members|
-          members.sort_by { |material| material.name.to_s.upcase }.each do |material|
-            key = material.get_attribute('MH_MaterialApp', 'GeneratedColorKey').to_s.strip
-            key = material.name.to_s if key.empty?
-            material.color = generated_color_for_name(key, forbidden)
-            material.set_attribute('MH_MaterialApp', 'GeneratedColorFamily', family) rescue nil
-          end
-          # Xong cả nhóm mới đánh dấu forbidden: các độ dày trong nhóm không tự
-          # đẩy nhau sang hue khác, nhưng nhóm tiếp theo phải tránh chúng.
-          members.each { |material| forbidden[color_key(material.color)] = material.name.to_s }
-        end
+        generated.each { |material| ensure_visible_color(material, material.name, model, force: true) }
         model.active_view.invalidate if model.respond_to?(:active_view)
         generated.length
       end
 
       def self.load_material_from_file(model, material_name)
+        cached = cached_material(model, material_name)
+        return cached if cached
+
         materials = model.materials
         
         existing = materials[material_name]
         if existing
-          return existing
+          ensure_visible_color(existing, material_name, model)
+          return cache_material(model, material_name, existing)
         end
         
         file_path = File.join(MATERIAL_FOLDER, "#{material_name}.skm")
@@ -1219,19 +1277,41 @@ module MH
           end
           ensure_visible_color(loaded, material_name, model, force: true) if loaded
           puts "[MH::MaterialApp] Loaded material from file: #{file_path}" if DEBUG
-          return loaded
+          return cache_material(model, material_name, loaded)
         else
           mat = materials.add(material_name)
           ensure_visible_color(mat, material_name, model, force: true)
-          return mat
+          return cache_material(model, material_name, mat)
         end
       end
     end
 
     # ========== MATERIAL ASSIGNER ==========
     module MaterialAssigner
+      def self.begin_hud_material_change(entities)
+        return unless defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:begin_material_change)
+        # Material HUD chi can danh dau cac root dang doi. Viec quet de quy
+        # truoc/sau moi lan Enter co the cham hon ca thao tac gan VL khi chon
+        # nhieu detail; cac definition con van duoc observer ghi nhan sau
+        # transaction.
+        MH::MaterialHUD.begin_material_change(entities, recursive: false)
+      end
+
+      def self.finish_hud_material_change(token)
+        return unless defined?(MH::MaterialHUD)
+        if MH::MaterialHUD.respond_to?(:finish_material_change)
+          MH::MaterialHUD.finish_material_change(token)
+        elsif MH::MaterialHUD.respond_to?(:model_materials_changed)
+          MH::MaterialHUD.model_materials_changed
+        end
+      end
+
       MIN_SECOND_EDGE_LIMIT_MM = 15.0
       MAX_SECOND_EDGE_LIMIT_MM = 1200.0
+      # Do day OBJ co the lech nhe sau khi DC tinh lai kich thuoc.  Day la
+      # dung sai hinh hoc, khong phai khoang map vat lieu: 17.6 va 18.6 van
+      # la hai do day khac nhau.
+      MATERIAL_THICKNESS_TOLERANCE_MM = 0.25
       DEFAULT_SURFACE_FACE_RULES = [
         {
           'enabled' => '1',
@@ -1259,6 +1339,80 @@ module MH
         stats = Hash.new(0)
         STATS_KEYS.each { |key| stats[key] = 0 }
         stats
+      end
+
+      # Neu JSON da chi dinh ma co token do day (MDFCA.18....), token nay la
+      # loai tam can dung, khong duoc bo di va tu tinh lai theo OBJ. Vi du
+      # OBJ 17.6 map ra .17 nen tuyet doi khong duoc gan ma .18.
+      def self.source_material_thickness_matches?(material_code, actual_thickness)
+        parsed = MH::MaterialCode.parse(material_code)
+        token = (parsed[:layers] || {})['do_day'].to_s.strip
+        return true if token.empty?
+
+        mapped = MaterialCodeBuilder.map_thickness(actual_thickness)
+        !mapped.to_s.empty? && MH::MaterialCode.normalize_thickness_token(mapped) == MH::MaterialCode.normalize_thickness_token(token)
+      rescue
+        false
+      end
+
+      def self.source_material_thickness_token(material_code)
+        parsed = MH::MaterialCode.parse(material_code)
+        (parsed[:layers] || {})['do_day'].to_s.strip
+      rescue
+        ''
+      end
+
+      # dc_thickness_options trong material_code_library.xlsx la nguon su
+      # that cho cac do day duoc phep cua tung ma VL.  Material Assign khong
+      # biet detail hien tai la panel hay hau, nen chap nhan gia tri khop voi
+      # panel_mm HOAC back_mm cua mot option.  Neu ma chua co rule trong thu
+      # vien thi giu tuong thich voi cac project cu va khong tu y chan no.
+      def self.material_thickness_allowed_by_library?(material_code, thickness)
+        code = material_code.to_s.strip
+        actual = thickness.to_f
+        return false if code.empty? || actual <= 0
+        return false unless source_material_thickness_matches?(code, actual)
+
+        pipeline = if defined?(MH::RegistryApp::Connectors::DCImportPipeline)
+          MH::RegistryApp::Connectors::DCImportPipeline
+        end
+        return true unless pipeline && pipeline.respond_to?(:thickness_options_for_material_code)
+
+        options = Array(pipeline.thickness_options_for_material_code(code))
+        return true if options.empty?
+
+        options.any? do |option|
+          [option['panel_mm'] || option[:panel_mm], option['back_mm'] || option[:back_mm]]
+            .compact.any? do |value|
+              expected = value.to_f
+              expected > 0 && (actual - expected).abs <= MATERIAL_THICKNESS_TOLERANCE_MM
+            end
+        end
+      rescue => e
+        MH::MaterialApp.dbg("[MH::MaterialApp] Cannot validate material thickness #{material_code}: #{e.message}")
+        false
+      end
+
+      def self.material_thickness_library_values(material_code)
+        pipeline = if defined?(MH::RegistryApp::Connectors::DCImportPipeline)
+          MH::RegistryApp::Connectors::DCImportPipeline
+        end
+        return [] unless pipeline && pipeline.respond_to?(:thickness_options_for_material_code)
+
+        Array(pipeline.thickness_options_for_material_code(material_code)).flat_map do |option|
+          [option['panel_mm'] || option[:panel_mm], option['back_mm'] || option[:back_mm]]
+        end.filter_map do |value|
+          number = value.to_f
+          number > 0 ? number : nil
+        end.uniq.sort
+      rescue
+        []
+      end
+
+      def self.material_thickness_skip_message(instance, material_code, thickness)
+        allowed = material_thickness_library_values(material_code)
+        suffix = allowed.empty? ? '' : " (chi co: #{allowed.map { |value| format_mm(value) }.join(', ')})"
+        "Bo qua: #{instance_label(instance)} day #{format_mm(thickness)} khong hop ma #{material_code}#{suffix}"
       end
 
       def self.special_tag?(instance)
@@ -1295,12 +1449,336 @@ module MH
       end
 
       # Gán vật liệu cho một instance
-      def self.apply_material_to_instance(instance, material)
+      def self.apply_material_to_instance(instance, material, face_edge_seen: nil)
+        return unless instance && material
+
+        # Material ở Face/Edge có độ ưu tiên cao hơn material của Group hoặc
+        # Component. Khi gán bằng MH Material, xóa lớp override này để detail
+        # chỉ nhận material từ chính Group/Component đang được gán. Khi gán
+        # nhiều detail trong cùng một cụm, dùng chung `face_edge_seen` để
+        # geometry con chỉ bị duyệt/xóa đúng một lần, thay vì N lần theo số
+        # detail đang chọn.
+        clear_face_and_edge_materials(instance, face_edge_seen || {})
         instance.material = material
+
+        # Dynamic Components re-evaluate their stored material formula when
+        # their dimensions change. Keep that formula in sync with a manual
+        # Material Assign choice, but do not add DC attributes to ordinary
+        # groups/components that do not already use a material attribute.
+        dictionary = instance.attribute_dictionary('dynamic_attributes', false) rescue nil
+        return unless dictionary
+
+        has_dc_material = dictionary['material'] || dictionary['_material_formula']
+        return if has_dc_material.to_s.empty?
+
+        pipeline = if defined?(MH::RegistryApp::Connectors::DCImportPipeline)
+          MH::RegistryApp::Connectors::DCImportPipeline
+        end
+        if pipeline && pipeline.respond_to?(:assign_material)
+          pipeline.assign_material(instance, material)
+        else
+          name = material.name.to_s
+          formula_name = name.gsub('\\', '\\\\').gsub('"', '\\"')
+          instance.set_attribute('dynamic_attributes', 'material', name)
+          instance.set_attribute('dynamic_attributes', '_material_formula', %Q{"#{formula_name}"})
+          instance.set_attribute('dynamic_attributes', '_material_error', name)
+        end
+      end
+
+      # Chi reset Face/Edge truc tiep cua detail dang gan. Detail con co
+      # geometry rieng se duoc xu ly o luot gan cua chinh no; khong duyet sau
+      # vao cac group helper/assembly vi viec do vua trung lap, vua buoc
+      # SketchUp make_unique hang loat Component khong lien quan.
+      #
+      # `recursive: true` chi dung khi mot caller thuc su can reset ca nhanh.
+      def self.clear_face_and_edge_materials(instance, seen = {}, ancestry = [], depth = 0, recursive: false)
+        return 0 if depth > 32 || !instance || (instance.respond_to?(:valid?) && !instance.valid?)
+
+        instance_id = instance.entityID if instance.respond_to?(:entityID)
+        return 0 if instance_id && seen[instance_id]
+        seen[instance_id] = true if instance_id
+
+        # Gán material trực tiếp lên Group/Component không sửa definition, nên
+        # không cần make_unique. Chỉ khi Face/Edge thực sự đang có override
+        # mới phải tách definition trước khi xóa; phần lớn OBJ không có
+        # override nên bước copy Component nặng này được bỏ hoàn toàn.
+        direct_entities = child_entities(instance)
+        has_direct_override = direct_entities.any? do |entity|
+          if entity.is_a?(Sketchup::Face)
+            (entity.material || entity.back_material)
+          elsif entity.is_a?(Sketchup::Edge)
+            entity.material
+          else
+            false
+          end
+        end
+        return 0 unless recursive || has_direct_override
+
+        make_definition_unique(instance)
+        direct_entities = child_entities(instance)
+        definition = instance.definition if instance.respond_to?(:definition)
+        definition_key = definition && definition.object_id
+        return 0 if definition_key && ancestry.include?(definition_key)
+        next_ancestry = definition_key ? ancestry + [definition_key] : ancestry
+
+        cleared = 0
+        direct_entities.each do |entity|
+          if entity.is_a?(Sketchup::Face)
+            entity.material = nil if entity.respond_to?(:material=)
+            entity.back_material = nil if entity.respond_to?(:back_material=)
+            cleared += 1
+          elsif entity.is_a?(Sketchup::Edge)
+            entity.material = nil if entity.respond_to?(:material=)
+            cleared += 1
+          elsif recursive && (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance))
+            cleared += clear_face_and_edge_materials(entity, seen, next_ancestry, depth + 1, recursive: true)
+          end
+        end
+        cleared
+      rescue
+        0
+      end
+
+      # Manual choice from the bottom palette. The code comes from the shared
+      # project JSON via MH Material HUD; only its thickness/surface suffix is
+      # resolved locally for each selected physical object.
+      def self.assign_material_code_to_selection(material_code)
+        code = material_code.to_s.strip
+        return { error: 'Chưa chọn mã vật liệu.' } if code.empty?
+
+        model = Sketchup.active_model
+        contexts = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:selection_target_contexts)
+          MH::MaterialHUD.selection_target_contexts(model)
+        else
+          []
+        end
+        roots = if contexts.empty?
+          parent_transform = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:active_path_transform)
+            MH::MaterialHUD.active_path_transform(model)
+          else
+            nil
+          end
+          model.selection.to_a.select { |entity| entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance) }
+            .map { |entity| { entity: entity, parent_transform: parent_transform } }
+        else
+          contexts
+        end
+        return { error: 'Chưa chọn đối tượng.' } if roots.empty?
+
+        change_token = begin_hud_material_change(roots.map { |root| Array(root[:instance_path]).first || root[:entity] })
+        model.start_operation('Assign selected JSON material', true)
+        stats = blank_stats
+        isolated_roots = roots.map { |root| isolate_material_target_context(root, model) }
+        failed_isolation = isolated_roots.any? { |root| root[:error] }
+        if failed_isolation
+          model.abort_operation
+          reason = isolated_roots.find { |root| root[:error] }[:error]
+          return { error: "Khong the tach rieng chi tiet dang chon de gan vat lieu: #{reason}" }
+        end
+
+        assignments = []
+        unresolved = []
+        rejected_thickness = []
+        seen = {}
+        isolated_roots.each do |root|
+          collect_visible_material_targets(root[:entity], code, root[:parent_transform], assignments, unresolved, rejected_thickness, seen)
+        end
+
+        stats[:processed] = assignments.length + unresolved.length + rejected_thickness.length
+        stats[:details] = []
+        # Một Group cha thường đã chứa chính những child sẽ được gán ngay sau
+        # đó. Dùng chung cache để dọn Face/Edge toàn nhánh một lần duy nhất;
+        # đây tránh phần lớn lag khi người dùng quét nhiều chi tiết.
+        face_edge_seen = {}
+        assignments.each do |target|
+          entity = target[:entity]
+          dimensions = target[:dimensions]
+          if second_edge_too_small?(dimensions, entity)
+            # Gán tay cũng phải xóa material cũ khi tấm không hợp lệ, giống
+            # luồng gán tự động. Nếu không, người dùng chọn PLY nhưng vẫn
+            # nhìn thấy material WPB được gán từ lượt trước.
+            clear_material_from_instance(entity)
+            stats[:skip_second_edge] += 1
+            add_skip_detail(stats, "Da ve Default: #{second_edge_skip_message(entity, dimensions)}")
+            next
+          end
+
+          parsed = InstanceNameParser.parse(instance_label(entity))
+          material_name = apply_surface_face_suffix(target[:material_name], entity, dimensions[0], parsed)
+          material = MaterialCreator.load_material_from_file(model, material_name)
+          apply_material_to_instance(entity, material, face_edge_seen: face_edge_seen)
+          stats[:success] += 1
+        end
+        stats[:skip_no_thickness] += unresolved.length + rejected_thickness.length
+        unresolved.each { |entity| clear_material_from_instance(entity) }
+        unresolved.first(20).each do |entity|
+          add_skip_detail(stats, "Bo qua: #{instance_label(entity)} khong map duoc day")
+        end
+        # Khi ma co rule trong Excel nhung OBJ sai do day, tra detail ve mau
+        # Default thay vi giu lai vat lieu cu.
+        rejected_thickness.first(20).each do |target|
+          entity = target[:entity]
+          # Ma moi sai do day khong duoc phep de lai mau VL cu. Xoa ca
+          # override Face/Edge va DC formula de SketchUp hien Default thuc su.
+          clear_face_and_edge_materials(entity, face_edge_seen)
+          clear_material_from_instance(entity)
+          add_skip_detail(stats, "Da ve Default: #{material_thickness_skip_message(entity, code, target[:thickness])}")
+        end
+
+        # SuperImp's quick-thickness action reads this code from the model's
+        # root DC. Preserve the user's latest JSON material choice there so a
+        # later size edit cannot fall back to the code imported earlier.
+        if stats[:success].to_i > 0
+          roots.each do |root|
+            instance_path = Array(root[:instance_path])
+            root_instance = instance_path.first || root[:entity]
+            next unless root_instance && (!root_instance.respond_to?(:valid?) || root_instance.valid?)
+
+            registry_attrs = root_instance.attribute_dictionary('MH_Registry', false) rescue nil
+            next unless registry_attrs && !registry_attrs['dc_material_code'].to_s.empty?
+
+            root_instance.set_attribute('MH_Registry', 'dc_material_code', code)
+          end
+        end
+        model.commit_operation
+        finish_hud_material_change(change_token)
+        stats
+      rescue => e
+        model.abort_operation if defined?(model) && model
+        { error: e.message }
+      end
+
+      # Nested entities belong to their ComponentDefinition. If a copied DC
+      # still shares that definition, painting one child paints every copy.
+      # Resolve the saved occurrence path by entity slots, then make only the
+      # selected branch unique before walking/painting its descendants.
+      def self.isolate_material_target_context(context, model)
+        slots = context[:child_slots]
+        root_slot = context[:root_slot]
+        return { error: 'Khong xac dinh duoc duong dan instance trong model.' } if root_slot.nil? || !slots
+
+        path = []
+        entity = model.entities.to_a[root_slot]
+        return { error: 'Instance goc khong con ton tai.' } unless entity && entity.valid?
+        path << entity
+
+        slots.each do |slot|
+          return { error: 'Duong dan chi tiet khong con hop le.' } if slot.nil?
+          # A parent definition must be isolated before resolving its child.
+          make_definition_unique(entity)
+          child = child_entities(entity).to_a[slot]
+          return { error: 'Khong tim thay chi tiet trong DC.' } unless child && child.valid?
+          entity = child
+          path << entity
+        end
+
+        # The selected root itself is traversed recursively, so isolate its
+        # definition too when it contains nested instances.
+        has_children = child_entities(entity).any? do |child|
+          child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
+        end
+        make_definition_unique(entity) if has_children
+
+        parent_transform = Geom::Transformation.new
+        path[0...-1].each { |instance| parent_transform = parent_transform * instance.transformation }
+        { entity: path.last, parent_transform: parent_transform }
+      rescue => e
+        { error: e.message }
+      end
+
+      def self.make_definition_unique(instance)
+        return unless instance && instance.respond_to?(:definition) && instance.respond_to?(:make_unique)
+        definition = instance.definition
+        return unless definition && definition.respond_to?(:instances) && definition.instances.length > 1
+
+        instance.make_unique
+      end
+
+      # A selected DC can be an assembly whose own dimensions are not a board
+      # thickness. Walk its currently visible nested instances and apply the
+      # chosen JSON code wherever that detail has a valid thickness mapping.
+      def self.collect_visible_material_targets(entity, material_code, parent_transform, assignments, unresolved, rejected_thickness, seen, ancestry = [], depth = 0)
+        return if depth > 32 || !entity || (entity.respond_to?(:valid?) && !entity.valid?)
+        return if entity.respond_to?(:hidden?) && entity.hidden?
+        layer = entity.layer if entity.respond_to?(:layer)
+        return if layer && layer.respond_to?(:visible?) && !layer.visible?
+
+        entity_id = entity.entityID if entity.respond_to?(:entityID)
+        return if entity_id && seen[entity_id]
+        seen[entity_id] = true if entity_id
+
+        definition = entity.definition if entity.respond_to?(:definition)
+        definition_key = definition && definition.object_id
+        return if definition_key && ancestry.include?(definition_key)
+        next_ancestry = definition_key ? ancestry + [definition_key] : ancestry
+
+        children = child_entities(entity).select do |child|
+          child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)
+        end
+        children.select! do |child|
+          !(child.respond_to?(:hidden?) && child.hidden?) &&
+            !(child.respond_to?(:layer) && child.layer && child.layer.respond_to?(:visible?) && !child.layer.visible?)
+        end
+
+        # Container rong chi dung de gom detail/DC con khong phai tam vat
+        # lieu. Tuy nhien mot so chi tiet (vd Tam Uon) vua co geometry truc
+        # tiep vua co group helper ben trong; material cua no nam o group cha
+        # nen van phai duoc gan.
+        has_direct_geometry = child_entities(entity).any? do |child|
+          child.is_a?(Sketchup::Face) && child.valid? && child.area > 0.0
+        end
+        unless children.empty?
+          make_definition_unique(entity)
+          children = child_entities(entity).select do |child|
+            (child.is_a?(Sketchup::Group) || child.is_a?(Sketchup::ComponentInstance)) &&
+              !(child.respond_to?(:hidden?) && child.hidden?) &&
+              !(child.respond_to?(:layer) && child.layer && child.layer.respond_to?(:visible?) && !child.layer.visible?)
+          end
+
+          collect_visible_material_target(entity, material_code, parent_transform, assignments, unresolved, rejected_thickness) if has_direct_geometry
+
+          child_transform = if parent_transform
+            parent_transform * entity.transformation
+          else
+            entity.transformation
+          end
+          children.each do |child|
+            collect_visible_material_targets(child, material_code, child_transform, assignments, unresolved, rejected_thickness, seen, next_ancestry, depth + 1)
+          end
+          return
+        end
+
+        collect_visible_material_target(entity, material_code, parent_transform, assignments, unresolved, rejected_thickness)
+      rescue
+        unresolved << entity if entity
+      end
+
+      def self.collect_visible_material_target(entity, material_code, parent_transform, assignments, unresolved, rejected_thickness)
+        dimensions = MaterialCodeBuilder.get_dimensions(entity, parent_transform: parent_transform)
+        thickness_allowed = material_thickness_allowed_by_library?(material_code, dimensions[0])
+        material_name = thickness_allowed ? material_name_for_multi_code(material_code, dimensions[0]) : nil
+        if !material_name.to_s.empty? && dimensions[0].to_f > 0
+          assignments << { entity: entity, dimensions: dimensions, material_name: material_name }
+        elsif !thickness_allowed && dimensions[0].to_f > 0
+          rejected_thickness << { entity: entity, thickness: dimensions[0] }
+        else
+          unresolved << entity
+        end
+      rescue
+        unresolved << entity if entity
       end
 
       def self.clear_material_from_instance(instance)
-        instance.material = nil if instance && instance.respond_to?(:material=)
+        return unless instance
+        instance.material = nil if instance.respond_to?(:material=)
+        # Dynamic Component có thể gán lại material cũ lúc redraw nếu công
+        # thức `material` còn tồn tại. Xóa riêng các khóa material, không đụng
+        # các thuộc tính kích thước/DC khác.
+        dictionary = instance.attribute_dictionary('dynamic_attributes', false) rescue nil
+        return unless dictionary
+        %w[material _material_formula _material_error].each do |key|
+          instance.delete_attribute('dynamic_attributes', key) rescue nil
+        end
       end
 
       def self.same_material_code?(left, right)
@@ -1576,6 +2054,12 @@ module MH
       end
 
       def self.material_name_for_multi_code(raw_code, thickness)
+        return nil unless material_thickness_allowed_by_library?(raw_code, thickness)
+
+        # Ma da co token do day phai giu nguyen token tu JSON. Do day OBJ chi
+        # dung de kiem tra hop le o tren; khong dung de doi .18 thanh .17.
+        return MH::MaterialCode.canonical(raw_code) unless source_material_thickness_token(raw_code).empty?
+
         MaterialCodeBuilder.material_name_from_code(raw_code, thickness)
       end
 
@@ -1662,13 +2146,40 @@ module MH
         ].join('|')
       end
 
-      def self.prepare_multi_material_choices(targets, stats)
+      def self.product_owner_codes(instance, parent_transform: nil)
+        if defined?(MH::ProductContext)
+          world = (parent_transform || Geom::Transformation.new) * instance.transformation
+          return [] if MH::ProductContext.spatial_annotation_entity?(instance)
+          return [] unless MH::ProductContext.physical_product_bounds?(instance.definition.bounds, world)
+          code = MH::ProductContext.infer_spatial_product(
+            MH::ProductContext.world_points_for_entity(instance, world), model: Sketchup.active_model, entity: instance)
+          return MH::ProductContext.spatial_product_codes(code)
+        end
+        []
+      rescue
+        []
+      end
+
+      # Cụm nhãn gồm nhiều SP con: người dùng chọn SP để tra SPEC,
+      # không tự đoán vật liệu hoặc lấy mã Registry đã sao chép.
+      def self.choose_product_owner(codes, stats = nil)
+        return codes.first if codes.length <= 1
+        cache = stats ? stats_hash(stats, :group_product_choice_cache) : {}
+        key = codes.sort.join('|')
+        return cache[key] if cache.key?(key)
+        input = UI.inputbox(['SP con để tra vật liệu SPEC:'], [codes.first], [codes.join('|')], "Cụm SP: #{codes.join(' + ')}")
+        cache[key] = input && codes.include?(input[0].to_s) ? input[0].to_s : nil
+      end
+
+      def self.prepare_multi_material_choices(targets, stats, parent_transform: nil)
         cache = stats_hash(stats, :multi_material_choice_cache)
         entries_by_key = {}
 
         targets.each do |entity|
           name = instance_label(entity)
           parsed = InstanceNameParser.parse(name)
+          owner_codes = product_owner_codes(entity, parent_transform: parent_transform)
+          parsed[:product_code] = choose_product_owner(owner_codes, stats)
           next unless parsed[:product_code]
 
           excel_row = MaterialMatcher.find_matching_row(parsed)
@@ -1717,9 +2228,12 @@ module MH
         if options.empty?
           parsed = InstanceNameParser.parse(instance_label(instance))
           multi_material_target_groups(instance, parsed, excel_row).each do |group|
-            group[:targets].each { |target| clear_material_from_instance(target) }
+            group[:targets].each do |target|
+              clear_face_and_edge_materials(target)
+              clear_material_from_instance(target)
+            end
           end
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua map do day cho #{raw_codes.join(' & ')}")
+          add_skip_detail(stats, "Da ve Default: #{instance_label(instance)} day #{format_mm(thickness)} khong hop ma #{raw_codes.join(' & ')}")
           return :skip_no_thickness
         end
 
@@ -1797,8 +2311,11 @@ module MH
 
         options = multi_material_options(raw_codes, thickness)
         if options.empty?
-          grouped_targets.values.flatten.each { |target| clear_material_from_instance(target) }
-          add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua map do day cho #{raw_codes.join(' & ')}")
+          grouped_targets.values.flatten.each do |target|
+            clear_face_and_edge_materials(target)
+            clear_material_from_instance(target)
+          end
+          add_skip_detail(stats, "Da ve Default: #{instance_label(instance)} day #{format_mm(thickness)} khong hop ma #{raw_codes.join(' & ')}")
           return :skip_no_thickness
         end
 
@@ -1852,7 +2369,7 @@ module MH
         :success
       end
 
-      def self.assign_to_instance(instance, model, stats = nil)
+      def self.assign_to_instance(instance, model, stats = nil, parent_transform: nil)
         dimensions = MaterialCodeBuilder.get_dimensions(instance)
         if second_edge_too_small?(dimensions, instance)
           clear_material_from_instance(instance)
@@ -1871,9 +2388,18 @@ module MH
         name = instance.name.to_s.strip
         name = instance_label(instance) if name.empty?
         parsed = InstanceNameParser.parse(name)
-        
+
+        # Nhận SP từ cụm nhãn theo trục X; không dùng mã Registry được sao chép.
+        owner_codes = product_owner_codes(instance, parent_transform: parent_transform)
+        parsed[:product_code] = choose_product_owner(owner_codes, stats)
+        if owner_codes.length > 1 && parsed[:product_code].nil?
+          add_skip_detail(stats, "Bỏ qua: #{instance_label(instance)} chưa chọn SP con trong cụm nhãn")
+          return :skip_no_product
+        end
+
         unless parsed[:product_code]
           puts "[MH::MaterialApp] Skip: Cannot parse product code from '#{name}'" if DEBUG
+          clear_material_from_instance(instance)
           add_skip_detail(stats, "Khong gan: #{instance_label(instance)} khong co ma SP")
           return :skip_no_product
         end
@@ -1883,6 +2409,7 @@ module MH
         
         unless excel_row
           puts "[MH::MaterialApp] Skip: No Excel match for '#{name}'" if DEBUG
+          clear_material_from_instance(instance)
           add_skip_detail(stats, "Khong gan: #{instance_label(instance)} khong khop Excel")
           return :skip_no_match
         end
@@ -1894,6 +2421,7 @@ module MH
         # Kiểm tra chiều dài vượt quá mức cho phép
         if MH::MaterialApp.max_length_limit > 0 && length > MH::MaterialApp.max_length_limit
           puts "[MH::MaterialApp] Skip: Length #{length} > limit #{MH::MaterialApp.max_length_limit} for '#{name}'" if DEBUG
+          clear_material_from_instance(instance)
           add_skip_detail(stats, "Khong gan: #{instance_label(instance)} dai #{format_mm(length)} > Lmax #{format_mm(MH::MaterialApp.max_length_limit)}")
           return :skip_exceed_length
         end
@@ -1906,10 +2434,18 @@ module MH
           return assign_multi_material_to_instance(instance, model, raw_material_codes, thickness, excel_row, stats)
         end
 
+        unless material_thickness_allowed_by_library?(raw_mat, thickness)
+          clear_face_and_edge_materials(instance)
+          clear_material_from_instance(instance)
+          add_skip_detail(stats, material_thickness_skip_message(instance, raw_mat, thickness))
+          return :skip_no_thickness
+        end
+
         material_name = material_name_for_multi_code(raw_mat, thickness)
         
         unless material_name
           puts "[MH::MaterialApp] Skip: No material mapped for thickness #{thickness} on '#{name}'" if DEBUG
+          clear_material_from_instance(instance)
           add_skip_detail(stats, "Khong gan: #{instance_label(instance)} chua map day #{format_mm(thickness)}")
           return :skip_no_thickness
         end
@@ -1956,6 +2492,7 @@ module MH
           return { error: "Chưa chọn đối tượng!" }
         end
         
+        change_token = begin_hud_material_change(selection.to_a)
         model.start_operation("Assign Materials to Selection", true)
         
         stats = blank_stats
@@ -1970,18 +2507,22 @@ module MH
         targets.uniq!
         stats[:processed] = targets.length
 
-        unless prepare_multi_material_choices(targets, stats)
+        parent_transform = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:active_path_transform)
+          MH::MaterialHUD.active_path_transform(model)
+        end
+
+        unless prepare_multi_material_choices(targets, stats, parent_transform: parent_transform)
           model.abort_operation
           return { error: "Huy chon vat lieu" }
         end
 
         targets.each do |entity|
-          result = assign_to_instance(entity, model, stats)
+          result = assign_to_instance(entity, model, stats, parent_transform: parent_transform)
           stats[result] += 1
         end
         
         model.commit_operation
-        
+        finish_hud_material_change(change_token)
         MH::MaterialApp.notify("✅ Gán VL: Thành công #{stats[:success]}, Bỏ qua tên #{stats[:skip_no_product] + stats[:skip_no_match]}, Lỗi độ dày #{stats[:skip_no_thickness]}, Cạnh nhỏ #{stats[:skip_second_edge]}, Dài quá khổ #{stats[:skip_exceed_length]}, Lỗi khác #{stats[:skip_error]}")
         stats
       end
@@ -2030,16 +2571,30 @@ module MH
 
     # ========== UI FUNCTIONS ==========
     def self.load_configs
-      ConfigLoader.load_all
-      notify("✅ Đã load configs từ folder:\n#{CONFIG_DIR}")
+      if ConfigLoader.load_all
+        notify("✅ Đã load configs từ folder:\n#{CONFIG_DIR}")
+      else
+        notify("❌ Lỗi tải file cấu hình CONFIG.xlsx trong hệ thống: #{CONFIG_DIR}")
+      end
     end
 
     # Lưu đường dẫn file Excel cuối cùng để refresh
     @last_excel_path = nil
+    # Nguồn dữ liệu hiện hành có thể là Excel, CSV hoặc JSON. Tách nó khỏi
+    # last_excel_path để HUD báo đúng nguồn sau khi Registry RELOAD JSON mà
+    # vẫn giữ Refresh Excel hoạt động theo file Excel trước đó.
+    @last_data_path = nil
     
     def self.last_excel_path; @last_excel_path; end
+    def self.last_data_path; @last_data_path || @last_excel_path; end
     def self.last_excel_path=(v)
       remember_excel_path(v)
+    end
+
+    def self.remember_data_path(file_path)
+      path = file_path.to_s.strip
+      @last_data_path = path unless path.empty?
+      @last_data_path
     end
 
     def self.model_excel_default_key(model = Sketchup.active_model)
@@ -2116,25 +2671,12 @@ module MH
 
       # 1. Nguồn chung runtime: Registry luôn trả JSON dữ liệu mới nhất trong
       # SPEC/Data (do MH Thongke Desktop tạo). Không lấy Excel/path cũ trước.
-      runtime_json = (MH::RegistryApp.last_mvl_json_path rescue '').to_s.strip
-      if !runtime_json.empty? && File.exist?(runtime_json) && connector.respond_to?(:load_from_json)
-        connector.load_from_json(runtime_json)
-        connector.mark_loaded_data(runtime_json) if connector.respond_to?(:mark_loaded_data)
-        connector.clear_material_names_cache if connector.respond_to?(:clear_material_names_cache)
+      if connector.respond_to?(:load_remembered_project_json) && connector.load_remembered_project_json
         return true if @excel_data.length > 0
       end
 
-      # 2. Thử path Excel đã nhớ trước đó (tương thích file cũ)
-      registry_path = (MH::RegistryApp.last_mvl_input_path rescue nil).to_s.strip
-      paths = [restore_last_excel_path, registry_path].map { |path| path.to_s.strip }.reject(&:empty?).uniq
-      paths.each do |path|
-        next unless File.exist?(path)
-
-        result = connector.load_data(path)
-        return true if result && result['ok'] && @excel_data.length > 0
-      end
-
-      # 3. Scan SPEC/Data/ tìm JSON mới nhất
+      # 2. Quét JSON của công trình trước. Chỉ khi hoàn toàn không có JSON hợp
+      # lệ mới được rơi về Excel cũ; JSON là nguồn runtime chuẩn của MH.
       spec_data = MH::RegistryApp.spec_data_dir rescue nil
       if spec_data && Dir.exist?(spec_data)
         jsons = Dir.glob("#{spec_data.to_s.tr('\\\\', '/')}/*.json").sort_by { |f| File.mtime(f) }.reverse
@@ -2142,10 +2684,7 @@ module MH
           begin
             import_json(json_path)
             if @excel_data.length > 0
-              # Nhớ xlsx tương ứng
-              xlsx_name = File.basename(json_path, '.json') + '.xlsx'
-              xlsx_path = File.join(MH::RegistryApp.spec_dir, xlsx_name)
-              remember_excel_path(xlsx_path) if File.exist?(xlsx_path)
+              remember_data_path(json_path)
               puts "[MH::MaterialApp] Auto loaded from SPEC/Data: #{File.basename(json_path)}" if DEBUG
               return true
             end
@@ -2155,7 +2694,17 @@ module MH
         end
       end
 
-      # 4. Scan SPEC/ tìm xlsx mới nhất
+      # 3. Fallback: path Excel đã nhớ trước đó (tương thích file cũ)
+      registry_path = (MH::RegistryApp.last_mvl_input_path rescue nil).to_s.strip
+      paths = [restore_last_excel_path, registry_path].map { |path| path.to_s.strip }.reject(&:empty?).uniq
+      paths.each do |path|
+        next unless File.exist?(path)
+
+        result = connector.load_data(path)
+        return true if result && result['ok'] && @excel_data.length > 0
+      end
+
+      # 4. Fallback cuối: scan SPEC/ tìm xlsx mới nhất
       spec = MH::RegistryApp.spec_dir rescue nil
       if spec && Dir.exist?(spec)
         xlsxs = Dir.glob("#{spec.to_s.tr('\\\\', '/')}/*.xlsx").sort_by { |f| File.mtime(f) }.reverse
@@ -2185,6 +2734,24 @@ module MH
 
       remember_excel_path(file_path)
       do_import(file_path)
+      sync_project_json_after_excel_import(file_path)
+    end
+
+    # Nhập Excel trực tiếp từ MH Material cũng phải tạo nguồn JSON chung để
+    # Registry, HUD và các app khác dùng lại đúng cùng dữ liệu. CSV/JSON không
+    # đi qua chuyển đổi này vì Registry chỉ chuẩn hoá schema từ workbook Excel.
+    def self.sync_project_json_after_excel_import(file_path)
+      return unless File.extname(file_path.to_s).casecmp('.xlsx').zero? || File.extname(file_path.to_s).casecmp('.xlsm').zero?
+      return unless defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:sync_project_json_from_excel)
+
+      result = MH::RegistryApp.sync_project_json_from_excel('input' => file_path)
+      unless result && result['ok']
+        puts "[MH::MaterialApp] Project JSON sync skipped: #{result && result['error']}" if DEBUG
+      end
+      result
+    rescue => e
+      puts "[MH::MaterialApp] Project JSON sync error: #{e.message}" if DEBUG
+      nil
     end
     
     def self.refresh_excel_data
@@ -2200,6 +2767,8 @@ module MH
     end
     
     def self.do_import(file_path)
+      remember_data_path(file_path)
+
       # Load configs nếu chưa có
       ConfigLoader.load_all if @header_columns.empty?
 
@@ -2215,7 +2784,7 @@ module MH
       elsif file_path.downcase.end_with?('.xlsx')
         ExcelReader.import(file_path)
       else
-        notify("Khong ho tro dinh dang file nay: #{File.extname(file_path)}")
+        notify("❌ Lỗi định dạng file không hỗ trợ: #{File.extname(file_path)}")
       end
     end
 
@@ -2237,8 +2806,123 @@ module MH
       MaterialAssigner.assign_to_selection(show_alert)
     end
 
+    def self.assign_selected_json_material(material_code)
+      MaterialAssigner.assign_material_code_to_selection(material_code)
+    end
+
     def self.assign_to_all(show_alert = true)
       MaterialAssigner.assign_to_all(show_alert)
+    end
+
+    # Đồng bộ SP của các DC đang chọn: tên instance trước, nhãn theo X sau. Đây là
+    # thao tác tường minh (không quét liên tục khi kéo/copy) để không tạo lag.
+    # Những đối tượng không có marker rõ ràng được giữ nguyên thay vì gán nhầm.
+    def self.reload_selected_product_positions(model = Sketchup.active_model, view = nil)
+      return { ok: false, error: 'Product Context chưa sẵn sàng.' } unless defined?(MH::ProductContext)
+      return { ok: false, error: 'Chưa chọn DC cần đồng bộ SP.' } unless model && !model.selection.empty?
+
+      view ||= model.active_view
+      MH::ProductContext.clear_spatial_marker_cache
+
+      parent_transform = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:active_path_transform)
+                           MH::MaterialHUD.active_path_transform(model)
+                         else
+                           Geom::Transformation.new
+                         end
+      targets = model.selection.to_a.select do |entity|
+        (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)) &&
+          entity.valid? && !MH::ProductContext.spatial_annotation_entity?(entity)
+      end
+      return { ok: false, error: 'Chọn Group hoặc Component cần đồng bộ SP.' } if targets.empty?
+
+      resolved = []
+      choice_stats = {}
+      unmatched = 0
+      targets.each do |instance|
+        world = parent_transform * instance.transformation
+        unless MH::ProductContext.physical_product_bounds?(instance.definition.bounds, world)
+          unmatched += 1
+          next
+        end
+        product = MH::ProductContext.infer_spatial_product(
+          MH::ProductContext.world_points_for_entity(instance, world), model: model, view: view, entity: instance
+        )
+        if product.to_s.empty?
+          unmatched += 1
+          next
+        end
+        codes = MH::ProductContext.spatial_product_codes(product)
+        product = MaterialAssigner.choose_product_owner(codes, choice_stats)
+        if product.to_s.empty?
+          unmatched += 1
+          next
+        end
+        resolved << { instance: instance, product_code: MH::ProductContext.exact(product) }
+      end
+      return { ok: false, error: 'Chưa xác định được SP từ tên obj hoặc nhãn cho DC đang chọn.', unmatched: unmatched } if resolved.empty?
+
+      changed = []
+      model.start_operation('MH Đồng bộ SP theo vị trí', true)
+      begin
+        resolved.each do |entry|
+          instance = entry[:instance]
+          product_code = entry[:product_code]
+          stored = MH::ProductContext.position_product_code(instance)
+          stored = instance.get_attribute('MH_Registry', 'dc_product_code', '').to_s if stored.empty?
+          stored = MH::ProductContext.code_from_entity_sources(instance) if stored.empty?
+          changed << entry if MH::ProductContext.base(stored) != MH::ProductContext.base(product_code)
+          MH::ProductContext.stamp_position_product(instance, product_code)
+          # Only SuperImp/DC roots get Registry metadata and a pipeline rerun.
+          # A normal named Group is still position-stamped for the HUD, but
+          # its name/material is never overwritten merely by pressing SP↻.
+          instance.set_attribute('MH_Registry', 'dc_product_code', product_code) if imported_dc_position_candidate?(instance)
+        end
+        model.commit_operation
+      rescue => e
+        model.abort_operation rescue nil
+        raise e
+      end
+
+      # Chỉ tính/gán lại vật liệu khi mã SP thực sự đổi. Pipeline tự defer
+      # redraw DC, nên click nút không khóa viewport với các object không đổi.
+      if defined?(MH::RegistryApp::Connector)
+        pipeline = MH::RegistryApp::Connector.get('dc_import_pipeline') rescue nil
+        changed.each do |entry|
+          instance = entry[:instance]
+          next unless imported_dc_position_candidate?(instance)
+
+          pipeline.after_import_dc(instance, {
+            source: 'MH_Material_Assign position reload',
+            import_name: (instance.definition.name rescue instance.name).to_s,
+            product_code: entry[:product_code],
+            material_source: 'auto'
+          }) if pipeline && pipeline.respond_to?(:after_import_dc)
+        end
+      end
+
+      MH::ProductContext.remember_code(resolved.last[:product_code], model)
+      MH::MaterialHUD.model_changed if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:model_changed)
+      {
+        ok: true,
+        resolved: resolved.length,
+        changed: changed.length,
+        product_code: resolved.last[:product_code],
+        unmatched: unmatched
+      }
+    rescue => e
+      { ok: false, error: e.message }
+    end
+
+    def self.imported_dc_position_candidate?(instance)
+      registry = instance.attribute_dictionary('MH_Registry', false)
+      return false unless registry
+
+      registry['dc_import_pipeline_seen'] == true ||
+        !registry['dc_material_profile_id'].to_s.empty? ||
+        !registry['dc_material_code'].to_s.empty? ||
+        !registry['dc_product_code'].to_s.empty?
+    rescue
+      false
     end
 
 
@@ -2365,7 +3049,8 @@ module MH
 
       def update_info
         @data_count = MH::MaterialApp.excel_data.length
-        @last_file = MH::MaterialApp.last_excel_path ? File.basename(MH::MaterialApp.last_excel_path) : "Chua import"
+        source = MH::MaterialApp.last_data_path
+        @last_file = source ? File.basename(source) : "Chua import"
       end
 
       def set_status(msg)
@@ -2376,6 +3061,9 @@ module MH
       end
 
       def draw(view)
+        # Registry có thể nạp JSON khi tool này đang mở. Đồng bộ phần tiêu đề
+        # ngay lúc redraw để không giữ "Chưa import" từ phiên trước.
+        update_info
         padding = 10
         x0 = 15
         y0 = 15
@@ -2422,8 +3110,11 @@ module MH
         @selected_index = 0
         @hover_index = nil
         @data_count = MH::MaterialApp.excel_data.length
-        @last_file = MH::MaterialApp.last_excel_path ? File.basename(MH::MaterialApp.last_excel_path) : "Chua import"
+        source = MH::MaterialApp.last_data_path
+        @last_file = source ? File.basename(source) : "Chua import"
         @status_msg = ""
+        @file_error_msg = ""
+        @file_error_token = 0
         @ip = Sketchup::InputPoint.new
         @drag_start = nil
         @drag_end = nil
@@ -2434,24 +3125,38 @@ module MH
         @show_assign_counts = false
         @assign_counts_token = 0
         @shift_click_assign_pending = false
+        @material_choices = []
+        @material_choice_rows = []
+        @material_choice_product = ''
+        @material_choice_pending = false
+        @material_choice_index = 0
+        @material_choice_signature = nil
+        @material_choice_attempt_at = 0.0
+        @material_button_rects = []
+        @material_hover_index = nil
+        @palette_click_pending = false
+        @position_reload_button_rect = nil
+        @material_source_manual = material_source_manual?
+        @material_source_toggle_rect = nil
       end
 
       def activate
-        # Auto-assign for initial selection
-        unless Sketchup.active_model.selection.empty?
-          execute_action(:assign_selection_silent, Sketchup.active_model.active_view)
-        end
+        MH::MaterialApp.instance_variable_set(:@hud_tool, self)
+        # Bật tool hoặc đổi Selection chỉ được phép hiển thị palette. Tuyệt đối
+        # không auto-gán: người dùng phải nhấn Enter mới được đổ vật liệu.
         Sketchup.active_model.active_view.invalidate
-        Sketchup.status_text = "MH Material | TAB: HUD | ENTER: chon | Shift+Click: gan toan bo | ESC: thoat"
+        Sketchup.status_text = "MH Material | Ctrl+Click: chi tiet sau | Shift+Click: them/bo | TAB: đổi VL | ENTER: gán VL | ESC: thoát"
       end
 
       def deactivate(view)
+        MH::MaterialApp.instance_variable_set(:@hud_tool, nil) if MH::MaterialApp.instance_variable_get(:@hud_tool).equal?(self)
         view.invalidate
       end
 
       def update_info
         @data_count = MH::MaterialApp.excel_data.length
-        @last_file = MH::MaterialApp.last_excel_path ? File.basename(MH::MaterialApp.last_excel_path) : "Chua import"
+        source = MH::MaterialApp.last_data_path
+        @last_file = source ? File.basename(source) : "Chua import"
       end
 
       def set_status(msg)
@@ -2467,7 +3172,13 @@ module MH
       def onKeyDown(key, repeat, flags, view)
         case key
         when 9  # Tab
-          @show_hud = !@show_hud
+          update_material_palette
+          if @material_choices.any?
+            @material_choice_index = (@material_choice_index + 1) % @material_choices.length
+            set_status("VL SP #{@material_choice_product}: #{@material_choices[@material_choice_index]}")
+          else
+            @show_hud = !@show_hud
+          end
           view.invalidate
         when 38 # Up Arrow
           if @show_hud
@@ -2480,7 +3191,12 @@ module MH
             view.invalidate
           end
         when 13  # Enter
-          execute_action(MENU_ITEMS[@selected_index][:action], view) if @show_hud
+          update_material_palette
+          if @material_choices.any?
+            apply_palette_material(@material_choice_index, view)
+          elsif @show_hud
+            execute_action(MENU_ITEMS[@selected_index][:action], view)
+          end
         when 27  # Escape
           Sketchup.active_model.select_tool(nil)
         end
@@ -2489,13 +3205,44 @@ module MH
       # ===== MOUSE: click + drag selection =====
       def onLButtonDown(flags, x, y, view)
         @shift_click_assign_pending = shift_modifier?(flags)
+        @control_click_assign_pending = control_modifier?(flags)
+        @palette_click_pending = false
+
+        if material_source_toggle_at?(x, y)
+          @material_source_manual = !@material_source_manual
+          save_material_source_manual(@material_source_manual)
+          @material_choice_signature = nil
+          update_material_palette
+          set_status(@material_source_manual ? 'Nguồn VL: Manual (bảng SuperImp)' : 'Nguồn VL: Auto (JSON theo SP)')
+          @drag_start = nil
+          return
+        end
+
+        if position_reload_button_at?(x, y)
+          reload_selected_product_positions(view)
+          @drag_start = nil
+          return
+        end
+
+        palette_index = material_choice_at(x, y)
+        if !palette_index.nil?
+          if !@shift_click_assign_pending && !@control_click_assign_pending
+            # Nuốt mouse-up của palette để không chọn object nằm phía sau.
+            @palette_click_pending = true
+            choose_palette_material(palette_index, view)
+          end
+          @drag_start = nil
+          return
+        end
 
         if @show_hud
           # Check if click is on a HUD button
           clicked_idx = get_button_at(x, y)
-          if clicked_idx && !@shift_click_assign_pending
-            @selected_index = clicked_idx
-            execute_action(MENU_ITEMS[@selected_index][:action], view)
+          if clicked_idx
+            unless @shift_click_assign_pending || @control_click_assign_pending
+              @selected_index = clicked_idx
+              execute_action(MENU_ITEMS[@selected_index][:action], view)
+            end
             @drag_start = nil # Prevent dragging if button clicked
             return
           end
@@ -2519,6 +3266,12 @@ module MH
           end
         end
 
+        palette_hover = material_choice_at(x, y)
+        if palette_hover != @material_hover_index
+          @material_hover_index = palette_hover
+          view.invalidate
+        end
+
         if @drag_start
           dx = (x - @drag_start[0]).abs
           dy = (y - @drag_start[1]).abs
@@ -2531,15 +3284,13 @@ module MH
       def onLButtonUp(flags, x, y, view)
         model = view.model
         sel = model.selection
-        shift = shift_modifier?(flags)
+        shift = @shift_click_assign_pending || shift_modifier?(flags)
+        control = @control_click_assign_pending || control_modifier?(flags)
 
-        if @shift_click_assign_pending && !@dragging
-          @shift_click_assign_pending = false
+        if @palette_click_pending
+          @palette_click_pending = false
           @dragging = false
-          @drag_start = nil
-          @drag_end = nil
-          execute_action(:assign_all, view)
-          view.invalidate
+          @drag_start = @drag_end = nil
           return
         end
 
@@ -2549,33 +3300,52 @@ module MH
           x2 = [@drag_start[0], x].max
           y2 = [@drag_start[1], y].max
           sel.clear unless shift
+          # Gom trước rồi add một lần. `Selection#add` từng item phát nhiều
+          # selection event, khiến HUD/observer bị giật khi quét hàng loạt.
+          hits = []
           model.active_entities.each do |e|
             next unless e.is_a?(Sketchup::Group) || e.is_a?(Sketchup::ComponentInstance)
+            # `active_entities` vẫn có đối tượng Hide hoặc ở Tag đang tắt.
+            # Quét khung chỉ chọn thứ hiện thấy trên viewport.
+            next unless visible_for_rubber_band?(e)
             pt2d = view.screen_coords(e.bounds.center)
             if pt2d.x >= x1 && pt2d.x <= x2 && pt2d.y >= y1 && pt2d.y <= y2
-              sel.add(e)
+              hits << e
             end
           end
+          sel.add(hits) unless hits.empty?
         else
           ph = view.pick_helper
           ph.do_pick(x, y)
           entity = ph.best_picked
+          pick_path = ph.path_at(0) rescue []
+          if control
+            entity = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:deepest_material_instance_from_path)
+              MH::MaterialHUD.deepest_material_instance_from_path(pick_path, entity)
+            else
+              Array(pick_path).reverse.find do |candidate|
+                candidate.is_a?(Sketchup::Group) || candidate.is_a?(Sketchup::ComponentInstance)
+              end || entity
+            end
+          end
           if entity
             shift ? sel.toggle(entity) : (sel.clear; sel.add(entity))
           else
             sel.clear unless shift
+          end
+          if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:remember_pick_path)
+            MH::MaterialHUD.remember_pick_path(pick_path, entity, selected_entities: sel.to_a, additive: shift)
           end
         end
         @dragging = false
         @drag_start = nil
         @drag_end = nil
         @shift_click_assign_pending = false
+        @control_click_assign_pending = false
         
-        # Auto-assign selected objects
-        unless sel.empty?
-          execute_action(:assign_selection_silent, view)
-        end
-        
+        # Selection thay đổi chỉ làm palette cập nhật trong lần draw kế tiếp.
+        # Không gọi material assign tại đây: quét nhiều detail phải nhẹ và chỉ
+        # Enter mới là lệnh đổ màu.
         view.invalidate
       end
 
@@ -2590,34 +3360,23 @@ module MH
 
       # ===== DRAW HUD =====
       def draw(view)
+        # RELOAD JSON từ Registry không tạo lại tool; lấy lại nguồn dữ liệu để
+        # HUD hiện đúng tên JSON và số dòng vừa nhận.
+        update_info
+        update_material_palette
+        draw_material_source_toggle(view)
+        draw_position_reload_button(view)
         draw_rubber_band(view)
         unless @show_hud
-          draw_compact_status(view)
+          draw_material_palette(view)
+          draw_status_notification(view)
           return
         end
         
         x0 = 20
         y0 = 20
         width = 240
-        
-        # --- Header ---
-        view.drawing_color = Sketchup::Color.new(30, 30, 30)
-        view.draw_text([x0, y0], "MH MATERIAL ASSIGN", size: 14, bold: true)
-        
-        view.drawing_color = Sketchup::Color.new(100, 100, 100)
-        view.draw_text([x0, y0 + 22], "Data: #{@data_count} dòng", size: 10)
-        
-        # Truncate filename if too long to prevent overlap
-        display_file = @last_file.length > 30 ? @last_file[0..27] + "..." : @last_file
-        view.draw_text([x0, y0 + 38], "File: #{display_file}", size: 9)
-
-        # Status
-        unless @status_msg.empty?
-          view.drawing_color = Sketchup::Color.new(0, 150, 0)
-          view.draw_text([x0 + 130, y0 + 22], "● #{@status_msg}", size: 10, bold: true)
-        end
-
-        current_y = y0 + 65
+        current_y = y0 + 12
         
         # --- Menu Groups ---
         MENU_GROUPS.each do |group|
@@ -2649,26 +3408,23 @@ module MH
 
         # --- Footer ---
         view.drawing_color = Sketchup::Color.new(150, 150, 150)
-        view.draw_text([x0, current_y], "TAB: HUD | ENTER: chon | Shift+Click: gan toan bo | ESC: thoat", size: 9)
+        view.draw_text([x0, current_y], "Ctrl+Click: chi tiet sau | Shift+Click: them/bo | TAB: HUD | ENTER: chon | ESC: thoat", size: 9)
+        draw_material_palette(view)
+        draw_status_notification(view)
 
       end
 
-      def draw_compact_status(view)
-        x0 = 15
-        y0 = 15
-        display_file = @last_file.length > 38 ? @last_file[0..34] + "..." : @last_file
-
-        view.drawing_color = Sketchup::Color.new(0, 0, 0)
-        view.draw_text([x0, y0], "MH MATERIAL ASSIGN", size: 14, bold: true)
-        view.draw_text([x0, y0 + 24], "Data: #{@data_count} dong", size: 12)
-        view.draw_text([x0, y0 + 44], "File: #{display_file}", size: 11)
-        if MH::MaterialApp.show_assign_counts
-          view.draw_text([x0, y0 + 68], "Gan duoc: #{MH::MaterialApp.last_assign_success} obj", size: 11)
-          view.draw_text([x0, y0 + 88], "Khong gan duoc: #{MH::MaterialApp.last_assign_failed} obj", size: 11)
-        end
-        unless @status_msg.to_s.empty?
-          status_y = MH::MaterialApp.show_assign_counts ? y0 + 108 : y0 + 68
-          view.draw_text([x0, status_y], trim_status(@status_msg, 78), size: 11, bold: true)
+      def set_file_error(msg)
+        @file_error_msg = msg.to_s.strip
+        @file_error_token += 1
+        token = @file_error_token
+        view = Sketchup.active_model.active_view
+        view.invalidate
+        UI.start_timer(6.0, false) do
+          if token == @file_error_token
+            @file_error_msg = ""
+            Sketchup.active_model.active_view.invalidate
+          end
         end
       end
 
@@ -2687,8 +3443,422 @@ module MH
 
       private
 
+      # `active_entities` chứa cả đối tượng đang Hide và đối tượng có Tag tắt.
+      # Lọc ngay tại đây để quét chọn chỉ lấy detail thật sự đang hiện.
+      def visible_for_rubber_band?(entity)
+        return false unless entity && (!entity.respond_to?(:valid?) || entity.valid?)
+        return false if entity.respond_to?(:hidden?) && entity.hidden?
+
+        layer = entity.layer if entity.respond_to?(:layer)
+        return false if layer && layer.respond_to?(:visible?) && !layer.visible?
+
+        true
+      rescue
+        false
+      end
+
+      # Nút ở góc trên phải của đúng HUD MH Material Assign. Nó không phải
+      # nút reload JSON: SP↻ chỉ xác nhận lại ownership của DC theo vị trí.
+      def draw_material_source_toggle(view)
+        manual = @material_source_manual
+        track_w = 42
+        height = 22
+        label_w = 48
+        x = view.vpwidth.to_i - track_w - label_w - 78
+        y = 12
+        @material_source_toggle_rect = [x, y, label_w + track_w + 5, height]
+
+        view.drawing_color = Sketchup::Color.new(235, 235, 235)
+        view.draw_text([x, y + 6], 'Manual', size: 8, bold: true)
+        track_x = x + label_w + 5
+        track_color = manual ? Sketchup::Color.new(45, 165, 95) : Sketchup::Color.new(110, 110, 115)
+        draw_rounded_rect(view, track_x, y, track_w, height, height / 2.0, track_color)
+        draw_rounded_rect_outline(view, track_x, y, track_w, height, height / 2.0, Sketchup::Color.new(25, 25, 25))
+        knob_x = manual ? track_x + track_w - height + 3 : track_x + 3
+        draw_rounded_rect(view, knob_x, y + 3, height - 6, height - 6, (height - 6) / 2.0, Sketchup::Color.new(255, 255, 255))
+      rescue
+        @material_source_toggle_rect = nil
+      end
+
+      def material_source_toggle_at?(x, y)
+        left, top, width, height = @material_source_toggle_rect
+        x >= left && x <= left + width && y >= top && y <= top + height
+      rescue
+        false
+      end
+
+      def material_source_manual?
+        return MH::Superimp.material_source_manual? if defined?(MH::Superimp) && MH::Superimp.respond_to?(:material_source_manual?)
+        value = Sketchup.read_default('MH_Superimp', 'material_source_manual', '0').to_s.downcase
+        %w[1 true yes on manual].include?(value)
+      rescue
+        false
+      end
+
+      def save_material_source_manual(value)
+        if defined?(MH::Superimp) && MH::Superimp.respond_to?(:save_material_source_manual)
+          MH::Superimp.save_material_source_manual(value)
+        else
+          Sketchup.write_default('MH_Superimp', 'material_source_manual', value ? '1' : '0')
+        end
+      rescue
+        nil
+      end
+
+      def manual_material_choice_rows
+        pipeline = if defined?(MH::RegistryApp::Connectors::DCImportPipeline)
+          MH::RegistryApp::Connectors::DCImportPipeline
+        end
+        profiles = if pipeline && pipeline.respond_to?(:manual_material_profiles)
+          Array(pipeline.manual_material_profiles({ material_source: 'manual' }))
+        else
+          []
+        end
+        codes = profiles.map { |profile| profile['material_code'].to_s.strip }.reject(&:empty?).uniq
+        # Khi Registry chưa dựng profile (ví dụ Material Assign vừa được nạp
+        # riêng), đọc trực tiếp bảng dc_manual_materials đã nạp trong config.
+        if codes.empty? && defined?(MH::RegistryApp) && MH::RegistryApp.respond_to?(:load_config)
+          config = MH::RegistryApp.load_config || {}
+          rows = Array(config['dc_manual_materials'])
+          codes = rows.select { |row| row['enabled'] != false }
+                      .sort_by { |row| row['sort_order'].to_i }
+                      .map { |row| row['material_code'].to_s.strip }
+                      .reject(&:empty?).uniq
+        end
+        codes.map do |code|
+          { code: code, product_name: 'MANUAL', product_group_start: true,
+            detail: 'BẢNG VẬT LIỆU SUPERIMP', description: 'Danh sách Manual' }
+        end
+      rescue
+        []
+      end
+
+      def draw_position_reload_button(view)
+        width = 50
+        height = 22
+        x = view.vpwidth.to_i - width - 14
+        y = 12
+        @position_reload_button_rect = [x, y, width, height]
+        draw_button(view, x, y, width, height, 'SP↻', false, false)
+      rescue
+        @position_reload_button_rect = nil
+      end
+
+      def position_reload_button_at?(x, y)
+        left, top, width, height = @position_reload_button_rect
+        x >= left && x <= left + width && y >= top && y <= top + height
+      rescue
+        false
+      end
+
+      def reload_selected_product_positions(view)
+        result = MH::MaterialApp.reload_selected_product_positions(Sketchup.active_model, view)
+        if result[:ok]
+          @material_choice_signature = nil
+          update_material_palette
+          message = "SP ↻: #{result[:product_code]}"
+          message += " • đổi #{result[:changed]} DC" if result[:changed].to_i > 0
+          message += " • #{result[:unmatched]} chưa rõ" if result[:unmatched].to_i > 0
+          set_status(message)
+        else
+          set_status("SP ↻: #{result[:error]}")
+        end
+        view.invalidate
+      rescue => e
+        set_status("SP ↻ lỗi: #{e.message}")
+      end
+
+      # The standalone Material HUD owns product inference (including spatial
+      # SP markers). MH Material only consumes its JSON-backed answer here.
+      def update_material_palette
+        # Dùng đúng setting dùng chung với SuperImp; đổi trong một HUD sẽ có
+        # hiệu lực ngay với HUD còn lại.
+        @material_source_manual = material_source_manual?
+        model = Sketchup.active_model
+        ids = model.selection.to_a.filter_map { |entity| entity.entityID if entity.respond_to?(:entityID) }.sort
+        pick_path = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:picked_path_signature)
+          MH::MaterialHUD.picked_path_signature(model)
+        else
+          []
+        end
+        project_data_version = if defined?(MH::ProjectData) && MH::ProjectData.respond_to?(:snapshot)
+          MH::ProjectData.snapshot[:version]
+        end
+        signature = [ids, model.active_path.to_a.filter_map { |entity| entity.entityID if entity.respond_to?(:entityID) }, pick_path, project_data_version, MH::ProductContext.spatial_model_revision(model), MH::ProductContext.spatial_settings, @material_source_manual]
+        now = Time.now.to_f
+        return if signature == @material_choice_signature && @material_choices.any?
+        return if signature == @material_choice_signature && (now - @material_choice_attempt_at) < 0.25
+
+        @material_choice_signature = signature
+        @material_choice_attempt_at = now
+        previous = @material_choices[@material_choice_index]
+        if @material_source_manual
+          @material_choice_rows = manual_material_choice_rows
+          @material_choices = @material_choice_rows.map { |row| row[:code].to_s }.reject(&:empty?).uniq
+          @material_choice_product = 'MANUAL'
+          @material_choice_pending = false
+        else
+          result = if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:material_choices_for_selection)
+            MH::MaterialHUD.material_choices_for_selection(model)
+          else
+            { ok: false, materials: [] }
+          end
+          @material_choices = result && result[:ok] ? Array(result[:materials]) : []
+          @material_choice_rows = result && result[:ok] ? Array(result[:material_options]) : []
+          if @material_choice_rows.empty?
+            @material_choice_rows = @material_choices.map do |code|
+              { code: code, product_name: result && result[:product_name].to_s, product_group_start: true, detail: '', description: '' }
+            end
+          end
+          @material_choice_product = result && result[:ok] ? result[:product].to_s : ''
+          @material_choice_pending = !!(result && result[:pending])
+        end
+        @material_choice_index = @material_choices.index(previous) || 0
+        @material_button_rects = [] if @material_choices.empty?
+      rescue
+        @material_choices = []
+        @material_choice_rows = []
+        @material_choice_product = ''
+        @material_choice_pending = false
+        @material_button_rects = []
+      end
+
+      def draw_material_palette(view)
+        @material_button_rects = []
+        return if @material_choices.empty?
+
+        margin = 12
+        viewport_width = view.vpwidth.to_i
+        panel_width = [[viewport_width - margin * 2, 1040].min, 180].max
+        panel_width = viewport_width - margin * 2 if viewport_width <= margin * 2 + 180
+        x = margin
+        text_color = Sketchup::Color.new(30, 30, 30)
+        muted_color = Sketchup::Color.new(100, 100, 100)
+        group_color = Sketchup::Color.new(150, 150, 150)
+        gap = 5
+        name_w = [[panel_width * 0.24, 220].min, 70].max
+        detail_w = [[panel_width * 0.19, 190].min, 72].max
+        code_w = [[panel_width * 0.27, 246].min, 80].max
+        description_w = [panel_width - name_w - detail_w - code_w - gap * 3, 40].max
+        x_positions = [
+          x,
+          x + name_w + gap,
+          x + name_w + gap + detail_w + gap,
+          x + name_w + gap + detail_w + gap + description_w + gap
+        ]
+
+        title_y = margin
+        title = if @material_source_manual
+          'MANUAL (SuperImp) — Tab đổi VL • Enter để gán'
+        else
+          "SP #{@material_choice_product} — Tab đổi VL • Enter để gán"
+        end
+        view.drawing_color = text_color
+        view.draw_text([x, title_y], trim_status(title, [panel_width / 5, 120].max), size: 9, bold: true)
+
+        header_y = title_y + 19
+        headers = ['TÊN SẢN PHẨM', 'HẠNG MỤC', 'MÔ TẢ', 'MÃ VẬT LIỆU']
+        headers.each_with_index do |label, column|
+          view.drawing_color = group_color
+          view.draw_text([x_positions[column], header_y], label, size: 8)
+        end
+
+        row_y = header_y + 15
+        line_h = 11
+        @material_choice_rows.each_with_index do |row, index|
+          code = row[:code] || @material_choices[index]
+          choice_index = @material_choices.index(code.to_s) || index
+          selected_row = choice_index == @material_choice_index
+          name_lines = row[:product_group_start] == false ? [] : wrap_material_hud_text(row[:product_name], name_w, 8)
+          detail_lines = wrap_material_hud_text(row[:detail], detail_w, 8)
+          description_lines = wrap_material_hud_text(row[:description], description_w, 8)
+          line_count = [name_lines.length, detail_lines.length, description_lines.length, 1].max
+          row_h = line_count * line_h + 3
+          text_cell_h = [row_h, 17].max
+          # Cột Tên sản phẩm là một ô merge xuyên suốt các dòng vật liệu của
+          # cùng sản phẩm. Chỉ vẽ tại dòng bắt đầu cụm, không tạo ô trống lặp.
+          if row[:product_group_start] != false
+            merged_name_h = product_name_group_height(
+              @material_choice_rows, index, row_h, detail_w, description_w, line_h
+            )
+            # Một mã có thể nằm ở dòng con (ví dụ Cánh). Ô Product đã merge
+            # phải highlight nếu bất kỳ dòng nào trong cụm là mã đang chọn.
+            product_group_selected = product_name_group_selected?(
+              @material_choice_rows, index, @material_choices[@material_choice_index]
+            )
+            draw_palette_text_cell(view, x_positions[0], row_y, name_w, merged_name_h, product_group_selected)
+            name_text_h = name_lines.length * line_h
+            name_text_y = row_y + [(merged_name_h - name_text_h) / 2, 3].max
+            name_lines.each_with_index do |line, line_index|
+              view.drawing_color = product_group_selected ? Sketchup::Color.new(255, 255, 255) : text_color
+              view.draw_text([x_positions[0] + 6, name_text_y + line_index * line_h], line, size: 8)
+            end
+          end
+          draw_palette_text_cell(view, x_positions[1], row_y, detail_w, text_cell_h, selected_row)
+          draw_palette_text_cell(view, x_positions[2], row_y, description_w, text_cell_h, selected_row)
+          description_lines.each_with_index do |line, line_index|
+            view.drawing_color = selected_row ? Sketchup::Color.new(255, 255, 255) : muted_color
+            view.draw_text([x_positions[2] + 6, row_y + 3 + line_index * line_h], line, size: 8)
+          end
+          detail_lines.each_with_index do |line, line_index|
+            view.drawing_color = selected_row ? Sketchup::Color.new(255, 255, 255) : muted_color
+            view.draw_text([x_positions[1] + 6, row_y + 3 + line_index * line_h], line, size: 8, bold: selected_row)
+          end
+
+          button_h = 17
+          button_y = row_y + [(row_h - button_h) / 2, 0].max
+          draw_button(view, x_positions[3], button_y, code_w, button_h, trim_status(code, [code_w / 4.5, 8].max),
+            choice_index == @material_choice_index, choice_index == @material_hover_index)
+          @material_button_rects << [x_positions[3], button_y, code_w, button_h, choice_index]
+          next_row_starts_product = @material_choice_rows[index + 1] && @material_choice_rows[index + 1][:product_group_start]
+          row_y += row_h + (next_row_starts_product ? 10 : 4)
+        end
+
+      end
+
+      # Chiều cao của ô Name đã merge: cộng các dòng liên tiếp có
+      # `product_group_start == false`, gồm cả khoảng cách nhỏ giữa chúng.
+      def product_name_group_height(rows, index, first_row_h, detail_w, description_w, line_h)
+        height = first_row_h
+        cursor = index + 1
+        while cursor < rows.length && rows[cursor][:product_group_start] == false
+          child = rows[cursor]
+          detail_lines = wrap_material_hud_text(child[:detail], detail_w, 8)
+          description_lines = wrap_material_hud_text(child[:description], description_w, 8)
+          child_row_h = [detail_lines.length, description_lines.length, 1].max * line_h + 3
+          height += 4 + child_row_h
+          cursor += 1
+        end
+        [height, 17].max
+      rescue
+        [first_row_h, 17].max
+      end
+
+      def product_name_group_selected?(rows, index, selected_code)
+        code = selected_code.to_s.strip
+        return false if code.empty?
+
+        cursor = index
+        while cursor < rows.length
+          row = rows[cursor]
+          break if cursor > index && row[:product_group_start] != false
+          return true if row[:code].to_s.strip == code
+          cursor += 1
+        end
+        false
+      rescue
+        false
+      end
+
+      # MH SuperImp's HUD uses quiet, unboxed product/spec text and wraps long
+      # values into 11 px lines. Keep the same rhythm in these two columns.
+      def wrap_material_hud_text(value, width, size = 8)
+        text = value.to_s.strip
+        return [] if text.empty?
+
+        max_chars = [(width.to_f / (size.to_f * 0.82)).floor, 1].max
+        lines = text.split(/\r?\n/).flat_map do |paragraph|
+          words = paragraph.to_s.split(/\s+/)
+          next [] if words.empty?
+
+          paragraph_lines = ['']
+          words.each do |word|
+            candidate = paragraph_lines[-1].empty? ? word : "#{paragraph_lines[-1]} #{word}"
+            if candidate.length <= max_chars
+              paragraph_lines[-1] = candidate
+            else
+              paragraph_lines << word
+            end
+          end
+          paragraph_lines
+        end
+        lines.map { |line| trim_status(line, max_chars) }
+      rescue
+        [trim_status(value, [(width.to_f / 6.5).floor, 1].max)]
+      end
+
+      # Nền/cạnh giữ đúng tông của `draw_button` dành cho cột mã vật liệu,
+      # nhưng không căn giữa chữ để vẫn hiển thị được nội dung nhiều dòng.
+      def draw_palette_text_cell(view, x, y, width, height, selected)
+        background = selected ? Sketchup::Color.new(70, 75, 140) : Sketchup::Color.new(235, 235, 235)
+        border = selected ? Sketchup::Color.new(50, 55, 120) : Sketchup::Color.new(210, 210, 210)
+        draw_rounded_rect(view, x, y, width, height, 6, background)
+        draw_rounded_rect_outline(view, x, y, width, height, 6, border)
+      end
+
+      def draw_status_notification(view)
+        message = @file_error_msg.to_s.strip
+        return if message.empty?
+
+        margin = 5
+        width = [[view.vpwidth.to_i * 0.42, 460].min, [view.vpwidth.to_i - margin * 2, 160].min].max
+        x = [view.vpwidth.to_i - width - margin, margin].max
+        y = margin
+        height = 34
+        background = Sketchup::Color.new(150, 48, 48, 235)
+        foreground = Sketchup::Color.new(255, 255, 255)
+        draw_rounded_rect(view, x, y, width, height, 5, background)
+        view.drawing_color = foreground
+        label = trim_status(message, [((width - 20) / 5), 20].max)
+        view.draw_text([x + 10, y + 11], label, size: 9, bold: true)
+      end
+
+      def material_choice_at(x, y)
+        hit = Array(@material_button_rects).find do |left, top, width, height, _index|
+          x >= left && x <= left + width && y >= top && y <= top + height
+        end
+        hit && hit[4]
+      end
+
+      def apply_palette_material(index, view)
+        return unless index && @material_choices[index]
+
+        @material_choice_index = index
+        stats = MH::MaterialApp.assign_selected_json_material(@material_choices[index])
+        update_assignment_counts(stats || {})
+        if stats.is_a?(Hash) && stats[:error]
+          set_status(stats[:error].to_s)
+        else
+          success = stats.fetch(:success, 0).to_i
+          skipped = stats.fetch(:skip_no_thickness, 0).to_i + stats.fetch(:skip_second_edge, 0).to_i
+          message = success > 0 ? "Đã gán #{success} chi tiết" : 'Không tìm thấy chi tiết phù hợp độ dày'
+          message += " • bỏ qua #{skipped}" if skipped > 0
+          set_status(message)
+        end
+        view.invalidate
+      rescue => e
+        set_status("Lỗi gán VL: #{e.message}")
+      end
+
+      # Click vào mã chỉ đổi mã đang chọn. Điều này giúp Shift+Click/quét chọn
+      # không có đường nào vô tình kích hoạt việc gán vật liệu.
+      def choose_palette_material(index, view)
+        return unless index && @material_choices[index]
+
+        @material_choice_index = index
+        set_status("Đã chọn #{@material_choices[index]} • nhấn Enter để gán")
+        view.invalidate
+      end
+
+      def assign_selection_or_show_json_palette(view)
+        update_material_palette
+        if @material_choices.any?
+          source = @material_source_manual ? 'Manual SuperImp' : "SP #{@material_choice_product}"
+          set_status("#{source}: Tab đổi VL • Enter để gán")
+        elsif @material_choice_pending
+          set_status('Đang nhận nhóm chi tiết theo mã SP…')
+        else
+          source = @material_source_manual ? 'bảng Manual SuperImp' : 'JSON cho Selection'
+          set_status("Không có mã vật liệu #{source} • chưa gán vật liệu")
+        end
+      end
+
       def shift_modifier?(flags)
         (flags & CONSTRAIN_MODIFIER_MASK) != 0
+      end
+
+      def control_modifier?(flags)
+        (flags & COPY_MODIFIER_MASK) != 0
       end
 
       def draw_button(view, x, y, w, h, label, selected, hover)
@@ -2707,14 +3877,18 @@ module MH
         # Border
         draw_rounded_rect_outline(view, x, y, w, h, radius, border_color, border_width)
 
-        # Label (centered)
-        # Font size reduced by 30% from 11 -> 8
+        # Center text precisely in the material cell rather than estimating
+        # its width from character count.
         font_size = 8
-        char_w = 4.5 # smaller estimate for size 8
-        text_x = x + (w - label.length * char_w) / 2
-        
         view.drawing_color = text_color
-        view.draw_text([text_x, y + 7], label, size: font_size, bold: selected)
+        view.draw_text(
+          Geom::Point3d.new(x + w / 2.0, y + h / 2.0, 0),
+          label,
+          size: font_size,
+          bold: selected,
+          align: TextAlignCenter,
+          vertical_align: TextVerticalAlignCenter
+        )
       end
 
       def draw_rounded_rect(view, x, y, w, h, r, color)

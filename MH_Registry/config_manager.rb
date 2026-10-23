@@ -10,9 +10,11 @@ require 'json'
 require 'fileutils'
 require 'digest'
 require 'time'
+require_relative '../MH_shared/material_library'
 
 module MH
   module RegistryApp
+    MH::MaterialLibrary.attach(self)
     CONFIG_FILE = 'Config.xlsx'.freeze
     SUPERIMP_LIBRARY_FILE = 'superimp_library.xlsx'.freeze
     CONFIG_JSON_FILE = 'mh_registry_config.json'.freeze
@@ -20,7 +22,6 @@ module MH
     SUPERIMP_LIBRARY_SHEETS = %w[
       superimp_import_list
       dc_manual_materials
-      dc_thickness_options
       dc_thickness_bindings
       dc_material_profiles
       dc_material_options
@@ -94,8 +95,9 @@ module MH
     def autosave_config_json(data)
       data = scrub_removed_config_keys(data || {})
       synchronize_suffix_sources!(data)
-      persist_project_settings!(data)
-      apply_project_settings!(data)
+      # Save JSON của tab Superimp đã tự cập nhật pipeline ở callback. Không
+      # broadcast Settings ở đây, vì broadcast gọi load_config và kéo XLSX vào
+      # lại ngay trong thao tác vốn phải nhẹ.
       write_registry_json(config_json_path, {
         'schema_version' => 1,
         'source' => 'autosave_json',
@@ -106,22 +108,83 @@ module MH
       config_json_path
     end
 
+    # Độ dày chỉ được quản lý trong material_code_library.xlsx. Lưu Superimp
+    # tuyệt đối không ghi lại workbook này để tránh ghi đè chỉnh sửa từ Excel.
+    def autosave_superimp_library(data)
+      path = autosave_config_json(data)
+      superimp_path = save_superimp_library(data)
+      write_registry_manifest('superimp_library_save')
+      {
+        'config_path' => path,
+        'library_path' => superimp_path
+      }
+    end
+
+    # Lưu một snapshot runtime sau lần nạp cấu hình đầy đủ. Snapshot này giữ
+    # các sheet thư viện (MCLib) trong bộ nhớ, để nút "Lưu JSON" không phải đọc
+    # lại workbook .xlsx chỉ nhằm thông báo connector về phần Superimp đổi.
+    def remember_runtime_config(data)
+      @runtime_config_snapshot = json_clone(data.is_a?(Hash) ? data : {})
+    rescue
+      @runtime_config_snapshot = data.is_a?(Hash) ? data.dup : {}
+    end
+
+    def runtime_config_for_fast_autosave(data)
+      # Callback "Lưu JSON" đã nhận một payload mới hoàn chỉnh từ dialog.
+      # Không JSON-clone hai lần ở đây: với config lớn, riêng việc clone này
+      # làm nút lưu chậm hơn cả thao tác ghi file. Snapshot chỉ dùng nội bộ
+      # trong lượt callback và các connector chỉ đọc nó, nên có thể cập nhật
+      # tại chỗ một cách an toàn.
+      runtime = @runtime_config_snapshot.is_a?(Hash) ? @runtime_config_snapshot : {}
+      runtime.merge!(data) if data.is_a?(Hash)
+      @runtime_config_snapshot = runtime
+      runtime
+    rescue
+      data.is_a?(Hash) ? data : {}
+    end
+
     def load_config_json
       payload = read_registry_json(config_json_path)
       data = payload['data'].is_a?(Hash) ? payload['data'] : payload
       scrub_removed_config_keys(data)
       synchronize_suffix_sources!(data)
-      apply_project_settings!(data)
+      merge_material_assign_config_from_material_code_library!(data)
       MH::NameGrammar.configure(data) if defined?(MH::NameGrammar)
+      remember_runtime_config(data)
       data
     end
 
     def scrub_removed_config_keys(data)
       return data unless data.is_a?(Hash)
-      %w[ma_finish_groups ma_finish_group dc_type_groups].each do |key|
+      %w[
+        ma_finish_groups ma_finish_group dc_type_groups
+        dc_thickness_options dc_thickness_options_library dc_thickness_options_project
+      ].each do |key|
         data.delete(key)
         data.delete(key.to_sym)
       end
+      data
+    end
+
+    # Toàn bộ cấu hình tab Vật liệu thuộc material_code_library.xlsx. Runtime
+    # luôn nạp lại các sheet này, để Config.xlsx/JSON không thể trở thành một
+    # nguồn vật liệu song song.
+    def merge_material_assign_config_from_material_code_library!(data)
+      return data unless data.is_a?(Hash)
+
+      all = MH::ExcelBridge.read_all(material_code_library_path) rescue {}
+      data['ma_thickness'] = load_rows(all, 'ma_thickness', %w[min max value])
+      data['ma_detail_aliases'] = load_rows(all, 'ma_detail_aliases', %w[pattern target])
+      data['ma_tag_materials'] = load_rows(all, 'ma_tag_materials', %w[tag_name material_name])
+      data['ma_column_aliases'] = load_rows(all, 'ma_column_aliases', %w[internal_name alias])
+      data['ma_surface_face_rules'] = load_rows(all, 'ma_surface_face_rules', surface_face_rule_columns)
+      thickness_rows = load_thickness_options(all, 'dc_thickness_options')
+      data['dc_thickness_options_library'] = thickness_rows
+      rows = load_rows(all, 'dc_thickness_group_layers', dc_thickness_group_layer_columns)
+      data['dc_thickness_group_layers'] = rows.empty? ? default_dc_thickness_group_layers : rows
+      data
+    rescue => e
+      dbg("[MH_Registry] load material config library error: #{e.message}") if respond_to?(:dbg)
       data
     end
 
@@ -338,37 +401,6 @@ module MH
       value.to_s.strip.upcase.gsub(/\s+/, ' ')
     end
 
-    def settings_facade_available?
-      defined?(MH::Settings) && MH::Settings.respond_to?(:read)
-    end
-
-    def apply_project_settings!(data)
-      return data unless settings_facade_available? && data.is_a?(Hash)
-      project_section = MH::Settings.section('registry', scope: :project)
-      unless project_section.key?('dc_thickness_options_project')
-        MH::Settings.write('registry', 'dc_thickness_options_project', Array(data['dc_thickness_options_project'] || []), scope: :project)
-      end
-      project_rows = MH::Settings.read('registry', 'dc_thickness_options_project', data['dc_thickness_options_project'] || [], scope: :project)
-      data['dc_thickness_options_project'] = Array(project_rows)
-      data['dc_thickness_options'] = merge_thickness_options(
-        data['dc_thickness_options_library'] || [],
-        data['dc_thickness_options_project'] || []
-      )
-      data
-    rescue => e
-      dbg("[MH_Registry] apply project settings error: #{e.message}") if respond_to?(:dbg)
-      data
-    end
-
-    def persist_project_settings!(data)
-      return false unless settings_facade_available? && data.is_a?(Hash)
-      MH::Settings.write('registry', 'dc_thickness_options_project', Array(data['dc_thickness_options_project'] || []), scope: :project)
-      true
-    rescue => e
-      dbg("[MH_Registry] persist project settings error: #{e.message}") if respond_to?(:dbg)
-      false
-    end
-
     def create_default_config
       path = config_path
       return path if File.exist?(path)
@@ -384,13 +416,6 @@ module MH
         'prefix' => [['value']],
         'suffix' => [['value', 'shortcut'], ['L', '1'], ['R', '2'], ['A', ''], ['B', ''], ['Top', ''], ['Bot', ''], ['NEW', '']],
         'modul'  => [['value']],
-        'ma_vat_lieu' => [['gia_tri', 'gia_tri_map', 'nhom', 'thu_tu']],
-        'ma_thickness' => [['min', 'max', 'value']],
-        'ma_detail_aliases' => [['pattern', 'target']],
-        'ma_tag_materials' => [['tag_name', 'material_name']],
-        'ma_column_aliases' => [['internal_name', 'alias']],
-        'ma_surface_face_rules' => default_surface_face_rule_rows,
-        'dc_thickness_options_project' => save_thickness_options_rows([]),
         'dc_thickness_bindings' => save_rows(default_dc_thickness_bindings, dc_thickness_binding_columns),
         'dc_manual_materials' => default_dc_manual_material_rows,
         'superimp_import_list' => save_rows([], superimp_import_list_columns),
@@ -403,8 +428,8 @@ module MH
     def load_config(force_excel: false)
       path = config_path
       return load_config_json if File.exist?(config_json_path) && !force_excel
-      # Chỉ cần workbook khi đang nhập/migrate từ Excel.  Các lần mở app sau
-      # sẽ quay về ngay từ JSON ở trên, không tạo hay đọc Excel nữa.
+      # Config chính chỉ đọc khi nhập/migrate từ Excel.  Các lần mở app sau
+      # quay về JSON; riêng dữ liệu Vật liệu luôn được ghép từ MCLib ở trên.
       create_default_config unless File.exist?(path)
 
       sub_prefix = []
@@ -445,50 +470,21 @@ module MH
           end
         end
 
-        if all['ma_vat_lieu']
-          all['ma_vat_lieu'].drop(1).each do |row|
-            gt  = (row[0] || '').to_s.strip
-            gtm = (row[1] || '').to_s.strip
-            # Keep canonical-only rows created from the material-code
-            # structure. The user can fill gia_tri (input alias) later in
-            # MH Control Panel; discard only completely empty rows.
-            next if gt.empty? && gtm.empty?
-            ma_vat_lieu << {
-              'gia_tri'     => gt,
-              'gia_tri_map' => gtm,
-              'nhom'        => (row[2] || '').to_s.strip,
-              'thu_tu'      => (row[3] || '').to_s.strip
-            }
-          end
-        end
-        # ---- Material Assign sheets (ma_*) ----
-        ma_thickness = load_rows(all, 'ma_thickness', %w[min max value])
-        ma_detail_aliases = load_rows(all, 'ma_detail_aliases', %w[pattern target])
-        ma_tag_materials = load_rows(all, 'ma_tag_materials', %w[tag_name material_name])
-        ma_column_aliases = load_rows(all, 'ma_column_aliases', %w[internal_name alias])
-        ma_surface_face_rules =
-          if all['ma_surface_face_rules']
-            load_rows(all, 'ma_surface_face_rules', surface_face_rule_columns)
-          else
-            default_surface_face_rules
-          end
+        # ---- Material Assign sheets (nguồn chung: material_code_library.xlsx) ----
+        material_code_library_all = MH::ExcelBridge.read_all(material_code_library_path) rescue {}
+        ma_thickness = load_rows(material_code_library_all, 'ma_thickness', %w[min max value])
+        ma_detail_aliases = load_rows(material_code_library_all, 'ma_detail_aliases', %w[pattern target])
+        ma_tag_materials = load_rows(material_code_library_all, 'ma_tag_materials', %w[tag_name material_name])
+        ma_column_aliases = load_rows(material_code_library_all, 'ma_column_aliases', %w[internal_name alias])
+        ma_surface_face_rules = load_rows(material_code_library_all, 'ma_surface_face_rules', surface_face_rule_columns)
+        ma_surface_face_rules = default_surface_face_rules if ma_surface_face_rules.empty?
         dc_material_profiles = load_rows(library_all, 'dc_material_profiles', dc_material_profile_columns)
         dc_material_options = load_rows(library_all, 'dc_material_options', dc_material_option_columns)
         dc_material_options = default_dc_material_options if dc_material_options.nil? || dc_material_options.empty?
         material_profile_choices = load_rows(library_all, 'material_profile_choices', material_profile_choice_columns)
-        dc_thickness_options_library = load_thickness_options(library_all, 'dc_thickness_options')
-        dc_thickness_options_project = load_thickness_options(all, 'dc_thickness_options_project')
-        # Migrate 1 lần từ material_profile_choices (1 option) nếu library chưa có dữ liệu mới.
-        if (dc_thickness_options_library.nil? || dc_thickness_options_library.empty?) &&
-           material_profile_choices && !material_profile_choices.empty?
-          dc_thickness_options_library = material_profile_choices.map do |r|
-            {
-              'material_type' => r['material_name'].to_s,
-              'options' => [{ 'panel' => r['thickness_1'].to_s, 'back' => r['thickness_2'].to_s }]
-            }
-          end
-        end
-        dc_thickness_options = merge_thickness_options(dc_thickness_options_library, dc_thickness_options_project)
+        dc_thickness_options_library = load_thickness_options(material_code_library_all, 'dc_thickness_options')
+        dc_thickness_group_layers = load_rows(material_code_library_all, 'dc_thickness_group_layers', dc_thickness_group_layer_columns)
+        dc_thickness_group_layers = default_dc_thickness_group_layers if dc_thickness_group_layers.nil? || dc_thickness_group_layers.empty?
         dc_thickness_bindings = load_rows(library_all, 'dc_thickness_bindings', dc_thickness_binding_columns)
         dc_manual_materials = load_rows(library_all, 'dc_manual_materials', dc_manual_material_columns)
         dc_manual_materials = default_dc_manual_materials if dc_manual_materials.nil? || dc_manual_materials.empty?
@@ -525,26 +521,18 @@ module MH
         'dc_material_profiles' => (dc_material_profiles || []),
         'dc_material_options' => (dc_material_options || []),
         'material_profile_choices' => (material_profile_choices || []),
-        'dc_thickness_options' => (dc_thickness_options || []),
         'dc_thickness_options_library' => (dc_thickness_options_library || []),
-        'dc_thickness_options_project' => (dc_thickness_options_project || []),
+        'dc_thickness_group_layers' => (dc_thickness_group_layers || []),
         'dc_thickness_bindings' => (dc_thickness_bindings || []),
         'dc_manual_materials' => (dc_manual_materials || []),
         'superimp_import_list' => (superimp_import_list || []),
         'panel_defaults' => (panel_defaults || [])
       }
-      if force_excel
-        # "Tải từ Excel" phải coi Excel là nguồn mới nhất, ghi đè cả project
-        # settings và JSON cache; không được để cache cũ phủ ngược dữ liệu vừa đọc.
-        persist_project_settings!(data)
-      else
-        apply_project_settings!(data)
-        persist_project_settings!(data)
-      end
       MH::NameGrammar.configure(data) if defined?(MH::NameGrammar)
       if force_excel || !File.exist?(config_json_path)
         write_config_json(data, source: force_excel ? 'xlsx_reload' : 'xlsx_migration')
       end
+      remember_runtime_config(data)
       data
     end
 
@@ -555,8 +543,6 @@ module MH
       scrub_removed_config_keys(data)
       synchronize_suffix_sources!(data)
       sync_registry_rules_from_config!(data)
-      persist_project_settings!(data)
-      apply_project_settings!(data)
       if export_excel
         write_config_json(data, source: 'excel_export')
       else
@@ -591,27 +577,10 @@ module MH
         end
       }
       mod_rows = save_multi_column(data, 'modul')
-      global_mvl = data['ma_vat_lieu_global'] || data['ma_vat_lieu'] || []
-      mvl_rows = [['gia_tri', 'gia_tri_map', 'nhom', 'thu_tu']] + global_mvl.map { |r|
-        if r.is_a?(Hash)
-          [r['gia_tri'].to_s, r['gia_tri_map'].to_s, r['nhom'].to_s, r['thu_tu'].to_s]
-        else
-          [r.to_s, '', '', '']
-        end
-      }
       safe_write_xlsx(config_path, {
         'settings' => settings_rows,
         'sub_prefix' => spfx_rows, 'prefix' => pfx_rows, 'suffix' => sfx_rows, 'modul' => mod_rows,
-        'ma_vat_lieu' => mvl_rows,
-        'ma_thickness' => save_rows(data['ma_thickness'], %w[min max value]),
-        'ma_detail_aliases' => save_rows(data['ma_detail_aliases'], %w[pattern target]),
-        'ma_tag_materials' => save_rows(data['ma_tag_materials'], %w[tag_name material_name]),
-        'ma_column_aliases' => save_rows(data['ma_column_aliases'], %w[internal_name alias]),
-        'ma_surface_face_rules' => save_rows(data['ma_surface_face_rules'], surface_face_rule_columns),
-        'panel_defaults' => save_rows(data['panel_defaults'], %w[tool key value]),
-        'dc_thickness_options_project' => save_thickness_options_rows(
-          data['dc_thickness_options_project'] || data['dc_thickness_options']
-        )
+        'panel_defaults' => save_rows(data['panel_defaults'], %w[tool key value])
       })
       config_path
     end
@@ -656,15 +625,15 @@ module MH
     def save_superimp_library(data)
       existing = File.exist?(superimp_library_path) ? (MH::ExcelBridge.read_all(superimp_library_path) rescue {}) : {}
       existing.delete('dc_type_groups')
-      # Danh sách vật liệu là nguồn độc lập với bảng độ dày.  enabled=1
+      # Độ dày chuẩn thuộc material_code_library.xlsx. Bỏ sheet cũ để không
+      # còn một bản sao có thể bị chỉnh nhầm rồi không được Superimp sử dụng.
+      existing.delete('dc_thickness_options')
+      # Danh sách vật liệu là nguồn độc lập với bảng độ dày. enabled=1
       # mới là mã được dùng cho chế độ Manual của Superimp.
       manual_rows = Array(data['dc_manual_materials'])
       sheets = existing.merge(
         'superimp_import_list' => save_rows(data['superimp_import_list'], superimp_import_list_columns),
         'dc_manual_materials' => save_rows(manual_rows, dc_manual_material_columns),
-        'dc_thickness_options' => save_thickness_options_rows(
-          data['dc_thickness_options_library'] || data['dc_thickness_options']
-        ),
         'dc_thickness_bindings' => save_rows(data['dc_thickness_bindings'], dc_thickness_binding_columns),
         'dc_material_profiles' => save_rows(data['dc_material_profiles'], dc_material_profile_columns),
         'dc_material_options' => save_rows(data['dc_material_options'], dc_material_option_columns),
@@ -672,25 +641,6 @@ module MH
       )
       safe_write_xlsx(superimp_library_path, sheets)
       superimp_library_path
-    end
-
-    def filter_manual_materials_by_thickness_library(manual_rows, thickness_rows)
-      valid = {}
-      Array(thickness_rows).each do |row|
-        next unless row.is_a?(Hash)
-
-        code = (row['material_type'] || row[:material_type] ||
-                row['material_code'] || row[:material_code]).to_s.strip.upcase
-        valid[code] = true unless code.empty?
-      end
-
-      Array(manual_rows).select do |row|
-        next false unless row.is_a?(Hash)
-
-        code = (row['material_code'] || row[:material_code] ||
-                row['material_type'] || row[:material_type]).to_s.strip.upcase
-        !code.empty? && valid[code]
-      end
     end
 
     def ensure_superimp_library_data!(data)
@@ -701,9 +651,8 @@ module MH
       unless data.key?('dc_manual_materials') || data.key?(:dc_manual_materials)
         data['dc_manual_materials'] = load_rows(library, 'dc_manual_materials', dc_manual_material_columns)
       end
-      unless data.key?('dc_thickness_options_library') || data.key?(:dc_thickness_options_library)
-        data['dc_thickness_options_library'] = load_thickness_options(library, 'dc_thickness_options')
-      end
+      material_library = MH::ExcelBridge.read_all(material_code_library_path) rescue {}
+      data['dc_thickness_options_library'] = load_thickness_options(material_library, 'dc_thickness_options')
       unless data.key?('dc_thickness_bindings') || data.key?(:dc_thickness_bindings)
         data['dc_thickness_bindings'] = load_rows(library, 'dc_thickness_bindings', dc_thickness_binding_columns)
       end
@@ -726,8 +675,6 @@ module MH
           sheet_or_default(source, 'superimp_import_list', save_rows([], superimp_import_list_columns)),
         'dc_manual_materials' =>
           sheet_or_default(source, 'dc_manual_materials', default_dc_manual_material_rows),
-        'dc_thickness_options' =>
-          sheet_or_default(source, 'dc_thickness_options', save_thickness_options_rows([])),
         'dc_thickness_bindings' =>
           sheet_or_default(source, 'dc_thickness_bindings', save_rows(default_dc_thickness_bindings, dc_thickness_binding_columns)),
         'dc_material_profiles' =>
@@ -1131,6 +1078,28 @@ module MH
       save_rows(default_material_profile_choices, material_profile_choice_columns)
     end
 
+    # ---- dc_thickness_group_layers: cấu trúc nhóm cha độ dày ----
+    # Excel là nguồn quyết định lớp nào tạo nhóm cha. Không đặt quy tắc theo
+    # mã E1, AC, TL... trong Ruby; chỉ các dòng include=1 mới được ghép khóa.
+    def dc_thickness_group_layer_columns
+      %w[layer_key include_in_thickness_parent parent_order note]
+    end
+
+    def default_dc_thickness_group_layers
+      [
+        { 'layer_key' => 'chat_lieu', 'include_in_thickness_parent' => '1', 'parent_order' => '1', 'note' => 'Chất liệu' },
+        { 'layer_key' => 'do_day', 'include_in_thickness_parent' => '0', 'parent_order' => '2', 'note' => 'Độ dày thực tế' },
+        { 'layer_key' => 'tieu_chuan', 'include_in_thickness_parent' => '0', 'parent_order' => '3', 'note' => 'Tiêu chuẩn E0/E1/E2' },
+        { 'layer_key' => 'nha_cung_cap', 'include_in_thickness_parent' => '0', 'parent_order' => '4', 'note' => 'Nhà cung cấp AC/TL/DW/PANEL' },
+        { 'layer_key' => 'be_mat', 'include_in_thickness_parent' => '1', 'parent_order' => '5', 'note' => 'Bề mặt' },
+        { 'layer_key' => 'finish_code', 'include_in_thickness_parent' => '1', 'parent_order' => '6', 'note' => 'Mã hoàn thiện/mã sơn' }
+      ]
+    end
+
+    def default_dc_thickness_group_layer_rows
+      save_rows(default_dc_thickness_group_layers, dc_thickness_group_layer_columns)
+    end
+
     # ---- dc_thickness_options: bảng độ dày DC dạng RỘNG ----
     # Cột 0 = material_type; các cột sau theo cặp (opt*_panel, opt*_back) = mm thực tế.
     # Trả: [{ 'material_type' => 'MDFCA', 'options' => [{'panel'=>'17.6','back'=>'8'}, ...] }]
@@ -1153,24 +1122,6 @@ module MH
       end
     end
 
-    def merge_thickness_options(library_rows, project_rows)
-      result = []
-      seen = {}
-      Array(library_rows).each do |row|
-        key = row['material_type'].to_s.strip.upcase
-        next if key.empty? || seen[key]
-        result << row
-        seen[key] = true
-      end
-      Array(project_rows).each do |row|
-        key = row['material_type'].to_s.strip.upcase
-        next if key.empty? || seen[key]
-        result << row
-        seen[key] = true
-      end
-      result
-    end
-
     # ---- dc_thickness_bindings: áp độ dày vào tham số TỪNG file DC ----
     # match: đường dẫn .skp (chứa chuỗi) | "group:<Nhóm>" ; unit: mm|length|none.
     # modul_only: tick dòng này thì Superimp mới tự cấp modul SP47.1, SP47.2...
@@ -1181,27 +1132,6 @@ module MH
 
     def default_dc_thickness_bindings
       []
-    end
-
-    def save_thickness_options_rows(data)
-      data = data || []
-      max_opts = data.map { |r| Array(r['options'] || r[:options]).length }.max || 0
-      max_opts = 2 if max_opts < 2 # luôn chừa tối thiểu 2 option cho dễ nhập
-      header = ['material_type']
-      (1..max_opts).each { |i| header.push("opt#{i}_panel", "opt#{i}_back") }
-      rows = [header]
-      data.each do |r|
-        type = (r['material_type'] || r[:material_type]).to_s.strip
-        next if type.empty?
-        opts = Array(r['options'] || r[:options])
-        line = [type]
-        (0...max_opts).each do |i|
-          o = opts[i] || {}
-          line.push((o['panel'] || o[:panel]).to_s, (o['back'] || o[:back]).to_s)
-        end
-        rows << line
-      end
-      rows
     end
 
     def safe_write_xlsx(path, sheets)

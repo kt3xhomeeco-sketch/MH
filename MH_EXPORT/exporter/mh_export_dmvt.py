@@ -17,9 +17,11 @@ from __future__ import annotations
 
 import argparse
 import json
+import importlib.util
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
 from openpyxl import Workbook, load_workbook
 from openpyxl.styles import Border, Font, PatternFill, Side
@@ -87,12 +89,19 @@ def write_rows(ws, rows: list[dict], start_row: int = 11) -> int | None:
     if not rows:
         return None
 
+    directory = Path(os.environ.get("MH_NHAP_XUATVAN_LIBRARY", r"D:\Cong viec\config\nhap_xuatvan"))
+    spec = importlib.util.spec_from_file_location("mh_export_size_rules", directory / "material_item_names.py")
+    size_rules = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(size_rules)
     for offset, row in enumerate(rows):
         excel_row = start_row + offset
+        size = row.get("size", "")
+        if str(row.get("unit", "")).strip().lower() in ("tấm", "tam", "m2", "m²"):
+            size = size_rules.material_code_size(row.get("material_code", ""), fallback=size)
         values = [
             offset + 1,
             display_row_name(row),
-            row.get("size", ""),
+            size,
             row.get("material_code", ""),
             row.get("unit", ""),
             normalize_quantity(row.get("quantity", "")),

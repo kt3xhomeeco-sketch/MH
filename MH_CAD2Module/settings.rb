@@ -15,7 +15,7 @@ module MH
       ROOT = File.dirname(source_file).freeze
       DEFAULTS = { 'sources' => [], 'library' => File.join(ROOT, 'library'), 'python' => '', 'converter' => '',
                    'build_plan' => true, 'build_elevation' => false, 'build_auxiliary' => true,
-                   'ai_enabled' => false }.freeze
+                   'ai_enabled' => false, 'import_plan_reference' => true }.freeze
       module_function
 
       def read(model = Sketchup.active_model)

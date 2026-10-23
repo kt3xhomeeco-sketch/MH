@@ -30,7 +30,7 @@ const {chromium} = require('playwright');
     assert.equal(await page.locator('#explanation b').count(), 0);
     await page.locator('#ai-enabled').uncheck();
     assert.deepEqual(await page.evaluate(() => recorded.at(-1)), {action: 'save_settings',
-      settings: {build_plan: true, build_elevation: false, build_auxiliary: true, ai_enabled: false}});
+      settings: {build_plan: true, build_elevation: false, build_auxiliary: true, import_plan_reference: true, ai_enabled: false}});
     await page.locator('[data-action="ai_status"]').click();
     assert.deepEqual(await page.evaluate(() => recorded.at(-1)), {action: 'ai_status'});
     await page.evaluate(() => receive({...aiState, busy: true}));

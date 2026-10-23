@@ -34,7 +34,7 @@ begin
     raise 'Wrong rejection' unless error.message.include?('khung bao')
   end
   app::Corrections.begin_manual(preview)
-  raise 'Sai did not hide preview' unless preview.hidden?
+  raise 'Sai hid editable preview' if preview.hidden?
   boxes = 2.times.map do |i|
     app::Model.cube(model.entities, 'id' => "Q#{i}", 'origin' => [-5000 + 520 * i, -5000, 0], 'size' => [520, 500, 1600])
   end

@@ -18,7 +18,7 @@ module MH
     DEFAULT_COLOR = '#ff3b30'.freeze
     DEFAULT_SELECTED_COLOR = '#00c8ff'.freeze
     DEFAULT_WIDTH = 3
-    MAX_WIDTH = 10
+    MAX_WIDTH = 10.0
     EDGES_PER_CHUNK = 2_000
     EDGES_PER_TIMER_TICK = 500
     SCAN_TICK_SECONDS = 0.01
@@ -249,7 +249,13 @@ module MH
         return unless enabled?
 
         schedule_added_entity_check(0.05) unless Array(@pending_added_entities).empty?
-        schedule_transform_sync(REBUILD_DEBOUNCE_SECONDS)
+        # A transform-only refresh misses edits to raw edges inside a tagged
+        # group/component. Keep the fast transform path for an immediate
+        # redraw, then rebuild the cache after the transaction settles so the
+        # overlay always reflects the actual 2D geometry.
+        schedule_transform_sync(0.016)
+        @cache_dirty = true
+        request_rebuild(REBUILD_DEBOUNCE_SECONDS)
       end
 
       def entity_added(entity)
@@ -287,6 +293,8 @@ module MH
         return unless enabled?
 
         schedule_transform_sync(0.016)
+        @cache_dirty = true
+        request_rebuild(REBUILD_DEBOUNCE_SECONDS)
       end
 
       def tagged_entity_erased
@@ -1096,7 +1104,12 @@ module MH
       end
 
       def normalize_width(value)
-        [[value.to_i, 1].max, MAX_WIDTH].min
+        width = Float(value)
+        return DEFAULT_WIDTH unless width.finite?
+
+        [[width, 0.1].max, MAX_WIDTH].min.round(1)
+      rescue ArgumentError, TypeError
+        DEFAULT_WIDTH
       end
 
       def sketchup_color(hex)
@@ -1135,7 +1148,7 @@ module MH
               const bridge = (name, ...args) => window.sketchup && window.sketchup[name] && window.sketchup[name](...args);
               const rows = document.getElementById('rows');
               function send(row) { const name=row.querySelector('.tag-name').value.trim(); bridge('upsertTag', row.dataset.name || '', name, row.querySelector('.xray').checked ? 'true' : 'false', row.querySelector('.color').value, row.querySelector('.width').value); row.dataset.name=name; }
-              function addRow(tag={name:'',xray:true,color:'#ff3b30',width:3}) { const tr=document.createElement('tr'); tr.dataset.name=tag.name || ''; tr.innerHTML='<td><div class="tag"><input class="tag-name" type="text" placeholder="Nhap ten Tag"><label class="xray-label" title="Hien highlight xuyen qua vat the"><input class="xray" type="checkbox"> Xuyen obj</label><button class="remove" title="Xoa Tag">×</button></div></td><td><input class="color" type="color"></td><td><input class="width" type="number" min="1" max="10" step="1"></td>'; tr.querySelector('.tag-name').value=tag.name || ''; tr.querySelector('.xray').checked=tag.xray !== false; tr.querySelector('.color').value=tag.color || '#ff3b30'; tr.querySelector('.width').value=tag.width || 3; tr.querySelectorAll('input').forEach(input => input.addEventListener('change', () => send(tr))); tr.querySelector('.remove').addEventListener('click', () => { if(tr.dataset.name) bridge('removeTag', tr.dataset.name); else tr.remove(); }); rows.appendChild(tr); }
+              function addRow(tag={name:'',xray:true,color:'#ff3b30',width:3}) { const tr=document.createElement('tr'); tr.dataset.name=tag.name || ''; tr.innerHTML='<td><div class="tag"><input class="tag-name" type="text" placeholder="Nhap ten Tag"><label class="xray-label" title="Hien highlight xuyen qua vat the"><input class="xray" type="checkbox"> Xuyen obj</label><button class="remove" title="Xoa Tag">×</button></div></td><td><input class="color" type="color"></td><td><input class="width" type="number" min="0.1" max="10" step="0.1"></td>'; tr.querySelector('.tag-name').value=tag.name || ''; tr.querySelector('.xray').checked=tag.xray !== false; tr.querySelector('.color').value=tag.color || '#ff3b30'; tr.querySelector('.width').value=tag.width || 3; tr.querySelectorAll('input').forEach(input => input.addEventListener('change', () => send(tr))); tr.querySelector('.remove').addEventListener('click', () => { if(tr.dataset.name) bridge('removeTag', tr.dataset.name); else tr.remove(); }); rows.appendChild(tr); }
               window.MHHighlight = { render(data) {
                 document.getElementById('toggle').textContent = data.enabled ? 'Tat overlay' : 'Bat overlay';
                 document.getElementById('status').textContent = data.scanning ? 'Dang cap nhat cache...' : (data.edge_count || 0).toLocaleString() + ' edge da cache';

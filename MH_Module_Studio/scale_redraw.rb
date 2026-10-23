@@ -122,6 +122,8 @@ module MH
 
       if defined?(Sketchup::ModelObserver)
         class ScaleModelObserver < Sketchup::ModelObserver
+          RECHECK_DELAY=0.12
+
           attr_reader :last_error
 
           def pending?
@@ -132,11 +134,15 @@ module MH
             super()
             @model = model
             @generation = 0
+            @retry_generation = nil
+            @submitted_generation = nil
             reset
           end
 
           def reset
             @generation += 1
+            @retry_generation = nil
+            @submitted_generation = nil
             @pending = []
             @active_path = @model.active_path&.map(&:persistent_id)
             @geometry = {}
@@ -151,15 +157,7 @@ module MH
           def onTransactionCommit(_model)
             return if @applying || UpdateWork.active?
             generation = @generation += 1
-            candidates = ScaleRedraw.roots(@model).select do |root|
-              after = begin
-                ScaleRedraw.signature(root)
-              rescue Core::Error
-                nil
-              end
-              ScaleRedraw.changed?(@scales[root.persistent_id], after) ||
-                @geometry.key?(root.persistent_id) && @geometry[root.persistent_id]!=ScaleRedraw.geometry_signature(root)
-            end
+            candidates = dirty_roots
             return reset if candidates.empty?
             @pending = candidates
             # Never mutate geometry from a transaction observer callback.
@@ -176,14 +174,61 @@ module MH
 
           def redraw(candidates, generation)
             return if generation != @generation || !Sketchup.active_model.equal?(@model)
+            # Coalesce duplicate timers for one generation (commit timer plus an
+            # explicit redraw) so they cannot supersede each other's job.
+            return if @submitted_generation == generation
             return unless UpdateWork.valid_context?(candidates)
+            # Never supersede a different queued job (for example a user's
+            # options edit); wait for the single writer to become idle.
+            return recheck_later(generation) if UpdateWork.pending?(@model)
+            @submitted_generation = generation
             done=lambda do |status,error|
               @last_error=error&.message if status==:error
               Sketchup.status_text="MH: #{error.message}" if error
               reset if %i[done error].include?(status)
+              recheck_later(generation) if %i[superseded cancelled].include?(status)
               MH::ModuleStudio.instance_variable_get(:@module_options)&.schedule_refresh
             end
             UpdateWork.submit(@model,key: :scale,complete:done) { perform(candidates) }
+          end
+
+          # A superseding job owns the single UpdateWork slot. Recompute the
+          # still-dirty roots after it finishes instead of replaying a stale plan
+          # or submitting a competing job that would cancel the new work.
+          def recheck_later(generation)
+            return if generation != @generation || @retry_generation == generation
+            @retry_generation = generation
+            UI.start_timer(RECHECK_DELAY,false) { recheck_pending(generation) }
+          end
+
+          def recheck_pending(generation)
+            return unless @retry_generation == generation
+            @retry_generation = nil
+            return if generation != @generation || !Sketchup.active_model.equal?(@model) || @applying
+            if UpdateWork.pending?(@model)
+              @retry_generation = generation
+              UI.start_timer(RECHECK_DELAY,false) { recheck_pending(generation) }
+              return
+            end
+            candidates = dirty_roots
+            return reset if candidates.empty?
+            # The recheck is allowed to submit even though this generation was
+            # already submitted; every other duplicate timer stays coalesced.
+            @submitted_generation = nil if @submitted_generation == generation
+            @pending = candidates
+            redraw(candidates,generation)
+          end
+
+          def dirty_roots
+            ScaleRedraw.roots(@model).select do |root|
+              after = begin
+                ScaleRedraw.signature(root)
+              rescue Core::Error
+                nil
+              end
+              ScaleRedraw.changed?(@scales[root.persistent_id], after) ||
+                @geometry.key?(root.persistent_id) && @geometry[root.persistent_id]!=ScaleRedraw.geometry_signature(root)
+            end
           end
 
           def perform(candidates)

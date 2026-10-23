@@ -498,7 +498,11 @@ module MH
         Runtime.ensure_assembly_context(model)
         current = records(model)
         proposed = current.reject { |row| row['id'] == id }
-        return transact(model,proposed) if current.any? { |row| row['id']==id && row.dig('import_link','door_mount') }
+        removed=current.select { |row| row['id']==id }
+        if removed.any? { |row| row.dig('import_link','door_relation') || row.dig('import_link','door_mount') }
+          targets=ImportLinks.release_targets(model,removed,proposed)
+          return transact(model,proposed,reservation_targets:targets)
+        end
         @busy = true
         model.start_operation('MH Xóa Liên Kết', true)
         operation = true
@@ -592,7 +596,8 @@ module MH
             return if Assembly.instance_variable_get(:@busy) || UpdateWork.active?
             @pending = true
             records = Assembly.records(@model)
-            @pending_reservation_targets = ImportLinks.scaled_reservation_targets(@model,records,@frames || {})
+            released=ImportLinks.release_targets(@model,AssemblyContainers.dangling_door_links(@model),records)
+            @pending_reservation_targets = ImportLinks.scaled_reservation_targets(@model,records,@frames || {}).merge(released)
             generation = @generation += 1
             schedule_external_sync(generation)
           end
@@ -600,7 +605,9 @@ module MH
           def schedule_external_sync(generation,delay=0.15)
             UI.start_timer(delay,false) do
               next unless generation==@generation && Sketchup.active_model.equal?(@model)
-              if ScaleRedraw.pending?(@model)
+              # Background link sync must never cancel a foreground options/redraw
+              # job. Wait for both owners; the generation guard drops stale timers.
+              if ScaleRedraw.pending?(@model) || UpdateWork.pending?(@model)
                 schedule_external_sync(generation,0.1)
                 next
               end
@@ -629,14 +636,43 @@ module MH
           end
 
           def synchronize_external(redraw: [])
+            targets=@pending_reservation_targets || {}
             current=Assembly.fingerprint(@model)
-            return if redraw.empty? && (current==@fingerprint || Assembly.records(@model).empty? && ImportLinks.reservation_fingerprint(@model).empty?)
+            return if redraw.empty? && current==@fingerprint
+            records=Assembly.records(@model)
+            if redraw.empty? && targets.any? && (records.empty? || ImportLinks.detached_targets?(@model,targets,records))
+              restore_unlinked_reservations(targets,records)
+              return
+            end
+            if redraw.empty? && records.empty?
+              reservations=ImportLinks.reservation_fingerprint(@model)
+              return if reservations.empty?
+            end
             envelopes=AssemblyContainers.containers(@model).filter_map do |owner|
               scope=owner.persistent_id.to_s
               [scope,AssemblyEnvelope.bounds(owner)] if @shapes&.key?(scope) && @shapes[scope]!=member_shapes(owner)
             end.to_h
-            Assembly.transact(@model,Assembly.records(@model),transparent:true,external_geometry:true,external_envelopes:envelopes,
-              reservation_targets:@pending_reservation_targets || {},redraw:redraw,mutable_anchors:redraw)
+            Assembly.transact(@model,records,transparent:true,external_geometry:true,external_envelopes:envelopes,
+              reservation_targets:targets,redraw:redraw,mutable_anchors:redraw)
+          end
+
+          # A released host with no surviving contacts has no graph to solve.
+          # Preserve other assemblies' records while restoring this host directly.
+          def restore_unlinked_reservations(targets,records=[])
+            Runtime.ensure_assembly_context(@model)
+            operation=false
+            @model.start_operation('MH Phục Hồi Khung',true,false,!UpdateWork.probing?)
+            operation=true
+            ImportLinks.apply_reservations(@model,records,external_geometry:true,targets:targets,only:targets.keys)
+            AssemblyContainers.store(@model,records)
+            UpdateWork.commit(@model)
+            operation=false
+          rescue UpdateWork::Deferred,UpdateWork::Prepared
+            @model.abort_operation if operation
+            raise
+          rescue StandardError
+            @model.abort_operation if operation
+            raise
           end
 
           def member_shapes(owner)

@@ -5,14 +5,16 @@ require File.expand_path('../MH_shared.rb', __dir__)
 module MH
   module MaterialHUD
     stop_timers if respond_to?(:stop_timers)
-    %w[acceptances data model_index runtime viewport].each { |file| load File.join(__dir__, "#{file}.rb") }
+    @product_store.dispose if @product_store
+    @product_store = nil
+    %w[acceptances data model_index product_store runtime viewport].each { |file| load File.join(__dir__, "#{file}.rb") }
     migrate_acceptances
 
     ModelHub.subscribe(:material_hud,
       on_selection: ->(_) { schedule_refresh if mode == 'select' },
-      on_view: ->(_) { schedule_refresh if mode == 'view' },
+      on_view: ->(_) { view_changed },
       on_model: ->(_) { model_changed },
-      visible: -> { @overlay && @overlay.enabled? })
+      visible: -> { true })
 
     unless @menu_registered
       menu = UI.menu('Extensions').add_submenu('MH Material HUD')

@@ -143,7 +143,7 @@
   <div class="bar">
     <div class="title">MH Export - DMVT ván/nẹp</div>
     <label><input id="paintToggle" type="checkbox"> Hiển thị mã sơn</label>
-    <label title="Tính đủ 4 cạnh nhỏ của mọi tấm theo nẹp đang chọn trong MH Nep">
+    <label title="Bổ sung các cạnh nhỏ chưa dán nẹp theo nẹp đang chọn trong MH Nep">
       <input id="fullEdgingToggle" type="checkbox" checked>
       Giả định dán nẹp toàn bộ tấm
     </label>
@@ -153,6 +153,7 @@
   <div class="edge-options">
     <label title="Hệ số nhân mét dài của Nẹp 22">Nẹp 22 × <input id="nep22Multiplier" type="number" min="0" step="0.1" value="2"></label>
     <label title="Hệ số nhân mét dài của Nẹp 44">Nẹp 44 × <input id="nep44Multiplier" type="number" min="0" step="0.1" value="3"></label>
+    <label title="Hệ số nhân mét dài của Nẹp 60">Nẹp 60 × <input id="nep60Multiplier" type="number" min="0" step="0.1" value="1"></label>
     <label title="Tấm có độ dày nhỏ hơn ngưỡng này sẽ không tính nẹp">Không tính nẹp khi dày &lt; <input id="minEdgeThickness" type="number" min="0" step="0.1" value="12"> mm</label>
   </div>
   <div id="meta" class="meta"></div>
@@ -204,6 +205,7 @@
         assume_full_edging: $('fullEdgingToggle').checked,
         nep22_multiplier: $('nep22Multiplier').value,
         nep44_multiplier: $('nep44Multiplier').value,
+        nep60_multiplier: $('nep60Multiplier').value,
         min_thickness_mm: $('minEdgeThickness').value
       };
     }
@@ -238,7 +240,8 @@
         `ABF Data: ${summary.abf_data_rows ?? 0}`,
         `Mét nẹp: ${summary.edge_band_m ?? 0}`,
         `Đang áp dụng: Nẹp 22 × ${edgeOptions.nep22_multiplier ?? 2}`,
-        `Nẹp 44 × ${edgeOptions.nep44_multiplier ?? 3}; dày ≥ ${edgeOptions.min_thickness_mm ?? 12}mm`
+        `Nẹp 44 × ${edgeOptions.nep44_multiplier ?? 3}`,
+        `Nẹp 60 × ${edgeOptions.nep60_multiplier ?? 1}; dày ≥ ${edgeOptions.min_thickness_mm ?? 12}mm`
       ].map((text) => `<div title="${escapeHtml(text)}">${escapeHtml(text)}</div>`).join('');
 
       $('status').textContent = rows.length ? 'Sẵn sàng review.' : 'Không có dữ liệu để xuất.';
@@ -299,7 +302,7 @@
 
     $('paintToggle').addEventListener('change', refreshOptionsSoon);
     $('fullEdgingToggle').addEventListener('change', refreshOptionsSoon);
-    ['nep22Multiplier', 'nep44Multiplier', 'minEdgeThickness'].forEach((id) => {
+    ['nep22Multiplier', 'nep44Multiplier', 'nep60Multiplier', 'minEdgeThickness'].forEach((id) => {
       $(id).addEventListener('input', refreshOptionsSoon);
       $(id).addEventListener('change', refreshOptionsSoon);
     });

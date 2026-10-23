@@ -1,6 +1,9 @@
 # Validation — 080
 
 - Portable rail-family/clearance/bounds and current-click modifier regressions pass.
+- New portable tests cover face-plane orientation, planar extents, unchanged source depth and degenerate-face rejection. Native target-type placement checks remain pending.
+- HUD regression test verifies Shift Fit cannot fall through to raw InputPoint placement when region detection fails. Shift Fit previews now draw a translucent filled target volume and outline; visual appearance still needs native SketchUp verification.
+- Current rerun: `bundle exec ruby tools/check.rb` — 252 files, no RuboCop offenses; 465 tests, 4,944 assertions, zero failures/errors/skips. Native SketchUp placement was not run for this change.
 - Final shared scoped gate: 230 Ruby files clean under RuboCop/SketchUp; 416 tests,
   4608 assertions, zero failures/errors/skips.
 - `tools/native_free_fit_drawers_check.rb` ran in existing SketchUp 2025 PID 23848,

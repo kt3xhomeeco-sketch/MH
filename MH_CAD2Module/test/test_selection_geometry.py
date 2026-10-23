@@ -14,8 +14,11 @@ def test_selected_lines_need_no_dwg_or_product_frame(tmp_path):
     product=result["analyses"][0]["products"][0]
     assert product["status"]=="ready",product.get("error")
     assert product["code"]=="SP02"
-    assert [m["size"] for m in product["modules"]]==[[860,600,2110],[860,600,2110],[1720,600,432]]
-    assert product['geometry_pipeline']['mode']=='plan_first'
+    # No located cut: retain measured SP height but no inferred tier boundaries.
+    assert [m["size"] for m in product["modules"]]==[[860,600,2542],[860,600,2542]]
+    assert [m['origin'][2] for m in product['modules']]==[50,50]
+    assert product['elevation_pending'] and product['geometry_pipeline']['mode']=='plan_and_elevation'
+    assert product['placement']['origin_mm']==[1000,182]
 
 
 def test_missing_plan_cannot_fall_back_to_front_first(tmp_path):
@@ -26,5 +29,6 @@ def test_missing_plan_cannot_fall_back_to_front_first(tmp_path):
     product=run({'action':'geometry','code':'SP02','library':str(tmp_path/'lib'),'build_elevation':True,
                  'geometry':{'hash':'d'*64,'lines':lines}})['analyses'][0]['products'][0]
     assert product['status']=='needs_review'
-    assert not product['modules']
+    assert len(product['modules'])==1 and product['envelope_preview']
+    assert product['elevation_pending'] and product['modules'][0]['size'][2]==1600
     assert 'mặt bằng' in product['error']

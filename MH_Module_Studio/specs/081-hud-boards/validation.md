@@ -1,9 +1,9 @@
 # Validation — 081
 
 - Final scoped gate: 230 Ruby files clean, 416 tests / 4608 assertions passed.
-- `test/hud_boards_test.rb`: 47 assertions cover sparse exact replacement/swap,
+- `test/hud_boards_test.rb`: assertions cover sparse exact replacement/swap,
   independent folders, migration once, missing-file holes, identity/hash remap,
-  config round-trip, unique keys, explicit pages and sectors/control priority.
+  config round-trip, unique board names, explicit pages and sectors/control priority.
 - Chromium: `test/hud_boards_browser.cjs` and updated
   `test/library_views_browser.cjs` pass. Verified Edit-only forms, spaces in names,
   create/update/select/page/delete dispatch, feedback, size/zoom/config controls,
@@ -22,3 +22,11 @@
   verified. Backup: `outputs/hud-boards-081/prefs-before-live.json`.
 - Packaged explicit runtime manifest verified byte-for-byte. Native test calls
   simulate tool events; no claim of a manual physical mouse drag session.
+
+## Shortcut preference revision — 2026-10-22
+
+- `bundle exec ruby tools/check.rb`: 252 files clean; 463 tests / 4,935
+  assertions passed, including dynamic board-command registration, rename and
+  deletion state, plus forwarding A–Z key down/up events through the HUD.
+- Node syntax checks passed for HUD settings and browser-smoke scripts. Browser
+  interaction and live SketchUp Preferences were not run in this environment.

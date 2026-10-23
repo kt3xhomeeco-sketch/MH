@@ -16,6 +16,7 @@
 # ---------------------------------------------------------------------------
 
 require File.join(__dir__, 'xlsx_io')
+require_relative 'material_code'
 
 module MH
   module ExcelBridge
@@ -67,14 +68,45 @@ module MH
     def write(path, sheets:)
       normalized = {}
       sheets.each do |name, data|
-        normalized[name.to_s] = rows_from(data)
+        normalized[name.to_s] = material_export_sizes(rows_from(data))
       end
       MH::XlsxIO.write(path, normalized)
     end
 
     # Ghi 1 sheet từ Array<Hash>. columns: thứ tự cột (mặc định = union keys).
     def write_hashes(path, sheet_name:, rows:, columns: nil)
-      MH::XlsxIO.write(path, { sheet_name.to_s => rows_from(rows, columns: columns) })
+      MH::XlsxIO.write(path, { sheet_name.to_s => material_export_sizes(rows_from(rows, columns: columns)) })
+    end
+
+    # Shared report boundary for all MH_* exporters. Configuration sheets
+    # have no purchase-size header and pass through unchanged.
+    def material_export_sizes(rows)
+      result = rows.map(&:dup)
+      size_column = code_column = name_column = unit_column = nil
+      result.each do |row|
+        headers = row.map { |cell| cell.to_s.strip.downcase.gsub(/[\s_]+/, '') }
+        found_size = headers.index { |h| %w[kíchthước kichthuoc dày day độdày doday size].include?(h) }
+        found_code = headers.index { |h| %w[mãhiệu mahieu mãvậtliệu mavatlieu materialcode].include?(h) }
+        found_name = headers.index { |h| %w[tênhàng tenhang tênvậtliệu tenvatlieu].include?(h) }
+        found_unit = headers.index { |h| %w[đvt dvt đơnvị donvi unit].include?(h) }
+        if found_size && (found_code || found_name)
+          size_column, code_column, name_column, unit_column = found_size, found_code, found_name, found_unit
+          next
+        end
+        next unless size_column
+
+        unit = unit_column ? row[unit_column].to_s.strip.downcase : ''
+        name = name_column ? row[name_column].to_s.strip : ''
+        # Edge rows carry their board's code, but have their own thickness.
+        next if name.match?(/\A(?:NẸP|NEP)(?:\s|\z)/i) || %w[md m dài].include?(unit)
+
+        code = code_column ? row[code_column].to_s.strip : ''
+        code = name if code.empty? && %w[tấm tam m2 m²].include?(unit)
+        next if code.empty?
+
+        row[size_column] = MH::MaterialCode.export_size(code, fallback: row[size_column])
+      end
+      result
     end
 
     # Chuyển Array<Hash> -> rows (kèm header). Nếu đã là Array<Array> thì giữ nguyên.

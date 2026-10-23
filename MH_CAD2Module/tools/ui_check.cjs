@@ -53,7 +53,7 @@ const root = path.resolve(__dirname, '..');
     await page.getByRole('button', {name: 'Dựng khối', exact: true}).click();
     assert.deepEqual(await page.evaluate(() => window.recorded.at(-1)), {action: 'build', products: 'SP60'});
     await page.evaluate(()=>receiveProgress({message:'AI đang xử lý · Tổng 20s'}));
-    assert((await page.locator('#message').textContent()).includes('Tổng 20s'));
+    assert.equal(await page.locator('#message').count(),0);
     await page.screenshot({path: path.join(root, 'outputs', 'entry-preview.png')});
     assert.deepEqual(errors, []);
     console.log('UI passed: manager, scan button, CAD canvas, modules, entry callback, responsive layout.');

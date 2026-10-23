@@ -12,10 +12,10 @@ module MH
         Engine.isolate
       end
       isolate_command.tooltip = 'MH Isolate Selected Objects'
-      isolate_command.status_bar_text = 'Hide visible sibling Groups/Components without traversing nested geometry.'
+      isolate_command.status_bar_text = 'Isolate selected Groups, Components, Faces, or Edges in the current editing context.'
       isolate_command.set_validation_proc do
         model = Sketchup.active_model
-        if model && model.selection.any? { |entity| Engine.send(:container?, entity) }
+        if model && model.selection.any? { |entity| Engine.send(:isolatable?, entity) }
           MF_ENABLED
         else
           MF_GRAYED

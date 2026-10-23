@@ -15,14 +15,12 @@ module MH
           return unless instance && instance.valid?
 
           model = Sketchup.active_model
-          panel_mat = material_for(model, profile['panel_material'], profile['panel_source_material'])
-          back_mat = material_for(model, profile['back_material'], profile['back_source_material'])
           product_code = profile['product_code'].to_s.strip
           product_code = instance.get_attribute('MH_Registry', 'dc_product_code').to_s.strip if product_code.empty?
 
           # Single-thickness mode: khi binding khai panel nhung khong khai back,
           # nghia la moi panel (ke ca tam hau) deu cung do day -> material code
-          # cung phai dong nhat panel_mat. Tranh case "tam hau 17.6mm nhung ma
+          # cũng phải đồng nhất theo độ dày panel. Tránh case "tấm hậu 17.6mm nhưng mã
           # MDFCA.6.AC".
           binding = profile['_binding'] || profile[:_binding]
           single_thickness = binding &&
@@ -30,16 +28,35 @@ module MH
                              binding['param_back'].to_s.strip.empty?
 
           operation_started = false
-          stats = { 'panel' => 0, 'back' => 0, 'excel' => 0, 'fallback' => 0, 'miss' => 0 }
+          stats = {
+            'panel' => 0, 'back' => 0, 'excel' => 0, 'fallback' => 0,
+            'miss' => 0, 'skipped_non_solid' => 0, 'skipped_thickness_rule' => 0
+          }
           visible_groups(instance).each do |group|
+            unless simple_material_group?(group)
+              stats['skipped_non_solid'] += 1
+              next
+            end
+            thickness_info = resolve_thickness_for_group(group, profile, binding, instance)
+            material_thickness_mm = material_thickness_for_group(group, profile, thickness_info)
             resolved = resolve_material_for_group(group, instance, profile, binding, product_code)
-            is_back = resolved && resolved['role'] == 'back'
+            material_code = resolved && resolved['material_code'].to_s.strip
+            material_code = profile['material_code'].to_s.strip if material_code.to_s.empty?
+            # resolve_material_for_group có thể không tìm được dòng Excel
+            # riêng cho chi tiết này; khi đó vẫn phải đi theo fallback vật
+            # liệu của profile, không được để nil làm dừng cả lượt tô màu.
+            role = (resolved && resolved['role']).to_s
+            role = thickness_info['role'].to_s if role.empty?
+            unless material_thickness_allowed_by_rule?(material_code, material_thickness_mm, role)
+              stats['skipped_thickness_rule'] += 1
+              next
+            end
+
+            is_back = role == 'back'
             if resolved && !resolved['material_name'].to_s.empty?
               target = material_for(model, resolved['material_name'])
               stats['excel'] += 1
             else
-              thickness_info = resolve_thickness_for_group(group, profile, binding, instance)
-              material_thickness_mm = material_thickness_for_group(group, profile, thickness_info)
               is_back = !single_thickness && (thickness_info['role'] == 'back' || back_group?(group))
               fallback_detail = detail_candidates_for_group(group, instance, binding, thickness_info['key']).first
               fallback_detail = fallback_detail && fallback_detail['detail']
@@ -56,11 +73,8 @@ module MH
                 profile
               )
               source_name = is_back ? profile['back_source_material'] : profile['panel_source_material']
-              target = material_for(
-                model,
-                fallback_name.empty? ? (is_back ? back_mat.name : panel_mat.name) : fallback_name,
-                source_name
-              )
+              next if fallback_name.empty?
+              target = material_for(model, fallback_name, source_name)
               stats['fallback'] += 1
               stats['miss'] += 1 if !product_code.empty?
             end
@@ -73,7 +87,7 @@ module MH
             stats[is_back ? 'back' : 'panel'] += 1
           end
           model.commit_operation if operation_started
-          MH::RegistryApp.dbg("[DCImportPipeline] materials panel=#{stats['panel']} back=#{stats['back']} excel=#{stats['excel']} fallback=#{stats['fallback']} miss=#{stats['miss']}#{single_thickness ? ' (single-thickness)' : ''}") if MH::RegistryApp.respond_to?(:dbg)
+          MH::RegistryApp.dbg("[DCImportPipeline] materials panel=#{stats['panel']} back=#{stats['back']} excel=#{stats['excel']} fallback=#{stats['fallback']} miss=#{stats['miss']} skip_rule=#{stats['skipped_thickness_rule']}#{single_thickness ? ' (single-thickness)' : ''}") if MH::RegistryApp.respond_to?(:dbg)
           stats
         rescue => e
           model.abort_operation if operation_started rescue nil
@@ -279,6 +293,34 @@ module MH
           thickness_info && thickness_info['thickness_mm'].to_f
         end
 
+        # Chỉ chặn gán vật liệu khi chính mã đó đã có rule độ dày mà độ dày
+        # thực tế lại không khớp. Những mã chưa được khai báo option (hoặc
+        # luồng cũ chỉ trả về tên vật liệu) vẫn phải được đổ màu bình thường;
+        # chúng không được hiểu là "sai rule". Option không có hậu nghĩa là
+        # một độ dày dùng cho cả hai vai.
+        def material_thickness_allowed_by_rule?(material_code, thickness_mm, role = 'panel')
+          code = material_code.to_s.strip
+          return true if code.empty?
+
+          options = thickness_options_for_material_code(code)
+          return true if options.empty?
+
+          actual = thickness_mm.to_f
+          return false unless actual > 0
+
+          use_back = role.to_s.strip.downcase == 'back'
+          options.any? do |option|
+            panel = option['panel_mm'].to_f
+            raw_back = option['back_mm']
+            back = raw_back.nil? || raw_back.to_s.strip.empty? ? panel : raw_back.to_f
+            expected = use_back ? back : panel
+            expected > 0 && (actual - expected).abs <= 0.25
+          end
+        rescue => e
+          MH::RegistryApp.dbg("[DCImportPipeline] thickness material rule error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
+          false
+        end
+
         def normalized_material_thickness(value, profile)
           mm = value.to_f
           [profile['panel_thickness_mm'], profile['back_thickness_mm']].map(&:to_f).each do |candidate|
@@ -412,11 +454,36 @@ module MH
           group.set_attribute('dynamic_attributes', '_material_error', name)
         end
 
+        # Chỉ gán vật liệu cho chi tiết đơn có mặt hình học.  Các group dùng để
+        # gom layer, giữ line/guide hoặc chứa group/component con không phải tấm
+        # vật liệu; gán vào chúng vừa tạo mã độ dày sai vừa ghi cứng công thức DC.
+        def simple_material_group?(group)
+          return false unless group && group.valid? && group.is_a?(Sketchup::Group)
+
+          entities = group.entities
+          return false unless entities
+
+          has_nested_container = entities.any? do |entity|
+            visible_entity?(entity) && (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance))
+          end
+          return false if has_nested_container
+
+          entities.any? do |entity|
+            entity.is_a?(Sketchup::Face) && entity.valid? && entity.area > 0.0
+          end
+        rescue
+          false
+        end
+
         def material_for(model, name, source_name = nil)
           clean = name.to_s.strip
           clean = 'MH_DC_MATERIAL' if clean.empty?
+          creator = material_color_creator
           existing = model.materials[clean]
-          return existing if existing
+          if existing
+            creator.ensure_visible_color(existing, clean, model) if creator
+            return existing
+          end
 
           source_clean = source_name.to_s.strip
           unless source_clean.empty? || source_clean.casecmp(clean).zero?
@@ -450,8 +517,19 @@ module MH
         end
 
         def color_for(name)
+          creator = material_color_creator
+          return creator.generated_color_for_name(name, model: Sketchup.active_model) if creator
           seed = name.to_s.each_byte.reduce(0) { |acc, byte| ((acc * 33) + byte) & 0xffffffff }
           Sketchup::Color.new(60 + seed % 156, 60 + (seed / 7) % 156, 60 + (seed / 17) % 156)
+        end
+
+        # SuperImp cũng phải nạp engine màu khi mở trước Material Assign.
+        def material_color_creator
+          unless defined?(MH::MaterialApp::MaterialCreator)
+            connector = material_assign_connector
+            connector.ensure_available if connector && connector.respond_to?(:ensure_available)
+          end
+          defined?(MH::MaterialApp::MaterialCreator) ? MH::MaterialApp::MaterialCreator : nil
         end
 
         def resolve_product_materials(instance, profile, context = {})
@@ -571,15 +649,20 @@ module MH
         end
 
         def preferred_material_code_for_context(product_code, context = nil)
-          return '' if product_code.to_s.strip.empty?
+          product = product_code.to_s.strip
+          return '' if product.empty?
           return '' unless defined?(MH::RegistryApp::Connector)
 
           material_assign = MH::RegistryApp::Connector.get('material_assign') rescue nil
           return '' unless material_assign && material_assign.respond_to?(:material_spec_for_product)
 
           detail = material_detail_for_context(context || {}, nil)
-          spec = material_assign.material_spec_for_product(product_code, detail)
-          spec && spec['ok'] ? spec['material_code'].to_s.strip : ''
+          cache_key = [product.upcase, detail.upcase].join("\u0001")
+          @preferred_material_code_cache ||= {}
+          return @preferred_material_code_cache[cache_key] if @preferred_material_code_cache.key?(cache_key)
+
+          spec = material_assign.material_spec_for_product(product, detail)
+          @preferred_material_code_cache[cache_key] = spec && spec['ok'] ? spec['material_code'].to_s.strip : ''
         rescue => e
           MH::RegistryApp.dbg("[DCImportPipeline] preferred material code error: #{e.class}: #{e.message}") if MH::RegistryApp.respond_to?(:dbg)
           ''

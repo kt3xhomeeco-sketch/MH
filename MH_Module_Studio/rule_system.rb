@@ -271,6 +271,7 @@ module MH
         active = bundle['constraints'].select { |c| c['enabled'] && c['drive'] && c['type'] != 'formula' }
         formula_envelope = engine_plan && engine_plan['formula_envelope']
         cell_values = Parametric.part_formula_values(bundle, candidate, targets, formula_envelope || expected_envelope)
+        formula_growth = formula_length_growth(bundle, current, cell_values)
         expected_envelope = thickness_envelope(current, active, targets, cell_values) unless engine
         solved = candidate.to_h { |part| [part['key'], part['bounds'].map(&:dup)] }
         3.times do |axis|
@@ -284,6 +285,7 @@ module MH
             next if att_parts.include?(part['key'])
             2.times do |side|
               next if part['visible'] == false || (part['bounds'][side][axis] - current['envelope'][side][axis]).abs > 0.001
+              next if formula_growth[[part['key'], axis, side]]
               exterior = engine ? part['bounds'][side][axis] : expected_envelope[side][axis]
               equations << [{ [part['key'], side] => 1.0 }, exterior, "Phủ bì #{part['name']}"]
             end
@@ -314,6 +316,11 @@ module MH
           end
           values = PlaneSolver.solve(equations, baseline)
           values.each { |(key, side), value| solved[key][side][axis] = value }
+          formula_growth.each do |(key, grown_axis, side), _entry|
+            if grown_axis == axis && side == 1
+              expected_envelope[side][grown_axis] = [expected_envelope[side][grown_axis], *solved[key].map { |point| point[grown_axis] }].max
+            end
+          end
         end
         visibility = candidate.to_h { |part| [part['key'],part['visible']!=false] }
         changes = current['parts'].map do |part|
@@ -330,6 +337,24 @@ module MH
           'formula_envelope'=>formula_envelope,
           'visibility_updates'=>visibility_updates, 'visibility_capable'=>visibility_capable,
           'outside_sample_range' => false, 'combination_unverified' => !engine }
+      end
+
+      # A manual length increase on an exterior panel may grow its high envelope
+      # edge. The low edge stays anchored; every other envelope side remains fixed.
+      def formula_length_growth(bundle, current, cells)
+        envelope = current['envelope']
+        current['parts'].each_with_object({}) do |part, result|
+          next if part['visible'] == false
+          3.times do |axis|
+            text = bundle.dig('part_formulas', part['key'], Parametric::PART_FIELDS[axis])
+            next unless text
+            high = part['bounds'][1][axis]
+            next unless (high - envelope[1][axis]).abs < 0.001
+            length = cells.dig(part['key'], Parametric::PART_FIELDS[axis])
+            next unless length && length > Core.dimensions(part['bounds'])[axis] + 0.001
+            result[[part['key'], axis, 1]] = true
+          end
+        end
       end
 
       # A standalone panel's thickness is also its envelope dimension. Permit an

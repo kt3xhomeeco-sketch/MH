@@ -113,8 +113,9 @@ def test_source_dxf_dim_deleted_still_builds(tmp_path):
     source=tmp_path/"input.dxf";doc.saveas(source)
     result=analyse_source(str(source),library_root(str(tmp_path/"library")))
     assert result["products"][0]["status"]=="ready"
-    assert result['products'][0]['geometry_pipeline']['mode']=='plan_first'
-    assert len(result["products"][0]["modules"])==3
+    assert result['products'][0]['geometry_pipeline']['mode']=='plan_and_elevation'
+    assert len(result["products"][0]["modules"])==2
+    assert result['products'][0]['elevation_pending'] # No section markers were supplied.
     assert result["products"][0]["code"]=="SP01"
 
 
@@ -130,9 +131,23 @@ def test_unit_scale_and_unknown_units():
 def test_actual_drawing1_geometry_only(tmp_path):
     result=analyse_source(r"E:\MAC\OneDrive\Desktop\Drawing1.dwg",library_root(str(tmp_path/"actual")))
     product=next(p for p in result["products"] if p["code"]=="SP60")
+    assert product['status']=='ready' and len(product['plan_results'])==2
+    upper=next(c for c in product['plan_results'] if c['plan_title']=='MẶT CẮT 3-3')
+    lower=next(c for c in product['plan_results'] if c['plan_title']=='MẶT CẮT 4-4')
+    assert upper['elevation_pending']
+    assert [m['size'] for m in lower['modules']]==[[860,600,2110],[860,600,2110]]
+    assert [m['origin'][2] for m in lower['modules']]==[50,50]
+    assert lower['geometry_pipeline']['horizontal']['status']=='measured'
+    candidate=next(c for c in product['view_analysis']['candidates'] if c['title']=='MẶT CẮT 4-4')
+    result=analyse_source(r"E:\MAC\OneDrive\Desktop\Drawing1.dwg",library_root(str(tmp_path/"actual")),
+                          plan_choices={'SP60':dict(source_hash=product['source_hash'],view_id=candidate['id'],signature=candidate['signature'])})
+    product=result['products'][0]
     assert product["status"]=="ready",product.get("error")
-    assert [m["size"] for m in product["modules"]]==[[860,600,2110],[860,600,2110],[1720,600,432]]
-    assert [m["origin"][2] for m in product["modules"]]==[50,50,2160]
+    # Tier association is pending, but the linked front still measures the
+    # whole SP stock envelope from Z50 to Z2592; do not revert it to1600.
+    assert [m["size"] for m in product["modules"]]==[[860,600,2542],[860,600,2542]]
+    assert [m['origin'][2] for m in product['modules']]==[50,50]
+    assert product['elevation_pending'] and product['geometry_pipeline']['horizontal']['issues']
 
 
 def support_outlines():

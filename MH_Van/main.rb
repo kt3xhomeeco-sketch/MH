@@ -2,6 +2,8 @@
 
 require 'sketchup.rb'
 require 'json'
+require 'digest'
+require File.join(__dir__, 'geometry_cache')
 begin
   require File.join(Sketchup.find_support_file('Plugins'), 'MH_shared.rb')
 rescue StandardError
@@ -27,7 +29,7 @@ module MH
     GROUP_CODE_SHOW_THICKNESS_KEY = 'group_code_show_thickness'.freeze
     GROUP_CODE_SHOW_PAINT_KEY = 'group_code_show_paint'.freeze
     GROUP_CODE_PAINT_TOKEN = 'SON'.freeze
-    AUTO_REFRESH_SECONDS = 0.5
+    AUTO_REFRESH_SECONDS = 0.08
 
     if defined?(Sketchup::EntityObserver)
       class EntityChangeObserver < Sketchup::EntityObserver
@@ -36,7 +38,7 @@ module MH
         end
 
         def onEraseEntity(entity)
-          MH::Van.mark_dirty_entity(entity)
+          MH::Van.request_full_refresh
         end
       end
     end
@@ -60,11 +62,31 @@ module MH
         end
 
         def onTransactionUndo(model)
-          MH::Van.mark_selected_records_dirty(model)
+          MH::Van.invalidate_model_caches(model)
         end
 
         def onTransactionRedo(model)
-          MH::Van.mark_selected_records_dirty(model)
+          MH::Van.invalidate_model_caches(model)
+        end
+      end
+    end
+
+    if defined?(Sketchup::LayersObserver)
+      class VisibilityLayersObserver < Sketchup::LayersObserver
+        def onLayerChanged(_layers, layer)
+          MH::Van.mark_visibility_dirty(layer)
+        end
+
+        def onLayerFolderChanged(_layers, _folder)
+          MH::Van.mark_visibility_dirty
+        end
+
+        def onParentFolderChanged(_layers, layer)
+          MH::Van.mark_visibility_dirty(layer)
+        end
+
+        def onLayerRemoved(_layers, _layer)
+          MH::Van.mark_visibility_dirty
         end
       end
     end
@@ -73,25 +95,49 @@ module MH
       class DefinitionEntitiesChangeObserver < Sketchup::EntitiesObserver
         def onElementAdded(*args)
           MH::Van.mark_dirty_definition_entities(args.find { |item| item.is_a?(Sketchup::Entities) })
+          MH::Van.request_full_refresh if args.any? { |item| item.is_a?(Sketchup::Group) || item.is_a?(Sketchup::ComponentInstance) }
         end
 
         def onElementModified(*args)
           MH::Van.mark_dirty_definition_entities(args.find { |item| item.is_a?(Sketchup::Entities) })
+          args.each { |item| MH::Van.mark_dirty_entity(item) if item.is_a?(Sketchup::Group) || item.is_a?(Sketchup::ComponentInstance) }
         end
 
         def onElementRemoved(*args)
           MH::Van.mark_dirty_definition_entities(args.find { |item| item.is_a?(Sketchup::Entities) })
+          MH::Van.request_full_refresh
         end
 
         def onEraseEntities(*args)
           MH::Van.mark_dirty_definition_entities(args.find { |item| item.is_a?(Sketchup::Entities) })
+          MH::Van.request_full_refresh
+        end
+      end
+    end
+
+    if defined?(Sketchup::AppObserver)
+      class ActiveModelObserver < Sketchup::AppObserver
+        def onNewModel(model)
+          MH::Van.invalidate_model_caches(model)
+        end
+
+        def onOpenModel(model)
+          MH::Van.invalidate_model_caches(model)
+        end
+
+        def onActivateModel(model)
+          MH::Van.invalidate_model_caches(model)
         end
       end
     end
 
     class << self
       def show
-        build_dialog unless @dialog
+        @tracking_paused = false
+        unless @dialog
+          @active_scan_scope = :nesting
+          build_dialog
+        end
         refresh
         @dialog.show
         @dialog.bring_to_front
@@ -99,9 +145,35 @@ module MH
       end
 
       def refresh
-        records = part_records
+        refresh_records(@active_scan_scope || :nesting)
+      end
+
+      # Nesting is limited to ABF boards. All group/component is the unfiltered view:
+      # every outermost Group/Component in the model, whether or not ABF
+      # registered it.
+      def refresh_no_nesting
+        refresh_records(:no_nesting)
+      end
+
+      def refresh_nesting
+        refresh_records(:nesting)
+      end
+
+      def refresh_records(scope)
+        prepare_model_runtime(Sketchup.active_model)
+        # A structural change can replace thousands of nesting/label objects.
+        # Release observers on the old graph before attaching the current one.
+        reset_part_observers if @reattach_part_observers || @full_refresh_requested
+        GeometryCache.clear if @full_refresh_requested
+        @full_refresh_requested = false
+        @dirty_entity_ids = {}
+        @dirty_materials = {}
+        @visibility_dirty_ids = {}
+        invalidate_fast_bindings
+        @active_scan_scope = scope.to_sym
+        records = @active_scan_scope == :no_nesting ? no_nesting_records : part_records
         sync_material_overrides(records)
-        rows = scan_rows(records)
+        rows = scan_rows(records, include_abf_counts: @active_scan_scope == :nesting)
         @last_rows = rows
         attach_part_observers((@last_records_by_id || {}).values)
         attach_materials_observer
@@ -131,11 +203,15 @@ module MH
       end
 
       def refresh_dirty_rows
+        return if @tracking_paused || @suspend_dirty_tracking
+        return refresh if @full_refresh_requested
+
         dirty_entity_ids = @dirty_entity_ids ? @dirty_entity_ids.keys : []
-        selected_entity_ids = selected_record_ids_for_dirty_check
-        force_entity_ids = (dirty_entity_ids + selected_entity_ids).uniq
+        force_entity_ids = dirty_entity_ids
         dirty_materials = @dirty_materials ? @dirty_materials.values : []
-        return if force_entity_ids.empty? && dirty_materials.empty?
+        visibility_ids = @visibility_dirty_ids ? @visibility_dirty_ids.keys : []
+        @visibility_dirty_ids = {}
+        return if force_entity_ids.empty? && dirty_materials.empty? && visibility_ids.empty?
 
         dirty_ids = detect_changed_record_ids(force_entity_ids)
         @dirty_entity_ids = {}
@@ -148,51 +224,78 @@ module MH
 
         dirty_ids.uniq!
         if dirty_ids.empty?
-          update_cached_visibility_for_ids(dirty_entity_ids) unless dirty_entity_ids.empty?
+          update_cached_visibility_for_ids(dirty_entity_ids + visibility_ids)
           return
         end
 
         patch_cached_rows_for_ids(dirty_ids) || refresh
+        update_cached_visibility_for_ids(visibility_ids) unless visibility_ids.empty?
+      end
+
+      def mark_visibility_dirty(layer = nil)
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
+
+        @visibility_dirty_ids ||= {}
+        (@last_records_by_id || {}).each do |id, record|
+          targets = [record[:entity]] + record_ancestor_entities(record)
+          next if layer && targets.none? { |entity| entity && entity.valid? && entity_layer(entity) == layer }
+
+          @visibility_dirty_ids[id] = true
+        end
+        invalidate_fast_bindings
+        start_auto_refresh
       end
 
       def mark_dirty_entity(entity)
-        return if @suspend_dirty_tracking
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
         return unless entity && entity.valid?
 
+        invalidate_fast_bindings
         @dirty_entity_ids ||= {}
-        @dirty_entity_ids[entity.persistent_id] = true
+        id = entity.persistent_id.to_i
+        @dirty_entity_ids[id] = true if @last_records_by_id && @last_records_by_id[id]
+        Array(@ancestor_record_ids && @ancestor_record_ids[id]).each { |record_id| @dirty_entity_ids[record_id.to_i] = true }
+        start_auto_refresh
       rescue StandardError
         nil
       end
 
       def mark_dirty_material(material)
-        return if @suspend_dirty_tracking
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
         return unless material
 
         @dirty_materials ||= {}
         @dirty_materials[material.object_id] = material
+        start_auto_refresh
       rescue StandardError
         nil
       end
 
       def mark_dirty_definition_entities(entities)
-        return if @suspend_dirty_tracking
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
         return unless entities && entities.respond_to?(:parent)
 
         definition = entities.parent
         return unless definition && definition.respond_to?(:entityID)
 
+        GeometryCache.invalidate(definition)
+        invalidate_fast_bindings
         ids = @definition_record_ids && @definition_record_ids[definition.entityID]
         return unless ids && ids.any?
 
         @dirty_entity_ids ||= {}
-        ids.each { |id| @dirty_entity_ids[id.to_i] = true }
+        ids.each do |id|
+          @dirty_entity_ids[id.to_i] = true
+          record = @last_records_by_id && @last_records_by_id[id.to_i]
+          GeometryCache.invalidate(record[:entity].definition) if record && record[:entity].valid?
+        end
+        start_auto_refresh
       rescue StandardError
         nil
       end
 
       def mark_selected_records_dirty(model = Sketchup.active_model)
-        return if @suspend_dirty_tracking
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
         return unless model && @last_records_by_id
 
         ids = selected_record_ids_for_dirty_check(model)
@@ -200,8 +303,26 @@ module MH
 
         @dirty_entity_ids ||= {}
         ids.each { |id| @dirty_entity_ids[id.to_i] = true }
+        start_auto_refresh
       rescue StandardError
         nil
+      end
+
+      def request_full_refresh
+        return if @tracking_paused || @suspend_dirty_tracking || @full_refresh_requested
+
+        @full_refresh_requested = true
+        invalidate_fast_bindings
+        start_auto_refresh
+      end
+
+      def invalidate_model_caches(model)
+        return if @tracking_paused || @suspend_dirty_tracking
+
+        @fast_visibility_runtime = nil
+        @reattach_part_observers = true
+        GeometryCache.clear
+        request_full_refresh
       end
 
       def selected_record_ids_for_dirty_check(model = Sketchup.active_model, limit = 200)
@@ -232,7 +353,7 @@ module MH
         nil
       end
 
-      def scan_rows(records = nil)
+      def scan_rows(records = nil, include_abf_counts: true)
         @abf_sheet_type_rows_cache = nil
         @sheet_type_thickness_cache = nil
         @sheet_type_thickness_candidates_cache = nil
@@ -246,8 +367,10 @@ module MH
         items = scan_items_for_grouping(records)
         buckets = native_group_scan_items(items) || ruby_group_scan_items(items)
 
-        apply_abf_sheet_type_counts(buckets)
-        apply_bottom_face_counts(buckets)
+        if include_abf_counts
+          apply_abf_sheet_type_counts(buckets)
+          apply_bottom_face_counts(buckets)
+        end
         rows = buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
         rebuild_row_indexes(rows)
         rows
@@ -264,7 +387,7 @@ module MH
           Array(record[:ancestor_ids]).each { |ancestor_id| @ancestor_record_ids[ancestor_id.to_i] << id }
 
           raw_code = default_material_code(entity)
-          thickness = thickness_mm(entity, record[:transform], raw_code)
+          thickness = record_thickness_mm(entity, record[:transform], raw_code)
           code = group_material_code_display(raw_code)
           formatted_thickness = format_thickness(thickness)
           key = group_row_key(formatted_thickness, code)
@@ -296,7 +419,12 @@ module MH
         return nil unless defined?(NativeBridge)
         return nil unless NativeBridge.available?
 
-        NativeBridge.group_rows(items)
+        buckets = NativeBridge.group_rows(items)
+        return nil unless buckets
+
+        items.each { |item| track_group_row_mix(buckets[item['key']], item) if buckets[item['key']] }
+        buckets.each_value { |row| finalize_group_row_mix(row) }
+        buckets
       rescue StandardError
         nil
       end
@@ -366,27 +494,7 @@ module MH
 
       def set_visible(payload_json)
         payload = parse_json(payload_json)
-        visible = !!payload['visible']
-        entities = entities_from_ids(payload['ids'])
-        ancestors = visible ? entities_from_ids(payload['ancestor_ids']) : []
-        return if entities.empty?
-
-        model = Sketchup.active_model
-        @suspend_dirty_tracking = true
-        begin
-          model.start_operation(visible ? 'MH Van - Hiện dòng' : 'MH Van - Ẩn dòng', true)
-          apply_visible_entities(model, entities, ancestors, visible, payload['key'])
-          model.commit_operation
-        ensure
-          @suspend_dirty_tracking = false
-        end
-        affected_ids = entities.map(&:persistent_id) + ancestors.map(&:persistent_id)
-        clear_dirty_entity_ids(affected_ids)
-        update_cached_visibility_after_set(payload['ids'], visible)
-        Sketchup.active_model.active_view.invalidate
-      rescue StandardError => e
-        abort_operation_safely
-        alert_error(e)
+        set_visible_rows(JSON.generate('rows' => [payload], 'visible' => !!payload['visible']))
       end
 
       def set_visible_rows(payload_json)
@@ -396,31 +504,38 @@ module MH
         return if rows.empty?
 
         model = Sketchup.active_model
+        return refresh if @runtime_model && !@runtime_model.equal?(model)
+
         changed_ids = []
         ancestor_ids = []
-        @suspend_dirty_tracking = true
-        begin
-          model.start_operation(visible ? 'MH Van - Hiện nhiều dòng' : 'MH Van - Ẩn nhiều dòng', true)
+        tag_visibility = []
+        with_visibility_operation(model, visible ? 'MH Van - Hiện dòng ván' : 'MH Van - Ẩn dòng ván') do
           rows.each do |row|
             ids = Array(row['ids'])
-            entities = entities_from_ids(ids)
-            next if entities.empty?
-
             ancestors = visible ? entities_from_ids(row['ancestor_ids']) : []
-            apply_visible_entities(model, entities, ancestors, visible, row['key'])
+            if toggle_cached_row_tag(model, row, visible, ancestors)
+              tag_visibility << { 'key' => row['key'], 'visible' => visible, 'all_hidden' => !visible }
+            else
+              entities = entities_from_ids(ids)
+              next if entities.empty?
+
+              apply_visible_entities(model, entities, ancestors, visible, row['key'])
+            end
             changed_ids.concat(ids)
             ancestor_ids.concat(Array(row['ancestor_ids'])) if visible
           end
-          model.commit_operation
-        ensure
-          @suspend_dirty_tracking = false
         end
         affected_ids = changed_ids + ancestor_ids
         clear_dirty_entity_ids(affected_ids)
-        update_cached_visibility_after_set(changed_ids, visible)
+        tag_keys = tag_visibility.map { |item| item['key'] }
+        tag_visibility.each do |item|
+          cached_row = @rows_by_key && @rows_by_key[item['key']]
+          cached_row.merge!(item) if cached_row
+        end
+        execute('updateVisibility', tag_visibility) unless tag_visibility.empty?
+        update_cached_visibility_for_ids(affected_ids, except_keys: tag_keys)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
-        abort_operation_safely
         alert_error(e)
       end
 
@@ -431,19 +546,9 @@ module MH
           else
             restore_fast_hidden_entities(model, entities)
           end
-          rows_to_show = (ancestors + entities).uniq.select { |entity| entity && entity.valid? }
-          rows_to_show.each { |entity| recover_fast_visibility_entity(model, entity) unless fast_visibility_mode? }
-          layers_to_show = rows_to_show.filter_map { |entity| entity_layer(entity) }.uniq
-          layers_to_show.each do |layer|
-            next if marked_fast_visibility_layer?(layer)
-
-            layer.visible = true if layer.respond_to?(:visible?) && !layer.visible? && layer.respond_to?(:visible=)
-          end
-          rows_to_show.each do |entity|
-            next unless entity.valid?
-
-            entity.hidden = false if entity.hidden?
-          end
+          # A parent can itself be on an MH Van temporary Tag.
+          fast_show_entities(model, ancestors) if fast_visibility_mode? && ancestors.any?
+          show_entity_containers(model, ancestors + entities)
         elsif fast_visibility_mode?
           fast_hide_entities(model, entities, key)
         else
@@ -454,8 +559,16 @@ module MH
       def set_fast_visibility(payload_json)
         payload = parse_json(payload_json)
         enabled = !!payload['enabled']
+        unless enabled
+          records = fast_visibility_state(Sketchup.active_model)['records']
+          if records.is_a?(Hash) && records.any? && !restore_all_fast_hidden_entities(Sketchup.active_model)
+            execute('syncFastVisibility', { 'enabled' => fast_visibility_mode? })
+            raise 'Không khôi phục được Tag gốc. Chế độ ẩn nhanh được giữ nguyên.'
+          end
+        end
         Sketchup.write_default(DICT, FAST_VISIBILITY_KEY, enabled)
-        restore_all_fast_hidden_entities(Sketchup.active_model) unless enabled
+        invalidate_fast_bindings
+        refresh_visibility
         Sketchup.status_text = "MH Van: Ẩn nhanh bằng Tag #{enabled ? 'ON' : 'OFF'}"
       rescue StandardError => e
         alert_error(e)
@@ -508,21 +621,25 @@ module MH
         state = fast_visibility_state(model)
         records = state['records'] ||= {}
         temp_layer = fast_visibility_temp_layer(model, state, key || fast_visibility_key_for_entities(targets))
-        return unless temp_layer
+        raise 'Không tạo được Tag ẩn nhanh.' unless temp_layer
 
         targets.each do |entity|
           id = entity.persistent_id.to_i
           next unless id.positive?
 
           original_layer = entity_layer(entity)
-          records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+          if !marked_fast_visibility_layer?(original_layer) || !records[id.to_s]
+            records[id.to_s] = fast_visibility_layer_record(original_layer)
+          end
           records[id.to_s]['fast_key'] = fast_visibility_layer_key(temp_layer)
           entity.layer = temp_layer unless entity.layer == temp_layer
-        rescue StandardError
-          records.delete(id.to_s) if id
         end
         temp_layer.visible = false if temp_layer.respond_to?(:visible=)
         save_fast_visibility_state(model, state)
+        if key && targets.length == Array(entities).length && targets.all? { |entity| entity_layer(entity) == temp_layer }
+          @fast_row_bindings ||= {}
+          @fast_row_bindings[key.to_s] = { ids: targets.map(&:persistent_id), layer: temp_layer }
+        end
       end
 
       def fast_show_entities(model, entities)
@@ -541,9 +658,8 @@ module MH
 
         keys_to_show.each_key do |key|
           layer = fast_visibility_temp_layer(model, state, key, create: false)
-          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=)
+          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=) && !layer.visible?
         end
-        save_fast_visibility_state(model, state)
         true
       end
 
@@ -556,63 +672,52 @@ module MH
         target_key = target_key.to_s
         return false if target_key.empty?
 
-        if state['isolate_active'] == true && state['isolate_key'].to_s == target_key
-          fast_show_all_row_tags(model, state)
-          state['isolate_active'] = false
-          state['isolate_key'] = nil
-          save_fast_visibility_state(model, state)
-          Sketchup.status_text = 'MH Van: đã hiện lại tất cả dòng.'
-          model.active_view.invalidate
-          return false
-        end
+        isolated = !(state['isolate_active'] == true && state['isolate_key'].to_s == target_key)
+        with_visibility_operation(model, 'MH Van - Cô lập dòng ván') do
+          if isolated
+            unless fast_visibility_cache_matches_rows?(state)
+              @last_rows.each do |row|
+                key = row['key'].to_s
+                next if key.empty?
 
-        model.start_operation('MH Van - Cô lập dòng ván', true)
-        begin
-          unless fast_visibility_cache_matches_rows?(state)
-            @last_rows.each do |row|
-              key = row['key'].to_s
-              next if key.empty?
+                layer = fast_visibility_temp_layer(model, state, key)
+                raise 'Không tạo được Tag cô lập.' unless layer
 
-              layer = fast_visibility_temp_layer(model, state, key)
-              next unless layer
+                entities_from_ids(row['ids']).each do |entity|
+                  next unless entity && entity.valid?
+                  next if protected_fast_visibility_entity?(entity)
 
-              entities_from_ids(row['ids']).each do |entity|
-                next unless entity && entity.valid?
-                next if protected_fast_visibility_entity?(entity)
+                  id = entity.persistent_id.to_i
+                  next unless id.positive?
 
-                id = entity.persistent_id.to_i
-                next unless id.positive?
-
-                original_layer = entity_layer(entity)
-                unless marked_fast_visibility_layer?(original_layer)
-                  records[id.to_s] ||= fast_visibility_layer_record(original_layer)
+                  original_layer = entity_layer(entity)
+                  unless marked_fast_visibility_layer?(original_layer)
+                    records[id.to_s] = fast_visibility_layer_record(original_layer)
+                  end
+                  records[id.to_s] ||= fast_visibility_layer_record(model.layers[0])
+                  records[id.to_s]['fast_key'] = fast_visibility_layer_key(layer)
+                  entity.hidden = false if entity.hidden?
+                  entity.layer = layer unless entity_layer(entity) == layer
                 end
-                records[id.to_s]['fast_key'] = fast_visibility_layer_key(layer)
-                entity.hidden = false if entity.hidden?
-                entity.layer = layer unless entity_layer(entity) == layer
-              rescue StandardError
-                next
               end
             end
-          end
+            fast_visibility_tag_layers(state, model).each do |key, layer|
+              next unless layer && layer.valid?
 
-          fast_visibility_tag_layers(state, model).each do |key, layer|
-            next unless layer && layer.valid? && layer.respond_to?(:visible=)
-
-            layer.visible = (key.to_s == fast_visibility_safe_key(target_key))
+              visible = key.to_s == fast_visibility_safe_key(target_key)
+              layer.visible = visible if layer.visible? != visible
+            end
+            @fast_isolate_layout = visibility_layout_signature
+          else
+            fast_show_all_row_tags(model, state)
           end
-          state['isolate_active'] = true
-          state['isolate_key'] = target_key
+          state['isolate_active'] = isolated
+          state['isolate_key'] = isolated ? target_key : nil
           state['soft_shown'] = false
           save_fast_visibility_state(model, state)
-          model.commit_operation
-          model.active_view.invalidate
-          Sketchup.status_text = "MH Van: cô lập dòng #{target_key}."
-          true
-        rescue StandardError
-          model.abort_operation
-          false
         end
+        Sketchup.status_text = isolated ? "MH Van: cô lập dòng #{target_key}." : 'MH Van: đã hiện lại tất cả dòng.'
+        isolated
       end
 
       # MH Van row isolation and MH Isolate must use one physical Tag cache.
@@ -630,11 +735,8 @@ module MH
         end
         return nil if targets.empty?
 
-        active_pids = model.active_entities.each_with_object({}) do |entity, result|
-          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-          result[entity.persistent_id.to_i] = true
-        end
-        return nil unless targets.all? { |entity| active_pids[entity.persistent_id.to_i] }
+        parent = model.active_entities.parent
+        return nil unless targets.all? { |entity| entity.parent == parent }
 
         # One-time migration from the old MH Van per-row temp Tags. After this,
         # MH Isolate is the sole physical visibility-cache owner.
@@ -647,6 +749,7 @@ module MH
         result = MH::Isolate::Engine.isolate_entities(model, targets, preserve_selection: false)
         return false unless result
 
+        @using_shared_isolate = true
         shared_state = MH::Isolate::State.fetch(model)
         shared_state && shared_state['soft_unisolated'] != true
       rescue StandardError => error
@@ -656,7 +759,7 @@ module MH
 
       def fast_show_all_row_tags(model, state = fast_visibility_state(model))
         fast_visibility_tag_layers(state, model).each_value do |layer|
-          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=)
+          layer.visible = true if layer && layer.valid? && layer.respond_to?(:visible=) && !layer.visible?
         end
       rescue StandardError
         nil
@@ -671,23 +774,22 @@ module MH
         records = state['records']
         return false unless records.is_a?(Hash) && records.any?
 
-        model.start_operation('MH Van - Hiện tất cả bằng cache', true)
-        begin
+        with_visibility_operation(model, 'MH Van - Hiện tất cả bằng cache') do
           fast_show_all_row_tags(model, state)
           state['isolate_active'] = false
           state['isolate_key'] = nil
           state['soft_shown'] = true
           save_fast_visibility_state(model, state)
-          model.commit_operation
-          model.active_view.invalidate
-          true
-        rescue StandardError
-          model.abort_operation
-          false
         end
+        model.active_view.invalidate
+        true
+      rescue StandardError
+        false
       end
 
       def fast_visibility_cache_matches_rows?(state)
+        return true if @fast_isolate_layout == visibility_layout_signature
+
         records = state['records']
         tags = state['tags']
         return false unless records.is_a?(Hash) && tags.is_a?(Hash)
@@ -742,10 +844,9 @@ module MH
           entity.layer = target_layer if target_layer && entity_layer(entity) != target_layer
           records.delete(id.to_s)
           restored = true
-        rescue StandardError
-          next
         end
 
+        invalidate_fast_bindings if restored
         if records.empty?
           cleanup_fast_visibility_tag(model, state)
           clear_fast_visibility_state(model)
@@ -762,8 +863,7 @@ module MH
         records = state['records']
         return false unless records.is_a?(Hash) && records.any?
 
-        model.start_operation('MH Van - Khôi phục Tag ẩn nhanh', true)
-        begin
+        with_visibility_operation(model, 'MH Van - Khôi phục Tag ẩn nhanh') do
           records.keys.each do |id|
             entity = model.find_entity_by_persistent_id(id.to_i)
             next unless entity && entity.valid?
@@ -772,38 +872,45 @@ module MH
             target_layer = fast_visibility_layer(model, record['tag_pid'], record['tag_name']) || model.layers[0]
             target_layer.visible = true if target_layer && target_layer.respond_to?(:visible=)
             entity.layer = target_layer if target_layer && entity_layer(entity) != target_layer
-          rescue StandardError
-            next
           end
           cleanup_fast_visibility_tags(model, state)
           clear_fast_visibility_state(model)
-          model.commit_operation
-          true
-        rescue StandardError
-          model.abort_operation
-          false
         end
+        true
+      rescue StandardError
+        false
       end
 
       def fast_visibility_state(model)
+        runtime = @fast_visibility_runtime
+        return runtime[:state] if runtime && runtime[:model].equal?(model)
+
         raw = model.get_attribute(DICT, FAST_VISIBILITY_STATE_KEY)
         data = raw.is_a?(String) && !raw.empty? ? JSON.parse(raw) : {}
-        data.is_a?(Hash) ? data : {}
-      rescue StandardError
-        {}
+        state = data.is_a?(Hash) ? data : {}
+        @fast_visibility_runtime = { model: model, state: state, raw: raw }
+        state
+      rescue JSON::ParserError, TypeError
+        @fast_visibility_runtime = { model: model, state: {}, raw: raw }
+        @fast_visibility_runtime[:state]
       end
 
       def save_fast_visibility_state(model, state)
-        model.set_attribute(DICT, FAST_VISIBILITY_STATE_KEY, JSON.generate(state))
-      rescue StandardError
-        nil
+        fast_visibility_state(model)
+        @fast_visibility_runtime[:state] = state
+        if @visibility_batch_model && @visibility_batch_model.equal?(model)
+          @visibility_batch_dirty = true
+        else
+          persist_fast_visibility_state(model)
+        end
       end
 
       def clear_fast_visibility_state(model)
         dictionary = model.attribute_dictionary(DICT, false)
         dictionary.delete_key(FAST_VISIBILITY_STATE_KEY) if dictionary
-      rescue StandardError
-        nil
+        @fast_visibility_runtime = { model: model, state: {}, raw: nil }
+        @visibility_batch_dirty = false
+        invalidate_fast_bindings
       end
 
       def fast_visibility_layer_record(layer)
@@ -824,8 +931,9 @@ module MH
       end
 
       def fast_visibility_temp_layer(model, state, key = nil, create: true)
-        key = fast_visibility_safe_key(key)
         tags = state['tags'] ||= {}
+        # Existing persisted keys remain readable after the v2 key upgrade.
+        key = tags.key?(key.to_s) ? key.to_s : fast_visibility_safe_key(key)
         tag_state = tags[key] ||= {}
         layer = fast_visibility_layer(model, tag_state['temp_tag_pid'], tag_state['temp_tag_name'])
         return layer if layer && layer.valid?
@@ -858,7 +966,9 @@ module MH
       def fast_visibility_safe_key(key)
         text = key.to_s.strip
         text = 'batch' if text.empty?
-        text.gsub(/[^0-9A-Za-z_.-]/, '_')[0, 80]
+        return text if text.match?(/\Av2_[0-9a-f]{24}\z/)
+
+        "v2_#{Digest::SHA256.hexdigest(text)[0, 24]}"
       end
 
       def cleanup_fast_visibility_tag(model, state)
@@ -913,8 +1023,8 @@ module MH
 
         model = Sketchup.active_model
         code_by_entity = resolved_material_codes_for_entities(entities, input_code)
+        change_token = begin_hud_material_change(entities)
         target_materials = []
-        renamed_materials = []
         old_materials = []
         @suspend_dirty_tracking = true
         begin
@@ -925,27 +1035,18 @@ module MH
             old_materials.concat(current_materials)
             target_material = material_for_code_change(target_code, current_materials, group_entities)
             target_materials << target_material
-            renamed_materials << target_material if current_materials.length == 1 && current_materials.first.equal?(target_material)
+            group_entities.each do |entity|
+              next unless entity.valid?
 
-            # Renaming the shared material already updates every group using it.
-            unless renamed_materials.include?(target_material)
-              group_entities.each do |entity|
-                next unless entity.valid?
-
-                assign_material_code(entity, target_code, target_material)
-              end
+              assign_material_code(entity, target_code, target_material)
             end
           end
-          remove_unused_materials(old_materials.compact.uniq - target_materials.compact.uniq)
           model.commit_operation
         ensure
           @suspend_dirty_tracking = false
         end
-        affected_ids = if renamed_materials.any?
-                         cached_ids_for_materials(renamed_materials)
-                       else
-                         entities.map(&:persistent_id)
-        end
+        remove_unused_materials(old_materials.compact.uniq - target_materials.compact.uniq)
+        affected_ids = entities.map(&:persistent_id)
         clear_dirty_entity_ids(affected_ids)
         clear_dirty_materials(target_materials)
         affected_ids.uniq.each do |id|
@@ -959,6 +1060,7 @@ module MH
           update_cached_group_scan_items_code([id], raw_code, group_material_code_display(raw_code), color)
         end
         refresh_group_code_display || patch_cached_rows_for_ids(affected_ids.uniq)
+        notify_material_code_change(change_token)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -969,11 +1071,14 @@ module MH
         payload = parse_json(payload_json || '{}')
         ids = Array(payload['ids']).map(&:to_i).reject(&:zero?)
         entities = if ids.empty?
-          part_records.map { |record| record[:entity] }
+          records = @active_scan_scope == :no_nesting ? no_nesting_records : part_records
+          records.map { |record| record[:entity] }
         else
           entities_from_ids(ids)
         end
-        entities = entities.select { |entity| entity && entity.valid? && part_like?(entity) }
+        entities = entities.select do |entity|
+          entity && entity.valid? && (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance))
+        end
         return if entities.empty?
 
         changes = {}
@@ -988,6 +1093,7 @@ module MH
         end
         return if changes.empty?
 
+        change_token = begin_hud_material_change(changes.keys)
         model = Sketchup.active_model
         @suspend_dirty_tracking = true
         begin
@@ -1012,6 +1118,7 @@ module MH
         end
         clear_dirty_entity_ids(changed_ids)
         clear_dirty_materials(old_materials.compact)
+        notify_material_code_change(change_token)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -1023,13 +1130,16 @@ module MH
         entities = entities_from_ids(payload['ids'])
         return if entities.empty?
 
+        change_token = begin_hud_material_change(entities)
         model = Sketchup.active_model
+        old_materials = []
         @suspend_dirty_tracking = true
         begin
           model.start_operation('MH Van - Về vật liệu Default', true)
           entities.each do |entity|
             next unless entity.valid? && entity.respond_to?(:material=)
 
+            old_materials << primary_material(entity)
             entity.material = nil
             entity.delete_attribute(DICT, ATTR_CODE)
             entity.delete_attribute(DICT, ATTR_ORIGINAL_CODE)
@@ -1038,10 +1148,16 @@ module MH
         ensure
           @suspend_dirty_tracking = false
         end
+        remove_unused_materials(old_materials)
         affected_ids = entities.map(&:persistent_id)
         clear_dirty_entity_ids(affected_ids)
         color = material_color(entities.find { |entity| entity && entity.valid? }, 'Default')
-        patch_cached_rows_for_ids(affected_ids) unless update_cached_code_after_set(affected_ids, 'Default', color)
+        if @active_scan_scope == :no_nesting
+          patch_cached_rows_for_ids(affected_ids)
+        else
+          patch_cached_rows_for_ids(affected_ids) unless update_cached_code_after_set(affected_ids, 'Default', color)
+        end
+        notify_material_code_change(change_token)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -1054,6 +1170,7 @@ module MH
         entities = entities_from_ids(payload['ids'])
         return if entities.empty?
 
+        change_token = begin_hud_material_change(entities)
         model = Sketchup.active_model
         model.start_operation('MH Van - Đổi màu dòng', true)
         changed_materials = []
@@ -1066,6 +1183,7 @@ module MH
         end
         model.commit_operation
         patch_cached_rows_for_ids(cached_ids_for_materials(changed_materials.compact)) || refresh
+        notify_material_code_change(change_token)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -1084,7 +1202,7 @@ module MH
         target = @surface_material_targets && @surface_material_targets[payload['id'].to_s]
         return unless target
 
-        clear_surface_material_targets([target], 'MH Van - Xoa vat lieu Face Edge')
+        clear_surface_material_targets([target], 'MH Van - Xoa vat lieu ton du')
       rescue StandardError => e
         abort_operation_safely
         alert_error(e)
@@ -1095,7 +1213,26 @@ module MH
         targets = (@surface_material_targets || {}).values
         return if targets.empty?
 
-        clear_surface_material_targets(targets, 'MH Van - Xoa tat ca vat lieu Face Edge')
+        clear_surface_material_targets(targets, 'MH Van - Xoa tat ca vat lieu ton du')
+      rescue StandardError => e
+        abort_operation_safely
+        alert_error(e)
+      end
+
+      def clear_all_face_materials
+        clear_surface_material_kind(%i[fronts backs], 'MH Van - Xoa vat lieu Face')
+      end
+
+      def clear_all_edge_materials
+        clear_surface_material_kind([:edges], 'MH Van - Xoa vat lieu Edge')
+      end
+
+      def clear_surface_material_kind(kinds, operation_name)
+        surface_material_rows unless @surface_material_targets
+        targets = (@surface_material_targets || {}).values
+        return if targets.empty?
+
+        clear_surface_material_targets(targets, operation_name, kinds: kinds)
       rescue StandardError => e
         abort_operation_safely
         alert_error(e)
@@ -1106,7 +1243,8 @@ module MH
         entities = entities_from_ids(payload['ids'])
         model = Sketchup.active_model
         model.selection.clear
-        entities.each { |entity| model.selection.add(entity) if entity.valid? && entity_visible_in_model?(entity) }
+        selected = entities.select { |entity| entity.valid? && entity_visible_in_model?(entity) }
+        model.selection.add(selected) unless selected.empty?
         zoom_to_entities(model, model.selection.to_a)
       rescue StandardError => e
         alert_error(e)
@@ -1118,16 +1256,23 @@ module MH
         return select_row(payload_json) if key.empty? || !@last_rows || @last_rows.empty?
 
         model = Sketchup.active_model
-        isolated = isolate_row_by_fast_tags(model, key)
-        update_cached_visibility_for_row_isolate(key, isolated)
+        @using_shared_isolate = false
+        previous_suspend = @suspend_dirty_tracking
+        begin
+          @suspend_dirty_tracking = true
+          isolate_row_by_fast_tags(model, key)
+        ensure
+          @suspend_dirty_tracking = previous_suspend
+        end
+        refresh_visibility
         target_row = @last_rows.find { |row| row['key'].to_s == key }
-        if target_row
+        if target_row && !@using_shared_isolate
           model.selection.clear
-          entities_from_ids(target_row['ids']).each do |entity|
-            model.selection.add(entity) if entity && entity.valid? && entity_visible_in_model?(entity)
-          end
+          selected = entities_from_ids(target_row['ids']).select { |entity| entity && entity.valid? && entity_visible_in_model?(entity) }
+          model.selection.add(selected) unless selected.empty?
           zoom_to_entities(model, model.selection.to_a)
         end
+        model.active_view.invalidate
       rescue StandardError => e
         alert_error(e)
       end
@@ -1147,6 +1292,7 @@ module MH
         end
         return if entities.empty?
 
+        change_token = begin_hud_material_change(entities)
         model = Sketchup.active_model
         model.start_operation('MH Van - Reset tất cả mã vật liệu', true)
         entities.each do |entity|
@@ -1158,6 +1304,7 @@ module MH
         end
         model.commit_operation
         refresh
+        notify_material_code_change(change_token)
         Sketchup.active_model.active_view.invalidate
       rescue StandardError => e
         abort_operation_safely
@@ -1173,6 +1320,7 @@ module MH
         end
         return if targets.empty?
 
+        change_token = begin_hud_material_change(targets)
         model = Sketchup.active_model
         model.start_operation('MH Van - Đồng bộ mã vật liệu', true)
         old_materials = []
@@ -1183,7 +1331,7 @@ module MH
           next if code.empty?
 
           material = primary_material(entity)
-          if !material || material.display_name.to_s != code
+          if !material || material_code_name(material) != code
             old_materials << material
             assign_material_code(entity, code)
           end
@@ -1193,12 +1341,162 @@ module MH
         end
         model.commit_operation
         model.active_view.invalidate
+        notify_material_code_change(change_token)
       rescue StandardError => e
         abort_operation_safely
         alert_error(e)
       end
 
       private
+
+      def invalidate_fast_bindings
+        @fast_row_bindings = {}
+        @fast_isolate_layout = nil
+      end
+
+      def visibility_layout_signature
+        Array(@last_rows).map { |row| [row['key'], Array(row['ids']).dup] }
+      end
+
+      def persist_fast_visibility_state(model)
+        runtime = @fast_visibility_runtime
+        return unless runtime && runtime[:model].equal?(model)
+
+        raw = JSON.generate(runtime[:state])
+        return if raw == runtime[:raw]
+
+        model.set_attribute(DICT, FAST_VISIBILITY_STATE_KEY, raw)
+        runtime[:raw] = raw
+      end
+
+      def with_visibility_operation(model, name)
+        previous_suspend = @suspend_dirty_tracking
+        @suspend_dirty_tracking = true
+        @visibility_batch_model = model
+        @visibility_batch_dirty = false
+        started = false
+        begin
+          model.start_operation(name, true)
+          started = true
+          yield
+          persist_fast_visibility_state(model) if @visibility_batch_dirty
+          model.commit_operation
+          started = false
+        rescue StandardError
+          model.abort_operation if started
+          @fast_visibility_runtime = nil
+          invalidate_fast_bindings
+          raise
+        ensure
+          @visibility_batch_model = nil
+          @visibility_batch_dirty = false
+          @suspend_dirty_tracking = previous_suspend
+          start_auto_refresh
+        end
+      end
+
+      def toggle_cached_row_tag(model, row, visible, ancestors)
+        return false unless fast_visibility_mode?
+
+        binding = @fast_row_bindings && @fast_row_bindings[row['key'].to_s]
+        return false unless binding && binding[:ids] == Array(row['ids']).map(&:to_i)
+
+        layer = binding[:layer]
+        return false unless layer && layer.valid?
+
+        layer.visible = visible if layer.visible? != visible
+        if visible
+          fast_show_entities(model, ancestors) if ancestors.any?
+          show_entity_containers(model, ancestors)
+        end
+        true
+      end
+
+      def show_entity_containers(model, entities)
+        targets = entities.uniq.select { |entity| entity && entity.valid? }
+        targets.each { |entity| recover_fast_visibility_entity(model, entity) unless fast_visibility_mode? }
+        targets.filter_map { |entity| entity_layer(entity) }.uniq.each do |layer|
+          next if marked_fast_visibility_layer?(layer)
+
+          layer.visible = true if !layer.visible? && layer.respond_to?(:visible=)
+          folder = layer.folder if layer.respond_to?(:folder)
+          while folder
+            folder.visible = true unless folder.visible?
+            folder = folder.respond_to?(:folder) ? folder.folder : nil
+          end
+        end
+        targets.each { |entity| entity.hidden = false if entity.hidden? }
+      end
+
+      def prepare_model_runtime(model)
+        return if @runtime_model && @runtime_model.equal?(model)
+
+        stop_auto_refresh
+        reset_part_observers
+        remove_observer_safely(@observed_model, @model_observer)
+        remove_observer_safely(@observed_materials, @materials_observer)
+        remove_observer_safely(@observed_layers, @layers_observer)
+        @runtime_model = model
+        @observed_model = nil
+        @observed_materials = nil
+        @materials_observer_attached = false
+        @observed_entity_ids = {}
+        @observed_definition_ids = {}
+        @observed_entities = []
+        @observed_containers = []
+        @fast_visibility_runtime = nil
+        invalidate_fast_bindings
+        @surface_material_targets = nil
+        execute('renderSurfaceRows', [])
+        GeometryCache.clear
+      end
+
+      def remove_observer_safely(target, observer)
+        target.remove_observer(observer) if target && observer
+      rescue StandardError
+        nil
+      end
+
+      def reset_part_observers
+        Array(@observed_entities).each { |entity| remove_observer_safely(entity, @entity_observer) }
+        Array(@observed_containers).each { |entities| remove_observer_safely(entities, @definition_entities_observer) }
+        @observed_entity_ids = {}
+        @observed_definition_ids = {}
+        @observed_entities = []
+        @observed_containers = []
+        @root_entities_observed = false
+        @reattach_part_observers = false
+      end
+
+      def pause_model_tracking
+        @tracking_paused = true
+        stop_auto_refresh
+        reset_part_observers
+        remove_observer_safely(@observed_model, @model_observer)
+        remove_observer_safely(@observed_materials, @materials_observer)
+        remove_observer_safely(@observed_layers, @layers_observer)
+        remove_observer_safely(Sketchup, @app_observer)
+        @observed_model = @observed_materials = @observed_layers = nil
+        @app_observer = nil
+        @materials_observer_attached = false
+        @runtime_model = nil
+        @full_refresh_requested = false
+        %i[@dirty_entity_ids @dirty_materials @visibility_dirty_ids @last_records_by_id
+           @record_signatures @record_row_keys @definition_record_ids @ancestor_record_ids].each do |key|
+          instance_variable_set(key, {})
+        end
+        @last_rows = []
+        @last_group_scan_items = []
+        @surface_material_targets = nil
+        @abf_sheet_type_rows_cache = @bottom_face_counts_cache = nil
+        @sheet_type_thickness_cache = @sheet_type_thickness_candidates_cache = nil
+        @abf_sheet_types_tool = nil
+        @fast_visibility_runtime = nil
+        @material_change_hub_signature = @material_change_hub_model = nil
+        invalidate_fast_bindings
+        rebuild_row_indexes([])
+        GeometryCache.clear
+      end
 
       def build_dialog
         @dialog = UI::HtmlDialog.new(
@@ -1214,6 +1512,8 @@ module MH
         @dialog.set_html(html)
         @dialog.add_action_callback('ready') { refresh }
         @dialog.add_action_callback('refresh') { refresh }
+        @dialog.add_action_callback('refresh_nesting') { refresh_nesting }
+        @dialog.add_action_callback('refresh_no_nesting') { refresh_no_nesting }
         @dialog.add_action_callback('set_visible') { |_ctx, payload| set_visible(payload) }
         @dialog.add_action_callback('set_visible_rows') { |_ctx, payload| set_visible_rows(payload) }
         @dialog.add_action_callback('set_fast_visibility') { |_ctx, payload| set_fast_visibility(payload) }
@@ -1226,22 +1526,26 @@ module MH
         @dialog.add_action_callback('refresh_surface_materials') { refresh_surface_materials }
         @dialog.add_action_callback('clear_surface_material') { |_ctx, payload| clear_surface_material(payload) }
         @dialog.add_action_callback('clear_all_surface_materials') { clear_all_surface_materials }
+        @dialog.add_action_callback('clear_all_face_materials') { clear_all_face_materials }
+        @dialog.add_action_callback('clear_all_edge_materials') { clear_all_edge_materials }
         @dialog.add_action_callback('strip_paint_codes') { |_ctx, payload| strip_paint_codes(payload) }
         @dialog.add_action_callback('clear_all_overrides') { clear_all_overrides }
         @dialog.set_on_closed do
-          stop_auto_refresh
+          pause_model_tracking
           @dialog = nil
         end
       end
 
       def start_auto_refresh
         return if @refresh_timer_id
+        return unless @dialog && @dialog.visible?
+        return unless @full_refresh_requested || (@dirty_entity_ids && @dirty_entity_ids.any?) || (@dirty_materials && @dirty_materials.any?) || (@visibility_dirty_ids && @visibility_dirty_ids.any?)
 
-        @refresh_timer_id = UI.start_timer(AUTO_REFRESH_SECONDS, true) do
+        @refresh_timer_id = UI.start_timer(AUTO_REFRESH_SECONDS, false) do
+          @refresh_timer_id = nil
           if @dialog && @dialog.visible?
             refresh_dirty_rows
-          else
-            stop_auto_refresh
+            start_auto_refresh
           end
         end
       end
@@ -1268,7 +1572,7 @@ module MH
         end
         return false if records.empty?
 
-        rows = scan_rows(records)
+        rows = scan_rows(records, include_abf_counts: @active_scan_scope == :nesting)
         @last_rows = rows
         attach_part_observers((@last_records_by_id || {}).values)
         attach_materials_observer
@@ -1301,8 +1605,12 @@ module MH
           raw = raw_code.to_s
           display_code_cache[raw] ||= group_material_code_display(raw, show_thickness, show_paint, separator)
         end
-        apply_cached_abf_sheet_type_counts(buckets, display_code)
-        apply_cached_bottom_face_counts(buckets, display_code)
+        if @active_scan_scope == :nesting
+          @abf_sheet_type_rows_cache = nil
+          abf_sheet_type_rows
+          apply_cached_abf_sheet_type_counts(buckets, display_code)
+          apply_cached_bottom_face_counts(buckets, display_code)
+        end
         rows = buckets.values.sort_by { |row| [row['thickness_value'].to_f, row['code'].downcase] }
         @last_rows = rows
         rebuild_row_indexes(rows)
@@ -1319,47 +1627,78 @@ module MH
       end
 
       def attach_part_observers(records)
+        return if @tracking_paused
         return unless defined?(EntityChangeObserver)
 
         @entity_observer ||= EntityChangeObserver.new
         @definition_entities_observer ||= DefinitionEntitiesChangeObserver.new if defined?(DefinitionEntitiesChangeObserver)
         @observed_entity_ids ||= {}
         @observed_definition_ids ||= {}
+        @observed_entities ||= []
+        @observed_containers ||= []
+        if @definition_entities_observer && !@root_entities_observed
+          root = Sketchup.active_model.entities
+          root.add_observer(@definition_entities_observer)
+          @observed_containers << root
+          @root_entities_observed = true
+        end
         records.each do |record|
           entity = record[:entity]
           next unless entity && entity.valid?
 
-          id = entity.persistent_id
-          unless @observed_entity_ids[id]
-            entity.add_observer(@entity_observer)
+          ([entity] + record_ancestor_entities(record)).each do |target|
+            next unless target && target.valid?
+            id = target.persistent_id
+            next if @observed_entity_ids[id]
+
+            target.add_observer(@entity_observer)
             @observed_entity_ids[id] = true
+            @observed_entities << target
           end
 
           next unless @definition_entities_observer
           next unless entity.respond_to?(:definition) && entity.definition
 
-          definition_id = entity.definition.entityID
-          next if @observed_definition_ids[definition_id]
-
-          entity.definition.entities.add_observer(@definition_entities_observer)
-          @observed_definition_ids[definition_id] = true
+          observe_record_definition(entity.definition, entity.persistent_id, {})
         rescue StandardError
           nil
         end
       end
 
+      def observe_record_definition(definition, record_id, visited)
+        id = definition.entityID
+        return if visited[id]
+
+        visited[id] = true
+        ids = (@definition_record_ids[id] ||= [])
+        ids << record_id unless ids.include?(record_id)
+        unless @observed_definition_ids[id]
+          definition.entities.add_observer(@definition_entities_observer)
+          @observed_definition_ids[id] = true
+          @observed_containers << definition.entities
+        end
+        definition.entities.each do |child|
+          next unless child.valid? && child.respond_to?(:definition) && child.definition
+
+          observe_record_definition(child.definition, record_id, visited)
+        end
+      end
+
       def attach_materials_observer
+        return if @tracking_paused
         return if @materials_observer_attached
         return unless defined?(MaterialsChangeObserver)
 
         @materials_observer ||= MaterialsChangeObserver.new
-        Sketchup.active_model.materials.add_observer(@materials_observer)
+        @observed_materials = Sketchup.active_model.materials
+        @observed_materials.add_observer(@materials_observer)
         @materials_observer_attached = true
       rescue StandardError
-        @materials_observer_attached = true
+        @materials_observer_attached = false
       end
 
       def attach_model_observer
+        return if @tracking_paused
         return unless defined?(ModelChangeObserver)
 
         model = Sketchup.active_model
@@ -1368,6 +1707,15 @@ module MH
         @model_observer ||= ModelChangeObserver.new
         model.add_observer(@model_observer)
         @observed_model = model
+        if defined?(VisibilityLayersObserver)
+          @layers_observer ||= VisibilityLayersObserver.new
+          @observed_layers = model.layers
+          @observed_layers.add_observer(@layers_observer)
+        end
+        if defined?(ActiveModelObserver) && !@app_observer
+          @app_observer = ActiveModelObserver.new
+          Sketchup.add_observer(@app_observer)
+        end
       rescue StandardError
         nil
       end
@@ -1423,8 +1771,6 @@ module MH
           next if signature == @record_signatures[id] && key && key == cached_key
 
           @record_signatures[id] = signature
-          next if key && key == cached_key
-
           @record_row_keys[id] = key if key && @record_row_keys
           changed << id
         end
@@ -1472,9 +1818,11 @@ module MH
           next unless record
 
           entity = record[:entity]
-          unless entity && entity.valid? && part_like?(entity)
+          unless record_in_active_scope?(entity)
             @record_signatures.delete(id) if @record_signatures
             @record_row_keys.delete(id) if @record_row_keys
+            @last_records_by_id.delete(id)
+            @last_group_scan_items.reject! { |item| item['id'].to_i == id } if @last_group_scan_items
             next
           end
 
@@ -1493,6 +1841,20 @@ module MH
           touched_keys << new_row['key']
         end
 
+        # Recompute mixed thickness/color from all remaining members, rather
+        # than retaining flags from a member that has just moved/deleted.
+        touched = touched_keys.uniq
+        mixed_rows = ruby_group_scan_items(Array(@last_group_scan_items).select { |item| touched.include?(item['key']) })
+        @last_rows.each do |row|
+          replacement = mixed_rows[row['key']]
+          next unless replacement
+
+          %w[thickness thickness_value color mixed_thickness mixed_color raw_codes raw_code].each do |key|
+            row.delete(key)
+            row[key] = replacement[key] if replacement.key?(key)
+          end
+        end
+
         @last_rows.sort_by! { |row| [row['thickness_value'].to_f, row['code'].to_s.downcase] }
         rebuild_row_indexes(@last_rows)
         touched_keys.uniq!
@@ -1506,7 +1868,7 @@ module MH
       def add_record_to_bucket(buckets, record)
         entity = record[:entity]
         raw_code = default_material_code(entity)
-        thickness = thickness_mm(entity, record[:transform], raw_code)
+        thickness = record_thickness_mm(entity, record[:transform], raw_code)
         code = group_material_code_display(raw_code)
         color = material_color(entity, raw_code).to_s
         formatted_thickness = format_thickness(thickness)
@@ -1585,13 +1947,23 @@ module MH
 
       def record_row_key(record)
         entity = record[:entity]
-        return nil unless entity && entity.valid? && part_like?(entity)
+        return nil unless record_in_active_scope?(entity)
 
         raw_code = default_material_code(entity)
-        thickness = thickness_mm(entity, record[:transform], raw_code)
+        thickness = record_thickness_mm(entity, record[:transform], raw_code)
         group_row_key(format_thickness(thickness), group_material_code_display(raw_code))
       rescue StandardError
         nil
+      end
+
+      def record_in_active_scope?(entity)
+        return false unless entity && entity.valid?
+        return part_like?(entity) unless @active_scan_scope == :no_nesting
+
+        (entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)) &&
+          !all_group_component_thickness_mm(entity).nil?
+      rescue StandardError
+        false
       end
 
       def refresh_record_transform(record)
@@ -1679,7 +2051,7 @@ module MH
         {}
       end
 
-      def update_cached_visibility_for_ids(ids)
+      def update_cached_visibility_for_ids(ids, except_keys: [])
         return unless @last_rows && @last_rows.any?
 
         row_lookup = rows_for_entity_ids(ids)
@@ -1687,6 +2059,7 @@ module MH
 
         payload = []
         row_lookup.each_value do |row|
+          next if except_keys.include?(row['key'])
           state = row_visibility_from_paths(row['paths'])
           next if row['visible'] == state[:visible] && row['all_hidden'] == state[:all_hidden]
 
@@ -1830,6 +2203,31 @@ module MH
         end
       end
 
+      def no_nesting_records
+        records = []
+        # All group/component is a top-level inventory. Nested details belong
+        # to their outer Group/Component and must not be counted again.
+        Sketchup.active_model.entities.each do |entity|
+          next unless entity.valid?
+          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+          next unless all_group_component_thickness_mm(entity)
+
+          records << {
+            entity: entity,
+            ancestors: [],
+            ancestor_ids: [],
+            transform: entity.respond_to?(:transformation) ? entity.transformation : Geom::Transformation.new
+          }
+        end
+        seen = {}
+        records.select do |record|
+          id = record[:entity].persistent_id
+          next false if seen[id]
+
+          seen[id] = true
+        end
+      end
+
       def walk_entities(container, out, ancestors, transform)
         container.each do |entity|
           next unless entity.valid?
@@ -1906,7 +2304,14 @@ module MH
         layer = entity_layer(entity)
         return true unless layer && layer.respond_to?(:visible?)
 
-        layer.visible?
+        return false unless layer.visible?
+
+        folder = layer.folder if layer.respond_to?(:folder)
+        while folder
+          return false unless folder.visible?
+          folder = folder.respond_to?(:folder) ? folder.folder : nil
+        end
+        true
       rescue StandardError
         true
       end
@@ -1972,20 +2377,7 @@ module MH
       end
 
       def watched_thickness_signature(entity, transform = nil, expected_thickness = nil)
-        transform ||= entity.respond_to?(:transformation) ? entity.transformation : Geom::Transformation.new
-        candidates = [
-          bounds_thickness_mm(entity, transform),
-          world_bounds_thickness_mm(entity)
-        ].compact
-        return nil if candidates.empty?
-
-        expected = expected_thickness.to_f if expected_thickness
-        value = if expected && expected.positive?
-                  candidates.min_by { |candidate| (candidate - expected).abs }
-                else
-                  candidates.min
-                end
-        value.round(1)
+        format_thickness(expected_thickness || record_thickness_mm(entity, transform))
       end
 
       def record_key_thickness(key)
@@ -1993,22 +2385,18 @@ module MH
       end
 
       def thickness_mm(entity, transform = nil, material = nil)
-        local_thickness = bounds_thickness_mm(entity, transform)
-        world_thickness = world_bounds_thickness_mm(entity)
+        GeometryCache.thickness(entity, transform) || 0.0
+      end
 
-        if local_thickness && world_thickness && (local_thickness.round(1) != world_thickness.round(1))
-          geometry_thickness = largest_face_thickness_mm(entity, transform)
-          return geometry_thickness if geometry_thickness
+      # Both inventory scopes measure the same physical board thickness.
+      def record_thickness_mm(entity, transform = nil, material = nil)
+        thickness_mm(entity, transform, material)
+      end
 
-          return world_thickness
-        end
-
-        return world_thickness if local_thickness && world_thickness && (local_thickness - world_thickness).abs <= 0.2
-
-        geometry_thickness = largest_face_thickness_mm(entity, transform)
-        return geometry_thickness if geometry_thickness
-
-        world_thickness || local_thickness || 0.0
+      def all_group_component_thickness_mm(entity)
+        GeometryCache.thickness(entity)
+      rescue StandardError
+        nil
       end
 
       def bounds_thickness_mm(entity, transform = nil)
@@ -2135,27 +2523,39 @@ module MH
       end
 
       def transformation_scales(transform)
-        [
-          transform.xaxis.length,
-          transform.yaxis.length,
-          transform.zaxis.length
-        ]
+        axes = GeometryCache.transform_axes(transform)
+        return [0.0, 0.0, 0.0] unless axes
+
+        axes.map { |axis| Math.sqrt(axis.sum { |value| value * value }) }
       rescue StandardError
         [1.0, 1.0, 1.0]
       end
 
       def format_thickness(value)
-        rounded = value.to_f.round(1)
-        if (rounded - rounded.round).abs < 0.05
-          rounded.round.to_s
-        else
-          rounded.to_s
-        end
+        # Keep distinct measured thicknesses (17.6 vs 17.64) in separate
+        # rows, while suppressing floating-point noise from transformations.
+        rounded = value.to_f.round(3)
+        rounded == rounded.to_i ? rounded.to_i.to_s : rounded.to_s
       end
 
       def default_material_code(entity)
         material = entity.respond_to?(:material) ? entity.material : nil
-        material ? material.name.to_s : 'Default'
+        material ? material_code_name(material) : 'Default'
+      end
+
+      # Material#name can be SketchUp's internal identifier while
+      # #display_name is what users see and what the other MH apps export.
+      # Always use one value here so MH Van, Material HUD and Thongke cannot
+      # disagree after a material is renamed.
+      def material_code_name(material)
+        return '' unless material
+
+        display = material.display_name.to_s.strip if material.respond_to?(:display_name)
+        return display unless display.to_s.empty?
+
+        material.name.to_s.strip
+      rescue StandardError
+        ''
       end
 
       def group_material_code_display(code, show_thickness = nil, show_paint = nil, separator = nil)
@@ -2314,15 +2714,12 @@ module MH
         name = code.to_s
         return nil if name.empty?
 
-        existing = Sketchup.active_model.materials[name]
+        existing = existing_material_by_code(name)
         return existing if existing
 
-        if current_materials.length == 1
-          material = current_materials.first
-          material.name = name
-          return material
-        end
-
+        # A material can be shared by objects from different rows (for
+        # example 18.6 mm and 27 mm). Never rename it in place: a row edit
+        # must reassign only the objects selected by that row.
         material_by_name(name, current_materials.first)
       rescue StandardError
         material_by_name(name, current_materials.first)
@@ -2353,12 +2750,57 @@ module MH
         return nil if name.empty?
 
         materials = Sketchup.active_model.materials
-        material = materials[name]
+        material = existing_material_by_code(name, materials)
         return material if material
 
         material = materials.add(name)
         material.color = source_material.color if source_material
         material
+      end
+
+      def existing_material_by_code(name, materials = nil)
+        materials ||= Sketchup.active_model.materials
+        material = materials[name]
+        return material if material
+
+        materials.find { |item| material_code_name(item) == name.to_s }
+      rescue StandardError
+        nil
+      end
+
+      # SketchUp normally notifies the shared hub on commit. Keep an explicit
+      # fallback for missed material-only events, and always finish the HUD's
+      # targeted edit notification without a second full hub invalidation.
+      def begin_hud_material_change(entities)
+        # The shared hub normally receives the commit itself. Capture its
+        # revision so the explicit fallback below does not invalidate it twice.
+        @material_change_hub_model = Sketchup.active_model
+        @material_change_hub_signature = if defined?(MH::ModelHub) && MH::ModelHub.respond_to?(:model_signature)
+                                           MH::ModelHub.model_signature
+                                         end
+        return unless defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:begin_material_change)
+        MH::MaterialHUD.begin_material_change(entities)
+      end
+
+      def notify_material_code_change(change_token = nil)
+        before_signature = @material_change_hub_signature
+        same_model = @material_change_hub_model.equal?(Sketchup.active_model)
+        @material_change_hub_signature = @material_change_hub_model = nil
+        if defined?(MH::ModelHub) && MH::ModelHub.respond_to?(:invalidate!)
+          commit_notified = same_model && before_signature && MH::ModelHub.respond_to?(:model_signature) &&
+                            MH::ModelHub.model_signature != before_signature
+          MH::ModelHub.invalidate!(:model) unless commit_notified
+        end
+        if defined?(MH::MaterialHUD) && MH::MaterialHUD.respond_to?(:model_materials_changed)
+          if change_token && MH::MaterialHUD.respond_to?(:finish_material_change)
+            MH::MaterialHUD.finish_material_change(change_token)
+          else
+            MH::MaterialHUD.model_materials_changed
+          end
+        end
+        true
+      rescue StandardError
+        false
       end
 
       def remove_unused_materials(materials)
@@ -2368,24 +2810,67 @@ module MH
         collection = Sketchup.active_model.materials
         return unless collection.respond_to?(:remove)
 
-        candidates = materials.each_with_object({}) { |material, map| map[material.object_id] = material }
-        used = {}
-        each_model_entity(Sketchup.active_model.entities) do |entity|
-          material = entity.material if entity.respond_to?(:material)
-          used[material.object_id] = true if material && candidates[material.object_id]
-
-          back_material = entity.back_material if entity.respond_to?(:back_material)
-          used[back_material.object_id] = true if back_material && candidates[back_material.object_id]
-        end
+        used = used_candidate_materials(materials)
 
         materials.each do |material|
           next unless material
           next if used[material.object_id]
 
+          # A material selected in the Materials tray can be retained by
+          # SketchUp even after the last Face/Edge assignment is cleared.
+          # Deselect it before removing the now-unused collection item.
+          if collection.respond_to?(:current) && collection.respond_to?(:current=)
+            begin
+              collection.current = nil if collection.current.equal?(material)
+            rescue StandardError
+              nil
+            end
+          end
           collection.remove(material)
         rescue StandardError
           nil
         end
+      end
+
+      # Material removal runs after the Face/Edge bulk actions. A component
+      # definition may have hundreds of instances; checking its child geometry
+      # for every instance is unnecessary and is what made bulk deletes lag.
+      # Direct materials on each instance are still checked, while a shared
+      # definition's contents are visited exactly once.
+      def used_candidate_materials(materials)
+        candidates = Array(materials).compact.each_with_object({}) do |material, map|
+          map[material.object_id] = true
+        end
+        used = {}
+        visited_definitions = {}
+        walk = nil
+        walk = lambda do |container|
+          container.each do |entity|
+            next unless entity.valid?
+
+            material = entity.material if entity.respond_to?(:material)
+            used[material.object_id] = true if material && candidates[material.object_id]
+            back_material = entity.back_material if entity.respond_to?(:back_material)
+            used[back_material.object_id] = true if back_material && candidates[back_material.object_id]
+
+            if entity.is_a?(Sketchup::Group)
+              walk.call(entity.entities)
+            elsif entity.is_a?(Sketchup::ComponentInstance) && entity.definition
+              definition = entity.definition
+              id = definition.entityID
+              next if visited_definitions[id]
+
+              visited_definitions[id] = true
+              walk.call(definition.entities)
+            end
+          end
+        end
+        walk.call(Sketchup.active_model.entities)
+        used
+      rescue StandardError
+        # A failed usage scan must retain materials rather than risk deleting a
+        # material that is still assigned somewhere in the model.
+        materials.each_with_object({}) { |material, map| map[material.object_id] = true if material }
       end
 
       def material_used_in_model?(material)
@@ -2397,10 +2882,6 @@ module MH
         false
       rescue StandardError
         true
-      end
-
-      def abf_sheet_types_tool
-        @abf_sheet_types_tool ||= ABF::SheetTypesTool.send(:new)
       end
 
       def normalize_hex(value)
@@ -2521,42 +3002,7 @@ module MH
       def surface_material_rows
         targets = {}
         definitions = {}
-        records = @last_records_by_id ? @last_records_by_id.values : part_records
-
-        records.each do |record|
-          entity = record[:entity]
-          next unless entity && entity.valid? && entity.respond_to?(:definition)
-
-          definition = entity.definition
-          next unless definition && !definitions[definition.entityID]
-
-          definitions[definition.entityID] = true
-          definition.entities.each do |child|
-            next unless child.valid?
-
-            if child.is_a?(Sketchup::Face)
-              add_surface_material_target(targets, child.material, :fronts, child, definition.entityID)
-              add_surface_material_target(targets, child.back_material, :backs, child, definition.entityID)
-            elsif child.is_a?(Sketchup::Edge) && child.respond_to?(:material)
-              add_surface_material_target(targets, child.material, :edges, child, definition.entityID)
-            end
-          end
-        end
-
-        outline_ids = {}
-        each_model_entity(Sketchup.active_model.entities) do |entity|
-          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
-          next if outline_ids[entity.persistent_id]
-          next unless edge_only_group?(entity)
-
-          material = primary_material(entity)
-          next unless material
-
-          outline_ids[entity.persistent_id] = true
-          parent = entity.parent
-          parent_definition_id = parent.entityID if parent.respond_to?(:entityID)
-          add_surface_material_target(targets, material, :outline_groups, entity, parent_definition_id)
-        end
+        scan_face_edge_materials(Sketchup.active_model.entities, targets, definitions, {})
 
         @surface_material_targets = targets
         targets.values.map do |target|
@@ -2570,6 +3016,51 @@ module MH
             'groups' => target[:outline_groups].length
           }
         end.sort_by { |row| row['name'].downcase }
+      end
+
+      # Keep the original Face & Edge table and its delete controls. Unlike
+      # the old scan, include loose and nested geometry too: a Face/Edge that
+      # is outside an ABF board must still be removable from this table.
+      # Component definitions are visited once to avoid double-counting shared
+      # geometry; every edge-only Group/Component instance remains listed.
+      def scan_face_edge_materials(container, targets, definitions, outline_ids, definition_id = nil)
+        container.each do |entity|
+          next unless entity.valid?
+
+          if entity.is_a?(Sketchup::Face)
+            add_surface_material_target(targets, entity.material, :fronts, entity, definition_id)
+            add_surface_material_target(targets, entity.back_material, :backs, entity, definition_id)
+            next
+          end
+
+          if entity.is_a?(Sketchup::Edge) && entity.respond_to?(:material)
+            add_surface_material_target(targets, entity.material, :edges, entity, definition_id)
+            next
+          end
+
+          next unless entity.is_a?(Sketchup::Group) || entity.is_a?(Sketchup::ComponentInstance)
+
+          if edge_only_group?(entity) && !outline_ids[entity.persistent_id]
+            material = primary_material(entity)
+            if material
+              outline_ids[entity.persistent_id] = true
+              parent = entity.parent
+              parent_definition_id = parent.entityID if parent.respond_to?(:entityID)
+              add_surface_material_target(targets, material, :outline_groups, entity, parent_definition_id)
+            end
+          end
+
+          definition = entity.definition
+          next unless definition
+
+          id = definition.entityID
+          next if definitions[id]
+
+          definitions[id] = true
+          scan_face_edge_materials(definition.entities, targets, definitions, outline_ids, id)
+        end
+      rescue StandardError
+        nil
       end
 
       def add_surface_material_target(targets, material, kind, entity, definition_id)
@@ -2605,23 +3096,29 @@ module MH
         false
       end
 
-      def clear_surface_material_targets(targets, operation_name)
+      def clear_surface_material_targets(targets, operation_name, kinds: nil)
         model = Sketchup.active_model
+        edited = targets.flat_map { |target| [:fronts, :backs, :edges, :outline_groups].flat_map { |key| Array(target[key]) } }
+        change_token = begin_hud_material_change(edited)
         materials = targets.map { |target| target[:material] }.compact.uniq
         @suspend_dirty_tracking = true
         begin
           model.start_operation(operation_name, true)
           targets.each do |target|
-            target[:fronts].each { |face| face.material = nil if face.valid? }
-            target[:backs].each { |face| face.back_material = nil if face.valid? }
-            target[:edges].each { |edge| edge.material = nil if edge.valid? && edge.respond_to?(:material=) }
-            target[:outline_groups].each { |entity| entity.material = nil if entity.valid? && entity.respond_to?(:material=) }
+            target[:fronts].each { |face| face.material = nil if face.valid? } if kinds.nil? || kinds.include?(:fronts)
+            target[:backs].each { |face| face.back_material = nil if face.valid? } if kinds.nil? || kinds.include?(:backs)
+            target[:edges].each { |edge| edge.material = nil if edge.valid? && edge.respond_to?(:material=) } if kinds.nil? || kinds.include?(:edges)
+            target[:outline_groups].each { |entity| entity.material = nil if entity.valid? && entity.respond_to?(:material=) } if kinds.nil? || kinds.include?(:outline_groups)
           end
-          remove_unused_materials(materials)
           model.commit_operation
         ensure
           @suspend_dirty_tracking = false
         end
+
+        # Do this after commit for the same reason as replace_surface_material:
+        # collection.remove can fail while SketchUp still has the transaction
+        # open, leaving a visually unused material in its Materials tray.
+        remove_unused_materials(materials)
 
         affected_ids = targets.flat_map do |target|
           target[:definition_ids].keys.flat_map { |id| Array(@definition_record_ids && @definition_record_ids[id]) }
@@ -2629,19 +3126,26 @@ module MH
         clear_dirty_entity_ids(affected_ids.uniq)
         clear_dirty_materials(materials)
         @surface_material_targets = nil
+        notify_material_code_change(change_token)
         refresh_surface_materials
         model.active_view.invalidate
       end
 
       def abf_sheet_type_rows
         return @abf_sheet_type_rows_cache if @abf_sheet_type_rows_cache
-        return [] unless defined?(ABF::SheetTypesTool)
 
-        tool = ABF::SheetTypesTool.send(:new)
-        captured = []
-        tool.define_singleton_method(:post_scan_types) { |obj| captured = Array(obj) }
-        tool.scan_types
-        @abf_sheet_type_rows_cache = captured
+        # Use the inventory already measured by MH Van. Constructing ABF's
+        # private UI tool and invoking scan_types repeated its whole-model scan
+        # and coupled this reader to another extension's tool lifecycle.
+        rows = {}
+        Array(@last_group_scan_items).each do |item|
+          material = item['raw_code'].to_s
+          thickness = item['thickness_value'].to_f
+          key = "#{format_thickness(thickness)}|#{material}"
+          row = rows[key] ||= { thickness: thickness, material: material, quantity: 0 }
+          row[:quantity] += 1
+        end
+        @abf_sheet_type_rows_cache = rows.values
       rescue StandardError
         []
       end
@@ -2801,6 +3305,12 @@ module MH
                 background: var(--header);
                 border-bottom: 1px solid #bdbdbd;
               }
+              .surface-actions {
+                display: flex;
+                align-items: center;
+                justify-content: flex-end;
+                gap: 6px;
+              }
               .table-wrap {
                 height: calc(100vh - 86px);
                 overflow: auto;
@@ -2944,7 +3454,8 @@ module MH
           </head>
           <body>
             <nav class="tabs" aria-label="Loại vật liệu">
-              <button class="tab active" data-tab="group">Group</button>
+              <button class="tab active" data-tab="nesting">Nesting</button>
+              <button class="tab" data-tab="no-nesting">All group/component</button>
               <button class="tab" data-tab="surface">Face &amp; Edge</button>
             </nav>
 
@@ -2986,14 +3497,18 @@ module MH
                   </colgroup>
                   <tbody id="rows"></tbody>
                 </table>
-                <div id="empty" class="empty" hidden>Không tìm thấy group/component dạng tấm trong model.</div>
+                <div id="empty" class="empty" hidden>Không tìm thấy Group/Component phù hợp trong model.</div>
               </div>
             </section>
 
             <section id="surfacePanel" class="panel" hidden>
               <div class="surface-toolbar">
                 <strong>Vật liệu Face &amp; Edge</strong>
-                <button id="clearAllSurface" class="tool-btn" title="Chuyển toàn bộ vật liệu Face và Edge về Default">Xóa tất cả</button>
+                <div class="surface-actions">
+                  <button id="clearAllFaces" class="tool-btn" title="Chuyển toàn bộ vật liệu Face về Default">Xóa Face</button>
+                  <button id="clearAllEdges" class="tool-btn" title="Chuyển toàn bộ vật liệu Edge về Default">Xóa Edge</button>
+                  <button id="clearAllSurface" class="tool-btn" title="Chuyển toàn bộ vật liệu Face và Edge về Default">Xóa tất cả</button>
+                </div>
               </div>
               <div class="table-wrap">
                 <table class="surface-table">
@@ -3018,11 +3533,17 @@ module MH
               let sortKey = 'thickness';
               let sortDir = 1;
               let filterText = '';
+              let groupScope = 'nesting';
+              let eyeButtons = new Map();
 
               function callRuby(name, payload = {}) {
                 if (window.sketchup && sketchup[name]) {
                   sketchup[name](JSON.stringify(payload));
                 }
+              }
+
+              function syncFastVisibility(data) {
+                document.getElementById('fastVisibility').checked = !!data.enabled;
               }
 
               function escapeHtml(value) {
@@ -3040,16 +3561,19 @@ module MH
 
               function updateVisibility(data) {
                 if (!Array.isArray(data)) return;
-                const active = document.activeElement;
-                const editing = active && active.classList && active.classList.contains('code');
                 const byKey = new Map(rows.map((row) => [row.key, row]));
                 data.forEach((item) => {
                   const row = byKey.get(item.key);
                   if (!row) return;
                   row.visible = !!item.visible;
                   row.all_hidden = !!item.all_hidden;
+                  const button = eyeButtons.get(item.key);
+                  if (button) {
+                    button.classList.toggle('off', !row.visible);
+                    button.setAttribute('aria-pressed', String(row.visible));
+                  }
                 });
-                if (!editing) draw();
+                syncMasterToggle();
               }
 
               function patchRows(payload) {
@@ -3087,6 +3611,8 @@ module MH
                     <td class="surface-delete"><button class="reset" title="Chuyển material này về Default" data-action="clear-surface" data-surface-id="${escapeHtml(row.id)}">×</button></td>
                   </tr>
                 `).join('');
+                document.getElementById('clearAllFaces').disabled = !surfaceRows.some((row) => Number(row.faces || 0) > 0);
+                document.getElementById('clearAllEdges').disabled = !surfaceRows.some((row) => Number(row.edges || 0) > 0);
                 document.getElementById('clearAllSurface').disabled = surfaceRows.length === 0;
               }
 
@@ -3118,7 +3644,8 @@ module MH
                 const empty = document.getElementById('empty');
                 const displayRows = sortedRows();
                 empty.hidden = displayRows.length > 0;
-                empty.textContent = rows.length === 0 ? 'Không tìm thấy group/component dạng tấm trong model.' : 'Không có dòng phù hợp.';
+                const scopeText = groupScope === 'no-nesting' ? 'Group/Component lớp ngoài cùng' : 'Group/Component dạng tấm ABF';
+                empty.textContent = rows.length === 0 ? `Không tìm thấy ${scopeText} trong model.` : 'Không có dòng phù hợp.';
                 body.innerHTML = displayRows.map((row, index) => `
                   <tr data-index="${index}">
                     <td class="eye-cell">
@@ -3135,6 +3662,7 @@ module MH
                     <td class="edit-cell"><button class="pencil" title="Chọn các object của dòng" data-action="select" data-key="${escapeHtml(row.key)}">♢</button></td>
                   </tr>
                 `).join('');
+                eyeButtons = new Map(Array.from(body.querySelectorAll('[data-action="visible"]'), (button) => [button.dataset.key, button]));
                 syncMasterToggle();
               }
 
@@ -3246,17 +3774,32 @@ module MH
 
               document.querySelectorAll('.tab').forEach((button) => {
                 button.addEventListener('click', () => {
-                  const surfaceActive = button.dataset.tab === 'surface';
+                  const tab = button.dataset.tab;
+                  const surfaceActive = tab === 'surface';
                   document.querySelectorAll('.tab').forEach((tab) => tab.classList.toggle('active', tab === button));
                   document.getElementById('groupPanel').hidden = surfaceActive;
                   document.getElementById('surfacePanel').hidden = !surfaceActive;
-                  if (surfaceActive) callRuby('refresh_surface_materials');
+                  if (surfaceActive) {
+                    callRuby('refresh_surface_materials');
+                  } else {
+                    groupScope = tab;
+                    draw();
+                    callRuby(tab === 'no-nesting' ? 'refresh_no_nesting' : 'refresh_nesting');
+                  }
                 });
               });
 
               document.getElementById('clearAllSurface').addEventListener('click', (event) => {
                 event.currentTarget.disabled = true;
                 callRuby('clear_all_surface_materials');
+              });
+
+              document.getElementById('clearAllFaces').addEventListener('click', () => {
+                callRuby('clear_all_face_materials');
+              });
+
+              document.getElementById('clearAllEdges').addEventListener('click', () => {
+                callRuby('clear_all_edge_materials');
               });
 
               if (window.sketchup) sketchup.ready();
